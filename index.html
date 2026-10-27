@@ -81,11 +81,26 @@ iframe { display: block; width: 100%; height: 640px; border: 0; background: var(
   try { history.replaceState(null, "", location.pathname); } catch (e) { /* not essential */ }
   let pending = null;
 
-  const fmt = (iso) => { try { return new Date(iso).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; } };
+  const fmt = (iso) => { try { return new Date(iso).toLocaleString("en-GB", { timeZone: "Europe/London", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; } };
+  // What a request that is no longer waiting means, in words.
+  const OUTCOME = {
+    approved: (by) => ["Already approved", `${by || "Someone"} approved this request. The email is being sent.`],
+    sending: (by) => ["Already approved", `${by || "Someone"} approved this request. The email is being sent.`],
+    sent: (by) => ["Already approved and sent", `${by || "Someone"} approved this request and the email has been sent.`],
+    failed: (by) => ["Approved, but sending failed", `${by || "Someone"} approved this request, but the email could not be sent. The requester can see what happened.`],
+    rejected: (by) => ["Rejected", `${by || "Someone"} rejected this request. Nothing was sent.`],
+    expired: () => ["This request has expired", "Nobody approved it within 24 hours, so nothing was sent. The requester can ask again."],
+  };
   function stop(title, text) { $("title").textContent = title; $("intro").textContent = text; $("request").hidden = true; }
 
   async function call(action) {
-    const res = await fetch(ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, action }) });
+    let res;
+    try {
+      res = await fetch(ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, action }), signal: AbortSignal.timeout(20000) });
+    } catch (e) {
+      throw new Error(action === "view" ? "The approval service could not be reached. Check your connection and open the link again."
+        : "The approval service did not answer, so your decision may not have been recorded. Open the link again to check.");
+    }
     let body = null; try { body = await res.json(); } catch (e) { body = null; }
     if (!res.ok || !body || body.ok !== true) throw new Error((body && body.error) || `The approval service answered ${res.status}.`);
     return body;
@@ -104,8 +119,8 @@ iframe { display: block; width: 100%; height: 640px; border: 0; background: var(
       $("email").srcdoc = String(r.html || "").split("cid:dyce-logo").join(LOGO);
       $("request").hidden = false;
       if (r.status !== "awaiting_approval") {
-        $("title").textContent = "Already decided";
-        $("intro").textContent = r.decided_by ? `This request was ${r.status} by ${r.decided_by}.` : `This request is ${r.status}.`;
+        const o = (OUTCOME[r.status] || (() => ["No longer waiting", "This request no longer needs a decision."]))(r.decided_by);
+        $("title").textContent = o[0]; $("intro").textContent = o[1];
         $("choose").hidden = true; return;
       }
       $("title").innerHTML = "Approve this <em>broker email?</em>";
