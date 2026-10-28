@@ -13,6 +13,7 @@
 :root { --magenta: #DE00B9; --navy: #0F2A34; --grey: #D8D9DB; --white: #FFFFFF; --raised: #EDEEEF; --muted: #5B6B72;
         --font: Montserrat, Calibri, "Segoe UI", system-ui, Arial, sans-serif; }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; background: var(--white); color: var(--navy); font-family: var(--font); font-size: 16px; line-height: 26px; }
 .wrap { max-width: 900px; margin: 0 auto; padding-inline: 20px; padding-block: 0 56px; }
 .top { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding-block: 22px; border-bottom: 1px solid var(--grey); flex-wrap: wrap; }
@@ -54,6 +55,7 @@ iframe { display: block; width: 100%; height: 640px; border: 0; background: var(
       <div><span class="label">From</span><span>Dyce Energy &lt;tpi@send.dyce-energy.co.uk&gt;</span></div>
       <div><span class="label">Attached</span><span id="mAttach"></span></div>
       <div><span class="label">Link expires</span><span id="mExpires"></span></div>
+      <div id="mSchedWrap" hidden><span class="label">Scheduled for</span><span id="mSched"></span></div>
     </div>
     <div class="frame">
       <div class="bar"><b>Subject</b> <span id="mSubject"></span></div>
@@ -79,17 +81,21 @@ iframe { display: block; width: 100%; height: 640px; border: 0; background: var(
   const token = m ? m[1].toLowerCase() : null;
   // Take the token out of the address bar, so it is not copied or bookmarked by mistake.
   try { history.replaceState(null, "", location.pathname); } catch (e) { /* not essential */ }
-  let pending = null;
+  let pending = null, sendAt = null;
 
   const fmt = (iso) => { try { return new Date(iso).toLocaleString("en-GB", { timeZone: "Europe/London", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; } };
   // What a request that is no longer waiting means, in words.
+  // A send approved for a time still to come waits until then.
+  const later = () => sendAt !== null && new Date(sendAt).getTime() > Date.now();
   const OUTCOME = {
-    approved: (by) => ["Already approved", `${by || "Someone"} approved this request. The email is being sent.`],
+    approved: (by) => ["Already approved", later() ? `${by || "Someone"} approved this request. It will go at ${fmt(sendAt)}.`
+      : `${by || "Someone"} approved this request. The email is being sent.`],
     sending: (by) => ["Already approved", `${by || "Someone"} approved this request. The email is being sent.`],
     sent: (by) => ["Already approved and sent", `${by || "Someone"} approved this request and the email has been sent.`],
     failed: (by) => ["Approved, but sending failed", `${by || "Someone"} approved this request, but the email could not be sent. The requester can see what happened.`],
     rejected: (by) => ["Rejected", `${by || "Someone"} rejected this request. Nothing was sent.`],
     expired: () => ["This request has expired", "Nobody approved it within 24 hours, so nothing was sent. The requester can ask again."],
+    cancelled: () => ["Cancelled", "The requester cancelled this email. Nothing was sent."],
   };
   function stop(title, text) { $("title").textContent = title; $("intro").textContent = text; $("request").hidden = true; }
 
@@ -115,6 +121,8 @@ iframe { display: block; width: 100%; height: 640px; border: 0; background: var(
       $("mAttach").textContent = r.attachment_filename || "Nothing (a link only)";
       $("mExpires").textContent = fmt(r.expires_at);
       $("mSubject").textContent = r.subject || "";
+      sendAt = r.send_after || null;
+      $("mSchedWrap").hidden = !sendAt; $("mSched").textContent = sendAt ? fmt(sendAt) : "";
       // The email exactly as brokers get it; the logo is attached to the real email, so show it here from the page.
       $("email").srcdoc = String(r.html || "").split("cid:dyce-logo").join(LOGO);
       $("request").hidden = false;
@@ -130,7 +138,7 @@ iframe { display: block; width: 100%; height: 640px; border: 0; background: var(
 
   function ask(approve) {
     pending = approve;
-    $("confirmText").textContent = approve ? "Approve and send this email now?" : "Reject this request? Nothing will be sent.";
+    $("confirmText").textContent = approve ? (later() ? `Approve this email to go at ${fmt(sendAt)}?` : "Approve and send this email now?") : "Reject this request? Nothing will be sent.";
     $("confirm").hidden = false; $("choose").hidden = true; $("yesBtn").focus();
   }
   $("approveBtn").addEventListener("click", () => ask(true));
@@ -141,7 +149,9 @@ iframe { display: block; width: 100%; height: 640px; border: 0; background: var(
     try {
       const out = await call(pending ? "approve" : "reject");
       $("confirm").hidden = true;
-      $("result").textContent = out.status === "approved" ? "Approved. The email is on its way; the requester can see its progress." : "Rejected. Nothing was sent.";
+      $("result").textContent = out.status === "approved"
+        ? (later() ? `Approved. It will go at ${fmt(sendAt)}; the requester can see its progress.` : "Approved. The email is on its way; the requester can see its progress.")
+        : "Rejected. Nothing was sent.";
       $("title").textContent = out.status === "approved" ? "Approved" : "Rejected";
     } catch (err) {
       $("result").textContent = "Not recorded: " + err.message;
