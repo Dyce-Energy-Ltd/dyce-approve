@@ -44,7 +44,7 @@ h1 em { font-style: normal; color: var(--brand-magenta); }
 .grid > * { min-width: 0; }
 .step { border-top: 1px solid var(--hairline); padding-top: 22px; margin-bottom: 34px; }
 .step h2 { font-size: 23px; line-height: 30px; font-weight: 800; margin: 0 0 14px; display: flex; gap: 12px; align-items: baseline; }
-.step h2 .n { color: var(--brand-magenta); font-variant-numeric: tabular-nums; }
+.step h2 .n { font-size: 24px; color: var(--brand-magenta); font-variant-numeric: tabular-nums; }
 .label, .field label, legend { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); }
 fieldset { border: 0; padding: 0; margin: 0 0 14px; display: grid; gap: 8px; }
 .choice { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--hairline); border-radius: 10px; padding: 10px 14px; cursor: pointer; background: var(--field); }
@@ -124,8 +124,9 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
       </div>
       <div class="field" id="codeStep" hidden><label for="siCode">6-digit code</label>
         <input type="text" id="siCode" placeholder="123456" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
-        <div class="actions" style="margin-top:6px"><button type="button" class="btn" id="finishBtn">Sign in</button><button type="button" class="btn ghost" id="backBtn">Use a different address</button></div>
+        <div class="actions" style="margin-top:6px"><button type="button" class="btn" id="finishBtn">Sign in</button><button type="button" class="btn ghost" id="newCodeBtn">Send a new code</button><button type="button" class="btn ghost" id="backBtn">Use a different address</button></div>
       </div>
+      <div class="actions" id="retryStep" hidden><button type="button" class="btn" id="retryBtn">Try again</button></div>
       <div class="msg" id="siMsg" role="status" hidden></div>
     </div>
   </section>
@@ -228,7 +229,7 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
 
   </div>
 
-  <p class="foot">Broker addresses are read from the database after you sign in and are never saved in this page. Data class: Amber.</p>
+  <p class="foot">Broker addresses are read from the database after you sign in and are never saved in this page. Data class: Red.</p>
 </div>
 
 <script>
@@ -248,6 +249,8 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
   let typed = [], lastSent = "";
   // The delivery list the database last returned, and the selection it was for.
   let delivery = null, deliveryFor = "", deliveryTimer = null, deliverySeq = 0;
+  // Only an https address with no spaces, quotes or angle brackets becomes a link in the preview or the email.
+  const safeLink = (u) => /^https:\/\/[^\s"<>]+$/.test(u || "") ? u : "";
   const ONE_ADDRESS = /^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$/;
 
   // ---------- helpers
@@ -260,17 +263,18 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
   const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || null; } catch { return null; } };
   const putToken = (t) => { try { localStorage.setItem(TOKEN_KEY, t); } catch { /* the page still works until it is closed */ } };
   const dropToken = () => { try { localStorage.removeItem(TOKEN_KEY); } catch { /* nothing to remove */ } };
-  async function post(body) {
+  async function post(body, ms) {
     let res, j;
     try {
-      res = await fetch(ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(20000) });
+      res = await fetch(ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(ms || 20000) });
       j = await res.json();
     } catch { throw { message: "The server did not answer. Check your connection and try again." }; }
     if (!j || typeof j !== "object") throw { message: "Unexpected answer from the server." };
     return { status: res.status, body: j };
   }
   async function api(action, args) {
-    const r = await post({ op: "call", token, action, args: args || {} });
+    // Upload parts carry about 400 KB each, so they get longer than the usual 20 seconds.
+    const r = await post({ op: "call", token, action, args: args || {} }, /^attachment_/.test(action) ? 60000 : 20000);
     if (r.status === 401 && r.body.signedOut) { showSignIn("Your session has ended. Sign in again."); throw { signedOut: true, message: "Your session has ended. Sign in again." }; }
     if (!r.body.ok) throw { message: r.body.error || "Something went wrong." };
     return r.body.result;
@@ -316,7 +320,7 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
     return { subject: `New prices are live from ${D}`, para: `Our new price books for ${P} are live from ${D}.` };
   }
   function emailHtml(logoSrc) {
-    const w = wording(); const link = $("link").value.trim(); const extra = $("extra").value.trim();
+    const w = wording(); const link = safeLink($("link").value.trim()); const extra = $("extra").value.trim();
     const F = "font-family:Calibri,Segoe UI,Arial,sans-serif;";
     const docLine = fileMeta && link ? "The price books are attached, and you can also open them using the button below."
       : fileMeta ? "The price books are attached to this email." : link ? "You can open the price books using the button below." : "";
@@ -512,7 +516,7 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
     } else {
       $("date").value = v.date || ""; $("products").value = v.products || ""; $("extra").value = v.extra || "";
     }
-    $("link").value = s.link_url || "";
+    $("link").value = safeLink(s.link_url);
     $("file").value = ""; fileB64 = null; fileMeta = null; $("fileInfo").textContent = "";
     $("sendAt").value = ""; lastSent = "";
     refresh(); where.textContent = note; window.scrollTo({ top: 0, behavior: "smooth" });
@@ -695,7 +699,11 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
     token = null; signedIn = false; REQUESTER = ""; dropToken();
     brokers = []; selected.clear(); typed = []; delivery = null; deliveryFor = ""; clearTimeout(deliveryTimer); deliverySeq++;
     $("app").hidden = true; $("signin").hidden = false; $("signOutBtn").hidden = true; $("conn").textContent = "";
-    $("emailStep").hidden = false; $("codeStep").hidden = true; $("siCode").value = "";
+    $("emailStep").hidden = false; $("codeStep").hidden = true; $("retryStep").hidden = true; $("siCode").value = "";
+    // Nothing typed by this person stays in the page for the next one.
+    for (const id of ["date", "products", "extra", "ownSubject", "ownBody", "link", "sendAt", "file", "addEmail", "search"]) $(id).value = "";
+    $("fileInfo").textContent = ""; fileB64 = null; fileMeta = null; lastSent = "";
+    $("e1").checked = true; document.querySelectorAll('input[name="kind"]').forEach(k => { k.checked = false; });
     setMsg(message || "");
   }
   async function boot() {
@@ -707,19 +715,28 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
       $("testBanner").hidden = !me.testing;
       renderApprovers(me); refresh();
       await loadBrokers(); loadRecent(); loadBounced();
-    } catch (err) { if (!(err && err.signedOut)) showSignIn(explain(err)); }
+    } catch (err) {
+      if (err && err.signedOut) return;
+      // Not a sign-out: keep the token, so a network blip or a server error does not end a valid session.
+      $("app").hidden = true; $("signin").hidden = false; $("signOutBtn").hidden = true;
+      $("emailStep").hidden = true; $("codeStep").hidden = true; $("retryStep").hidden = false;
+      setMsg(explain(err));
+    }
   }
-  $("startBtn").addEventListener("click", async () => {
+  async function doStart() {
     const email = $("siEmail").value.trim().toLowerCase();
     if (!email) { setMsg("Type your Dyce email address."); return; }
-    $("startBtn").disabled = true; setMsg("");
+    $("startBtn").disabled = true; $("newCodeBtn").disabled = true; setMsg("");
     try {
       const r = await post({ op: "start", email });
       if (r.status !== 200 || !r.body.ok) { setMsg(r.body.error || "The code could not be sent. Try again."); return; }
       $("emailStep").hidden = true; $("codeStep").hidden = false; $("siCode").focus();
       setMsg(`If ${email} can sign in, a code is on its way. It lasts 10 minutes.`);
-    } catch (err) { setMsg(explain(err)); } finally { $("startBtn").disabled = false; }
-  });
+    } catch (err) { setMsg(explain(err)); } finally { $("startBtn").disabled = false; $("newCodeBtn").disabled = false; }
+  }
+  $("startBtn").addEventListener("click", doStart);
+  $("newCodeBtn").addEventListener("click", doStart);
+  $("retryBtn").addEventListener("click", () => { $("retryStep").hidden = true; setMsg(""); boot(); });
   $("finishBtn").addEventListener("click", async () => {
     const email = $("siEmail").value.trim().toLowerCase(), code = $("siCode").value.trim();
     if (!/^[0-9]{6}$/.test(code)) { setMsg("The code is 6 digits."); return; }
