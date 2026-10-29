@@ -63,9 +63,7 @@ iframe { display: block; width: 100%; height: 640px; border: 0; background: var(
     </div>
     <section class="decide" aria-labelledby="decideTitle">
       <div class="label" id="decideTitle">Your decision</div>
-      <div class="actions" id="choose"><button type="button" class="btn" id="approveBtn">Approve</button><button type="button" class="btn ghost" id="rejectBtn">Reject</button></div>
-      <div id="confirm" hidden class="msg"><div id="confirmText"></div>
-        <div class="actions" style="margin-top:10px"><button type="button" class="btn" id="yesBtn">Yes</button><button type="button" class="btn ghost" id="noBtn">Go back</button></div></div>
+      <div class="actions" id="choose"><button type="button" class="btn" id="approveBtn">Approve and send now</button><button type="button" class="btn ghost" id="rejectBtn">Reject</button></div>
       <div class="msg" id="result" role="status"></div>
     </section>
   </div>
@@ -81,7 +79,7 @@ iframe { display: block; width: 100%; height: 640px; border: 0; background: var(
   const token = m ? m[1].toLowerCase() : null;
   // Take the token out of the address bar, so it is not copied or bookmarked by mistake.
   try { history.replaceState(null, "", location.pathname); } catch (e) { /* not essential */ }
-  let pending = null, sendAt = null;
+  let sendAt = null;
 
   const fmt = (iso) => { try { return new Date(iso).toLocaleString("en-GB", { timeZone: "Europe/London", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; } };
   // What a request that is no longer waiting means, in words.
@@ -132,32 +130,28 @@ iframe { display: block; width: 100%; height: 640px; border: 0; background: var(
         $("choose").hidden = true; return;
       }
       $("title").innerHTML = "Approve this <em>broker email?</em>";
+      // One click decides, so the button says exactly what it does.
+      $("approveBtn").textContent = later() ? `Approve to send at ${fmt(sendAt)}` : "Approve and send now";
       $("intro").textContent = `${r.requester_name || "A colleague"} has asked to send the email below. Nothing goes to any broker until it is approved.`;
     } catch (err) { stop("This request cannot be opened", err.message); }
   }
 
-  function ask(approve) {
-    pending = approve;
-    $("confirmText").textContent = approve ? (later() ? `Approve this email to go at ${fmt(sendAt)}?` : "Approve and send this email now?") : "Reject this request? Nothing will be sent.";
-    $("confirm").hidden = false; $("choose").hidden = true; $("yesBtn").focus();
-  }
-  $("approveBtn").addEventListener("click", () => ask(true));
-  $("rejectBtn").addEventListener("click", () => ask(false));
-  $("noBtn").addEventListener("click", () => { $("confirm").hidden = true; $("choose").hidden = false; pending = null; });
-  $("yesBtn").addEventListener("click", async () => {
-    $("yesBtn").disabled = true; $("noBtn").disabled = true;
+  async function decide(approve) {
+    $("approveBtn").disabled = true; $("rejectBtn").disabled = true;
     try {
-      const out = await call(pending ? "approve" : "reject");
-      $("confirm").hidden = true;
+      const out = await call(approve ? "approve" : "reject");
+      $("choose").hidden = true;
       $("result").textContent = out.status === "approved"
         ? (later() ? `Approved. It will go at ${fmt(sendAt)}; the requester can see its progress.` : "Approved. The email is on its way; the requester can see its progress.")
         : "Rejected. Nothing was sent.";
       $("title").textContent = out.status === "approved" ? "Approved" : "Rejected";
     } catch (err) {
       $("result").textContent = "Not recorded: " + err.message;
-      $("yesBtn").disabled = false; $("noBtn").disabled = false;
+      $("approveBtn").disabled = false; $("rejectBtn").disabled = false;
     }
-  });
+  }
+  $("approveBtn").addEventListener("click", () => decide(true));
+  $("rejectBtn").addEventListener("click", () => decide(false));
   load();
 })();
 </script>
