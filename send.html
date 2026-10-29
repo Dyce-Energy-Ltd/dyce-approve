@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; connect-src https://rlpnbwjppylhcpybpqim.supabase.co; base-uri 'none'; form-action 'none'">
 <title>Dyce Broker Emails</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,800;1,400&display=swap">
@@ -116,14 +117,14 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
 
   <section id="signin" class="signin" aria-labelledby="signinTitle">
     <h1 id="signinTitle" style="margin-top:34px">Sign <em>in</em></h1>
-    <p class="stand">Sign in with your Dyce email address. We will email you a 6-digit code.</p>
+    <p class="stand">Sign in with your Dyce email address. We will email you an 8-digit code.</p>
     <div class="signin-box">
       <div class="field" id="emailStep"><label for="siEmail">Dyce email address</label>
         <input type="email" id="siEmail" placeholder="name@dyce-energy.co.uk" autocomplete="username" inputmode="email">
         <div class="actions" style="margin-top:6px"><button type="button" class="btn" id="startBtn">Email me a code</button></div>
       </div>
-      <div class="field" id="codeStep" hidden><label for="siCode">6-digit code</label>
-        <input type="text" id="siCode" placeholder="123456" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+      <div class="field" id="codeStep" hidden><label for="siCode">8-digit code</label>
+        <input type="text" id="siCode" placeholder="12345678" maxlength="8" inputmode="numeric" autocomplete="one-time-code">
         <div class="actions" style="margin-top:6px"><button type="button" class="btn" id="finishBtn">Sign in</button><button type="button" class="btn ghost" id="newCodeBtn">Send a new code</button><button type="button" class="btn ghost" id="backBtn">Use a different address</button></div>
       </div>
       <div class="actions" id="retryStep" hidden><button type="button" class="btn" id="retryBtn">Try again</button></div>
@@ -739,7 +740,7 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
   $("retryBtn").addEventListener("click", () => { $("retryStep").hidden = true; setMsg(""); boot(); });
   $("finishBtn").addEventListener("click", async () => {
     const email = $("siEmail").value.trim().toLowerCase(), code = $("siCode").value.trim();
-    if (!/^[0-9]{6}$/.test(code)) { setMsg("The code is 6 digits."); return; }
+    if (!/^[0-9]{8}$/.test(code)) { setMsg("The code is 8 digits."); return; }
     $("finishBtn").disabled = true; setMsg("");
     try {
       const r = await post({ op: "finish", email, code });
