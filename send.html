@@ -271,7 +271,8 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
 
     <section class="rw-section" aria-labelledby="rwSentTitle">
       <div class="recent-head"><h2 id="rwSentTitle" style="font-size:23px;line-height:30px;font-weight:800;margin:0">Recently sent</h2><button type="button" class="btn ghost small" id="rwSentBtn">Refresh</button></div>
-      <p class="hint" style="margin:6px 0 0">Newest first. "Meant for" is who the email was for. "Went to" is the address it was sent to, which differs while the redirect is set; an email not sent shows "Addressed to".</p>
+      <p class="hint" style="margin:6px 0 0">Newest first. "Meant for" is who the email was for. "Went to" is the address it was sent to, which differs while the redirect is set; an email not sent shows "Addressed to". An email made up by the run but not yet sent has a Stop button.</p>
+      <div class="msg" id="rwSentMsg" role="status" hidden></div>
       <div class="list" id="rwSent"><div class="empty">Loading…</div></div>
       <div class="actions" style="margin-top:14px"><button type="button" class="btn ghost small" id="rwOlderBtn" hidden>Show older</button></div>
     </section>
@@ -782,7 +783,10 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
     const ds = [...new Set((e.contracts || []).map(c => c.days_before).filter(d => d != null))].sort((a, b) => b - a);
     return ds.length ? `${listDays(ds)} days` : "";
   }
-  const stopWords = (s) => s ? `Stopped by ${s.by} on ${ukDay(s.at)}: ${s.reason}` : "Stopped";
+  const byWords = (s) => s ? ` by ${s.by} on ${ukDay(s.at)}: ${s.reason}` : "";
+  const stopWords = (s) => `Stopped${byWords(s)}`;
+  // The run has already made up this email; the database refuses to stop part of it.
+  const MADE_UP = "This email is already made up for today. Stop all of it.";
   function sayIn(id, text) { $(id).hidden = !text; $(id).textContent = text || ""; }
 
   // The inline reason box under a Stop or Restart button. The reason is required, up to 500
@@ -823,12 +827,15 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
     const aud = AUDIENCE[e.audience] || e.audience;
     left.append(el("div", "t", `${aud} to ${e.to || "no address"}`));
     const cs = Array.isArray(e.contracts) ? e.contracts : [];
-    left.append(el("div", "d", [milestone(e), e.broker_name ? `Broker: ${e.broker_name}` : "", e.customer_name ? `Customer: ${e.customer_name}` : "",
-      e.audience === "customer" ? (e.cc ? `Copy: ${e.cc}` : "No copy") : ""].filter(Boolean).join(" · ")));
+    // The copy shows on any email that has one; a customer notice without one says so, and why when a broker stop took it off.
+    const copy = e.cc ? `Copy: ${e.cc}` : (e.audience === "customer" && !e.broker_stop ? "No copy" : "");
+    left.append(el("div", "d", [milestone(e), e.broker_name ? `Broker: ${e.broker_name}` : "", e.customer_name ? `Customer: ${e.customer_name}` : "", copy].filter(Boolean).join(" · ")));
+    if (!e.cc && e.audience === "customer" && e.broker_stop) left.append(el("div", "d", `No copy: broker stopped${byWords(e.broker_stop)}`));
     const ul = el("ul", "rw-contracts"); ul.setAttribute("aria-label", plural(cs.length, "contract", "contracts"));
     for (const c of cs) ul.append(el("li", "", [c.mpxn || "no meter", c.fuel || "", `ends ${ukDate(c.contract_end_date)}`, e.days_before == null && c.days_before != null ? `${c.days_before} days` : ""].filter(Boolean).join(" · ")));
     left.append(ul);
-    if (e.outcome !== "queued") left.append(el("div", "rw-why", e.outcome === "stopped" ? stopWords(cs[0] && cs[0].stop) : (OUTCOME[e.outcome] || e.outcome)));
+    if (e.outcome !== "queued") left.append(el("div", "rw-why", e.outcome === "stopped" ? stopWords(cs[0] && cs[0].stop)
+      : e.outcome === "broker_stopped" ? `Broker stopped${byWords(e.broker_stop)}` : (OUTCOME[e.outcome] || e.outcome)));
     const items = cs.map(c => ({ contract_id: c.contract_id, days_before: c.days_before }));
     const host = el("div");
     // Stop sends every contract of the email in one call: after the 09:30 run the database refuses part of one.
@@ -837,7 +844,16 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
       b.addEventListener("click", () => askReason(host, b, {
         question: `Stop the ${aud.toLowerCase()} to ${e.to || "no address"} going on ${dayLabel(e.send_day)}? Its ${plural(cs.length, "contract", "contracts")} at ${milestone(e)} will not get it. A milestone the run catches while stopped stays skipped, even after a restart.`,
         confirm: "Yes, stop it",
-        run: async (reason) => { const r = await api("renewals_stop", { items, reason }); sayIn("rwUpMsg", `Stopped: ${plural((r && r.stopped) || 0, "contract", "contracts")}.`); loadUpcoming(); },
+        run: async (reason) => {
+          let r;
+          try { r = await api("renewals_stop", { items, reason }); }
+          catch (err) {
+            // The 09:30 run made it up since this list loaded: it is under Recently sent, with its own Stop.
+            if (err && err.message === MADE_UP) { loadSent(false); throw { message: "The 09:30 run has already made up this email. Stop all of it under Recently sent." }; }
+            throw err;
+          }
+          sayIn("rwUpMsg", `Stopped: ${plural((r && r.stopped) || 0, "contract", "contracts")}.`); loadUpcoming();
+        },
       }));
       left.append(b);
     } else if (e.outcome === "stopped") {
@@ -883,7 +899,11 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
   function sentRow(x) {
     const row = el("div", "row"); const left = el("div");
     left.append(el("div", "t", x.subject || "(no subject)"));
-    left.append(el("div", "d", [x.sent_at ? `Sent ${fmt(x.sent_at)}` : "Not sent", x.days_before != null ? `${x.days_before} days` : "", AUDIENCE[x.audience] || x.audience].filter(Boolean).join(" · ")));
+    // Every milestone the email covers: "120 and 90 days" for a broker email that covers two.
+    const ms = Array.isArray(x.milestones) ? x.milestones.filter(d => d != null) : [];
+    const mText = ms.length > 1 ? `${listDays(ms)} days` : (x.days_before != null ? `${x.days_before} days` : "");
+    const aud = AUDIENCE[x.audience] || x.audience;
+    left.append(el("div", "d", [x.sent_at ? `Sent ${fmt(x.sent_at)}` : "Not sent", mText, aud].filter(Boolean).join(" · ")));
     left.append(el("div", "d", `Meant for ${x.intended_to || "nobody"}${x.intended_cc ? `, copy ${x.intended_cc}` : ", no copy"}`));
     left.append(el("div", "d", `${x.status === "sent" ? "Went to" : "Addressed to"} ${x.actual_to || "nobody"}${x.actual_cc ? `, copy ${x.actual_cc}` : ", no copy"}`));
     const view = smallBtn("View"); view.setAttribute("aria-expanded", "false");
@@ -908,7 +928,19 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
       } catch (err) { if (gen === rwGen && !(err && err.signedOut)) where.textContent = explain(err); }
       finally { view.disabled = false; }
     });
-    left.append(view, where, holder);
+    left.append(view);
+    const host = el("div");
+    // Stop only while the database says the email is unsent: queued, or failed with attempts left.
+    if (x.can_stop === true && Number.isInteger(x.message_id)) {
+      const b = smallBtn("Stop"); b.setAttribute("aria-label", `Stop the ${String(aud).toLowerCase()} to ${x.intended_to || "nobody"}`);
+      b.addEventListener("click", () => askReason(host, b, {
+        question: `Stop the ${String(aud).toLowerCase()} to ${x.intended_to || "nobody"}? The run has made it up but it has not gone. It will not go, and its ${mText || "milestones"} stay skipped, even after a restart.`,
+        confirm: "Yes, stop it",
+        run: async (reason) => { await api("renewals_stop", { message_id: x.message_id, reason }); sayIn("rwSentMsg", `Stopped the ${String(aud).toLowerCase()} to ${x.intended_to || "nobody"}.`); loadSent(false); },
+      }));
+      left.append(b);
+    }
+    left.append(where, holder, host);
     row.append(left, el("span", "state", SENT_STATE[x.status] || x.status));
     return row;
   }
@@ -1005,7 +1037,7 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
   // A broker stop or restart changes the stopped list, the picker and the rows going out.
   function afterBrokerChange() { loadStopped(); loadPicker(); loadUpcoming(); }
   $("rwUpBtn").addEventListener("click", () => { sayIn("rwUpMsg", ""); loadUpcoming(); });
-  $("rwSentBtn").addEventListener("click", () => loadSent(false));
+  $("rwSentBtn").addEventListener("click", () => { sayIn("rwSentMsg", ""); loadSent(false); });
   $("rwOlderBtn").addEventListener("click", () => loadSent(true));
   $("rwStopBtn").addEventListener("click", () => { sayIn("rwStopMsg", ""); loadStopped(); loadPicker(); });
   function loadRenewals() { rwLoaded = true; loadUpcoming(); loadSent(false); loadStopped(); loadPicker(); }
@@ -1013,7 +1045,7 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
   function resetRenewals() {
     rwGen++; rwLoaded = false; rwNext = null; rwBrokers = [];
     for (const id of ["rwUp", "rwSent", "rwStopped"]) { $(id).textContent = ""; $(id).append(emptyLine("Loading…")); }
-    for (const id of ["rwUpMsg", "rwStopMsg", "rwGoLive", "rwBanner"]) { $(id).textContent = ""; $(id).hidden = true; }
+    for (const id of ["rwUpMsg", "rwSentMsg", "rwStopMsg", "rwGoLive", "rwBanner"]) { $(id).textContent = ""; $(id).hidden = true; }
     $("rwOlderBtn").hidden = true; $("rwSearch").value = ""; $("rwPick").textContent = ""; $("rwPickAsk").textContent = ""; $("rwPickStop").disabled = true;
   }
 
