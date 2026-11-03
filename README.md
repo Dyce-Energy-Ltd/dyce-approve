@@ -12,4 +12,6 @@ Source of the logic: Dyce-Energy-Ltd/dyce-spine, supabase/functions/comms-approv
 
 All GitHub Pages sites of the Dyce-Energy-Ltd organisation share the origin `https://dyce-energy-ltd.github.io`, so they share that localStorage and the comms-web CORS allowance. **No other repository in the organisation may enable GitHub Pages** unless this page first moves to its own domain.
 
+The page has two tabs, Broker price emails and Renewal emails, and remembers the last one used in this browser (localStorage key `dyce.tab`). The Renewal emails tab shows what the renewals journey will send at its 09:30 weekday run in the next 10 days, grouped by the day each email goes, with the reason for any that will not go; the renewal emails already sent, 50 at a time, each viewable as stored in a sandboxed frame; and the stopped brokers. Anyone signed in can stop or restart an email or a broker, always with a reason. The tab never sends anything, and while the journey's redirect is set it says where every email goes. It calls the `renewals_*` actions of `comms.web_call` through the same comms-web function.
+
 Source of the logic: Dyce-Energy-Ltd/dyce-spine, supabase/functions/comms-web. Data class: Red (it shows broker names and addresses after sign-in). Owner: Phil Brook.
