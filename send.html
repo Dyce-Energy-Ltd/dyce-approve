@@ -105,6 +105,25 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
 .signin { max-width: 520px; display: grid; gap: 14px; margin-top: 22px; }
 .signin-box { border: 1px solid var(--hairline); border-radius: var(--r-card); padding: 22px; background: var(--surface-raised); display: grid; gap: 14px; }
 .who { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+/* Tabs: Broker price emails and Renewal emails. The selected tab is marked by a magenta rule. */
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--hairline); margin-top: 22px; }
+.tab { font: inherit; font-weight: 800; font-size: 15px; line-height: 22px; padding: 12px 18px; background: transparent; color: var(--muted); border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px; cursor: pointer; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--brand-magenta); }
+.tab:focus-visible { outline: 3px solid var(--brand-magenta); outline-offset: 2px; }
+/* Renewal emails tab */
+.rw-section { margin-top: 56px; }
+.rw-section:first-of-type { margin-top: 34px; }
+.rw-day { font-size: 17px; line-height: 23px; font-weight: 800; margin: 22px 0 0; }
+.rw-contracts { list-style: none; margin: 6px 0 0; padding: 0; font-size: 13px; line-height: 20px; font-variant-numeric: tabular-nums; }
+.rw-contracts li { overflow-wrap: anywhere; }
+.rw-why { font-size: 13px; line-height: 20px; font-weight: 800; margin-top: 4px; overflow-wrap: anywhere; }
+.rw-ask { border: 1px solid var(--hairline); border-radius: 10px; padding: 14px; background: var(--surface-raised); display: grid; gap: 10px; margin-top: 10px; max-width: 640px; }
+.rw-view { margin-top: 10px; }
+.rw-frame { display: block; width: 100%; height: 560px; border: 0; background: var(--brand-white); }
+.rw-picker { display: grid; gap: 10px; max-width: 640px; margin-top: 14px; }
+.rw-picker select { font: inherit; font-size: 14px; line-height: 20px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; width: 100%; padding: 6px; box-sizing: border-box; }
+.rw-picker select:focus-visible, .rw-ask textarea:focus-visible { outline: 3px solid var(--brand-magenta); outline-offset: 2px; }
 </style>
 </head>
 <body>
@@ -133,6 +152,13 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
   </section>
 
   <div id="app" hidden>
+
+  <div class="tabs" role="tablist" aria-label="Pages" id="tabs">
+    <button type="button" class="tab" role="tab" id="tabPrice" aria-controls="panelPrice" aria-selected="true" tabindex="0" data-tab="price">Broker price emails</button>
+    <button type="button" class="tab" role="tab" id="tabRenew" aria-controls="panelRenew" aria-selected="false" tabindex="-1" data-tab="renewals">Renewal emails</button>
+  </div>
+
+  <div id="panelPrice" role="tabpanel" aria-labelledby="tabPrice">
 
   <h1>Broker <em>emails</em></h1>
   <p class="stand">Choose a price email or write your own, add the document as a file, a link or both, check the brokers, and send. Emails go from tpi@send.dyce-energy.co.uk; replies land in the tpi@ mailbox.</p>
@@ -227,6 +253,45 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
     <p class="hint" style="margin:6px 0 0">Broker addresses that bounced or marked an email as spam. Fix the address at source; an address leaves this list once a later email to it is delivered.</p>
     <div class="list" id="bounced"><div class="empty">Loading…</div></div>
   </section>
+
+  </div>
+
+  <div id="panelRenew" role="tabpanel" aria-labelledby="tabRenew" hidden>
+    <h1>Renewal <em>emails</em></h1>
+    <p class="stand">What the renewals journey sends at 09:30 each weekday, and what it has sent. You can stop an email or a broker, with a reason, and restart it. Nothing on this tab sends an email.</p>
+    <div class="banner" id="rwBanner" role="status" hidden></div>
+
+    <section class="rw-section" aria-labelledby="rwUpTitle">
+      <div class="recent-head"><h2 id="rwUpTitle" style="font-size:23px;line-height:30px;font-weight:800;margin:0">Going out in the next 10 days</h2><button type="button" class="btn ghost small" id="rwUpBtn">Refresh</button></div>
+      <p class="hint" style="margin:6px 0 0">Grouped by the day each email goes. A weekend milestone goes on the Monday. A milestone the run catches while it is stopped stays skipped, even after a restart.</p>
+      <p class="hint" id="rwGoLive" hidden></p>
+      <div class="msg" id="rwUpMsg" role="status" hidden></div>
+      <div id="rwUp"><div class="empty">Loading…</div></div>
+    </section>
+
+    <section class="rw-section" aria-labelledby="rwSentTitle">
+      <div class="recent-head"><h2 id="rwSentTitle" style="font-size:23px;line-height:30px;font-weight:800;margin:0">Recently sent</h2><button type="button" class="btn ghost small" id="rwSentBtn">Refresh</button></div>
+      <p class="hint" style="margin:6px 0 0">Newest first. "Meant for" is who the email was for. "Went to" is the address it was sent to, which differs while the redirect is set; an email not sent shows "Addressed to". An email made up by the run but not yet sent has a Stop button.</p>
+      <div class="msg" id="rwSentMsg" role="status" hidden></div>
+      <div class="list" id="rwSent"><div class="empty">Loading…</div></div>
+      <div class="actions" style="margin-top:14px"><button type="button" class="btn ghost small" id="rwOlderBtn" hidden>Show older</button></div>
+    </section>
+
+    <section class="rw-section" aria-labelledby="rwStopTitle">
+      <div class="recent-head"><h2 id="rwStopTitle" style="font-size:23px;line-height:30px;font-weight:800;margin:0">Stopped brokers</h2><button type="button" class="btn ghost small" id="rwStopBtn">Refresh</button></div>
+      <p class="hint" style="margin:6px 0 0">A stopped broker gets no broker emails and is not copied on customer notices. Their customers still get their 60 and 30 day notices.</p>
+      <div class="msg" id="rwStopMsg" role="status" hidden></div>
+      <div class="list" id="rwStopped"><div class="empty">Loading…</div></div>
+      <div class="rw-picker">
+        <h3 class="rw-day" style="margin:8px 0 0">Stop a broker</h3>
+        <div class="field"><label for="rwSearch">Search brokers</label><input type="search" id="rwSearch" placeholder="Search name or email" autocomplete="off"></div>
+        <div class="field"><label for="rwPick">Broker</label><select id="rwPick" size="8"></select></div>
+        <div class="actions"><button type="button" class="btn small" id="rwPickStop" disabled>Stop this broker</button></div>
+        <div id="rwPickAsk"></div>
+      </div>
+    </section>
+    <p class="hint" style="margin-top:34px">Broker and customer names, addresses and meters are read from the database after you sign in and are never saved in this page.</p>
+  </div>
 
   </div>
 
@@ -672,6 +737,318 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
     } finally { busy = false; refresh(); }
   });
 
+  // ---------- tabs: Broker price emails and Renewal emails (ARIA tab pattern, automatic activation)
+  const TAB_KEY = "dyce.tab";
+  const TABS = [{ name: "price", tab: "tabPrice", panel: "panelPrice" }, { name: "renewals", tab: "tabRenew", panel: "panelRenew" }];
+  let currentTab = "price";
+  try { if (localStorage.getItem(TAB_KEY) === "renewals") currentTab = "renewals"; } catch { /* the first tab */ }
+  function selectTab(name, focus) {
+    currentTab = TABS.some(t => t.name === name) ? name : "price";
+    for (const t of TABS) {
+      const on = t.name === currentTab;
+      $(t.tab).setAttribute("aria-selected", on ? "true" : "false"); $(t.tab).tabIndex = on ? 0 : -1;
+      $(t.panel).hidden = !on;
+      if (on && focus) $(t.tab).focus();
+    }
+    try { localStorage.setItem(TAB_KEY, currentTab); } catch { /* remembered for this visit only */ }
+    if (currentTab === "renewals" && signedIn && !rwLoaded) loadRenewals();
+  }
+  $("tabs").addEventListener("click", (e) => { const b = e.target.closest('[role="tab"]'); if (b) selectTab(b.dataset.tab, false); });
+  $("tabs").addEventListener("keydown", (e) => {
+    const i = TABS.findIndex(t => t.name === currentTab); let j = -1;
+    if (e.key === "ArrowRight") j = (i + 1) % TABS.length; else if (e.key === "ArrowLeft") j = (i - 1 + TABS.length) % TABS.length;
+    else if (e.key === "Home") j = 0; else if (e.key === "End") j = TABS.length - 1;
+    if (j < 0) return; e.preventDefault(); selectTab(TABS[j].name, true);
+  });
+
+  // ---------- renewal emails: what goes in the next 10 days, what has gone, stopped brokers.
+  // The page only reads, stops and restarts; the database decides everything else and its
+  // sentence is shown as it comes.
+  let rwLoaded = false, rwGen = 0, rwNext = null, rwBrokers = [], rwAskSeq = 0;
+  const OUTCOME = { queued: "Goes", stopped: "Stopped", broker_stopped: "Broker stopped", skipped_direct: "Direct contract", no_address: "No address", no_rate: "No out-of-contract rate" };
+  const SENT_STATE = { queued: "Queued", sending: "Sending", sent: "Sent", failed: "Failed", refused: "Refused", stopped: "Stopped" };
+  const AUDIENCE = { broker: "Broker email", customer: "Customer notice" };
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
+  const emptyLine = (text) => el("div", "empty", text);
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  // A London date from a timestamp, DD/MM/YYYY.
+  const ukDay = (ts) => { try { return new Date(ts).toLocaleDateString("en-GB", { timeZone: "Europe/London", day: "2-digit", month: "2-digit", year: "numeric" }); } catch { return ""; } };
+  // "Wednesday 04/11/2026" from an ISO date. The date is a calendar day, so it is read as UTC.
+  const dayLabel = (iso) => { const [y, m, d] = String(iso).split("-").map(Number); const w = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-GB", { weekday: "long", timeZone: "UTC" }); return `${w} ${ukDate(iso)}`; };
+  const todayLondon = () => new Date().toLocaleDateString("en-CA", { timeZone: "Europe/London" });
+  const listDays = (ds) => ds.length <= 1 ? String(ds[0] ?? "") : ds.slice(0, -1).join(", ") + " and " + ds[ds.length - 1];
+  // "90 days", or "120 and 90 days" for a broker email that covers more than one milestone.
+  function milestone(e) {
+    if (e.days_before != null) return `${e.days_before} days`;
+    const ds = [...new Set((e.contracts || []).map(c => c.days_before).filter(d => d != null))].sort((a, b) => b - a);
+    return ds.length ? `${listDays(ds)} days` : "";
+  }
+  const byWords = (s) => s ? ` by ${s.by} on ${ukDay(s.at)}: ${s.reason}` : "";
+  const stopWords = (s) => `Stopped${byWords(s)}`;
+  // The run has already made up this email; the database refuses to stop part of it.
+  const MADE_UP = "This email is already made up for today. Stop all of it.";
+  function sayIn(id, text) { $(id).hidden = !text; $(id).textContent = text || ""; }
+
+  // The inline reason box under a Stop or Restart button. The reason is required, up to 500
+  // characters; the database checks it again and its sentence is shown if it refuses.
+  function askReason(host, btn, opts) {
+    const open = host.querySelector(".rw-ask"); if (open) { open.querySelector("textarea").focus(); return; }
+    const id = `rwReason${++rwAskSeq}`, gen = rwGen;
+    const box = el("div", "rw-ask");
+    const q = el("div", "msg", opts.question);
+    const f = el("div", "field"); const l = el("label", "", "Reason (required, up to 500 characters)"); l.htmlFor = id;
+    const ta = document.createElement("textarea"); ta.id = id; ta.rows = 3; ta.maxLength = 500; ta.required = true;
+    f.append(l, ta);
+    const acts = el("div", "actions");
+    const yes = el("button", "btn small", opts.confirm); yes.type = "button";
+    const no = el("button", "btn ghost small", "Go back"); no.type = "button";
+    acts.append(yes, no);
+    const out = el("div", "msg"); out.setAttribute("role", "status");
+    box.append(q, f, acts, out); host.append(box);
+    btn.disabled = true; ta.focus();
+    const close = () => { box.remove(); btn.disabled = false; btn.focus(); };
+    no.addEventListener("click", close);
+    yes.addEventListener("click", async () => {
+      const reason = ta.value.trim();
+      if (!reason || reason.length > 500) { out.textContent = "Give a reason, up to 500 characters."; ta.focus(); return; }
+      yes.disabled = true; no.disabled = true; out.textContent = "Saving…";
+      try {
+        await opts.run(reason);
+      } catch (err) {
+        if (gen !== rwGen || (err && err.signedOut)) return;
+        out.textContent = explain(err); yes.disabled = false; no.disabled = false;
+      }
+    });
+  }
+
+  // Going out in the next 10 days. Every email listed goes on or before today + 10, and is listed whole.
+  function upcomingRow(e) {
+    const row = el("div", "row"); const left = el("div");
+    const aud = AUDIENCE[e.audience] || e.audience;
+    left.append(el("div", "t", `${aud} to ${e.to || "no address"}`));
+    const cs = Array.isArray(e.contracts) ? e.contracts : [];
+    // The copy shows on any email that has one; a customer notice without one says so, and why when a broker stop took it off.
+    const copy = e.cc ? `Copy: ${e.cc}` : (e.audience === "customer" && !e.broker_stop ? "No copy" : "");
+    left.append(el("div", "d", [milestone(e), e.broker_name ? `Broker: ${e.broker_name}` : "", e.customer_name ? `Customer: ${e.customer_name}` : "", copy].filter(Boolean).join(" · ")));
+    if (!e.cc && e.audience === "customer" && e.broker_stop) left.append(el("div", "d", `No copy: broker stopped${byWords(e.broker_stop)}`));
+    const ul = el("ul", "rw-contracts"); ul.setAttribute("aria-label", plural(cs.length, "contract", "contracts"));
+    for (const c of cs) ul.append(el("li", "", [c.mpxn || "no meter", c.fuel || "", `ends ${ukDate(c.contract_end_date)}`, e.days_before == null && c.days_before != null ? `${c.days_before} days` : ""].filter(Boolean).join(" · ")));
+    left.append(ul);
+    if (e.outcome !== "queued") left.append(el("div", "rw-why", e.outcome === "stopped" ? stopWords(cs[0] && cs[0].stop)
+      : e.outcome === "broker_stopped" ? `Broker stopped${byWords(e.broker_stop)}` : (OUTCOME[e.outcome] || e.outcome)));
+    const items = cs.map(c => ({ contract_id: c.contract_id, days_before: c.days_before }));
+    const host = el("div");
+    // Stop sends every contract of the email in one call: after the 09:30 run the database refuses part of one.
+    if (["queued", "no_address", "no_rate"].includes(e.outcome)) {
+      const b = smallBtn("Stop"); b.setAttribute("aria-label", `Stop the ${aud.toLowerCase()} to ${e.to || "no address"}`);
+      b.addEventListener("click", () => askReason(host, b, {
+        question: `Stop the ${aud.toLowerCase()} to ${e.to || "no address"} going on ${dayLabel(e.send_day)}? Its ${plural(cs.length, "contract", "contracts")} at ${milestone(e)} will not get it. A milestone the run catches while stopped stays skipped, even after a restart.`,
+        confirm: "Yes, stop it",
+        run: async (reason) => {
+          let r;
+          try { r = await api("renewals_stop", { items, reason }); }
+          catch (err) {
+            // The 09:30 run made it up since this list loaded: it is under Recently sent, with its own Stop.
+            if (err && err.message === MADE_UP) { loadSent(false); throw { message: "The 09:30 run has already made up this email. Stop all of it under Recently sent." }; }
+            throw err;
+          }
+          sayIn("rwUpMsg", `Stopped: ${plural((r && r.stopped) || 0, "contract", "contracts")}.`); loadUpcoming();
+        },
+      }));
+      left.append(b);
+    } else if (e.outcome === "stopped") {
+      const b = smallBtn("Restart"); b.setAttribute("aria-label", `Restart the ${aud.toLowerCase()} to ${e.to || "no address"}`);
+      b.addEventListener("click", () => askReason(host, b, {
+        question: `Restart the ${aud.toLowerCase()} to ${e.to || "no address"}? It goes on ${dayLabel(e.send_day)} if the run has not already caught its milestone.`,
+        confirm: "Yes, restart it",
+        run: async (reason) => { const r = await api("renewals_restart", { items, reason }); sayIn("rwUpMsg", `Restarted: ${plural((r && r.restarted) || 0, "contract", "contracts")}.`); loadUpcoming(); },
+      }));
+      left.append(b);
+    }
+    left.append(host);
+    row.append(left, el("span", "state", e.outcome === "queued" ? "Goes" : "Will not go"));
+    return row;
+  }
+  async function loadUpcoming() {
+    const gen = rwGen; $("rwUpBtn").disabled = true;
+    try {
+      const r = await api("renewals_upcoming");
+      if (gen !== rwGen) return;
+      const box = $("rwUp"); box.textContent = "";
+      const banner = $("rwBanner"); banner.textContent = "";
+      if (r && r.redirect_to) { const b = el("b", "", r.redirect_to); banner.append("Every renewal email goes only to ", b, " until the redirect is lifted."); }
+      banner.hidden = !(r && r.redirect_to);
+      const gl = $("rwGoLive");
+      if (r && !r.go_live_date) { gl.textContent = "No go-live date is set, so the journey sends nothing."; gl.hidden = false; }
+      else if (r && r.go_live_date > todayLondon()) { gl.textContent = `The journey starts on ${ukDate(r.go_live_date)}. Nothing before that date is sent.`; gl.hidden = false; }
+      else gl.hidden = true;
+      const emails = r && Array.isArray(r.emails) ? r.emails : [];
+      if (!emails.length) { box.append(emptyLine("Nothing goes in the next 10 days.")); return; }
+      let day = null, list = null;
+      for (const e of emails) {
+        if (e.send_day !== day) { day = e.send_day; box.append(el("h3", "rw-day", dayLabel(day))); list = el("div", "list"); box.append(list); }
+        list.append(upcomingRow(e));
+      }
+    } catch (err) {
+      if (gen !== rwGen || (err && err.signedOut)) return;
+      const box = $("rwUp"); box.textContent = ""; box.append(emptyLine(explain(err)));
+    } finally { $("rwUpBtn").disabled = false; }
+  }
+
+  // Recently sent, newest first, 50 a page.
+  function sentRow(x) {
+    const row = el("div", "row"); const left = el("div");
+    left.append(el("div", "t", x.subject || "(no subject)"));
+    // Every milestone the email covers: "120 and 90 days" for a broker email that covers two.
+    const ms = Array.isArray(x.milestones) ? x.milestones.filter(d => d != null) : [];
+    const mText = ms.length > 1 ? `${listDays(ms)} days` : (x.days_before != null ? `${x.days_before} days` : "");
+    const aud = AUDIENCE[x.audience] || x.audience;
+    left.append(el("div", "d", [x.sent_at ? `Sent ${fmt(x.sent_at)}` : "Not sent", mText, aud].filter(Boolean).join(" · ")));
+    left.append(el("div", "d", `Meant for ${x.intended_to || "nobody"}${x.intended_cc ? `, copy ${x.intended_cc}` : ", no copy"}`));
+    left.append(el("div", "d", `${x.status === "sent" ? "Went to" : "Addressed to"} ${x.actual_to || "nobody"}${x.actual_cc ? `, copy ${x.actual_cc}` : ", no copy"}`));
+    const view = smallBtn("View"); view.setAttribute("aria-expanded", "false");
+    const where = el("div", "msg"); where.setAttribute("role", "status");
+    const holder = el("div", "rw-view"); holder.hidden = true;
+    view.addEventListener("click", async () => {
+      if (!holder.hidden) { holder.hidden = true; holder.textContent = ""; view.textContent = "View"; view.setAttribute("aria-expanded", "false"); return; }
+      view.disabled = true; where.textContent = "";
+      const gen = rwGen;
+      try {
+        if (!Number.isInteger(x.message_id)) throw { message: "No message id." };
+        const m = await api("renewals_email", { message_id: x.message_id });
+        if (gen !== rwGen) return;
+        // The stored email, shown in a sandboxed frame: no scripts, no forms, no links out, an opaque origin.
+        // The inline logo (cid:dyce-logo) is swapped for the same logo held in this page.
+        const mail = el("div", "mail");
+        const head = el("div", "mail-head"); const s = el("div"); s.append(el("b", "", "Subject"), " ", m && m.subject ? m.subject : ""); head.append(s);
+        const fr = document.createElement("iframe"); fr.className = "rw-frame"; fr.setAttribute("sandbox", ""); fr.title = "The email as it was sent";
+        fr.srcdoc = String((m && m.body_html) || "").split("cid:dyce-logo").join(LOGO_PREVIEW);
+        mail.append(head, fr); holder.textContent = ""; holder.append(mail); holder.hidden = false;
+        view.textContent = "Hide"; view.setAttribute("aria-expanded", "true");
+      } catch (err) { if (gen === rwGen && !(err && err.signedOut)) where.textContent = explain(err); }
+      finally { view.disabled = false; }
+    });
+    left.append(view);
+    const host = el("div");
+    // Stop only while the database says the email is unsent: queued, or failed with attempts left.
+    if (x.can_stop === true && Number.isInteger(x.message_id)) {
+      const b = smallBtn("Stop"); b.setAttribute("aria-label", `Stop the ${String(aud).toLowerCase()} to ${x.intended_to || "nobody"}`);
+      b.addEventListener("click", () => askReason(host, b, {
+        question: `Stop the ${String(aud).toLowerCase()} to ${x.intended_to || "nobody"}? The run has made it up but it has not gone. It will not go, and its ${mText || "milestones"} stay skipped, even after a restart.`,
+        confirm: "Yes, stop it",
+        run: async (reason) => { await api("renewals_stop", { message_id: x.message_id, reason }); sayIn("rwSentMsg", `Stopped the ${String(aud).toLowerCase()} to ${x.intended_to || "nobody"}.`); loadSent(false); },
+      }));
+      left.append(b);
+    }
+    left.append(where, holder, host);
+    row.append(left, el("span", "state", SENT_STATE[x.status] || x.status));
+    return row;
+  }
+  async function loadSent(older) {
+    const gen = rwGen; $("rwSentBtn").disabled = true; $("rwOlderBtn").disabled = true;
+    try {
+      const r = await api("renewals_sent", older && rwNext != null ? { before_id: rwNext } : {});
+      if (gen !== rwGen) return;
+      const list = $("rwSent"); if (!older) list.textContent = "";
+      const emails = r && Array.isArray(r.emails) ? r.emails : [];
+      if (!older && !emails.length) list.append(emptyLine("No renewal emails yet."));
+      for (const x of emails) list.append(sentRow(x));
+      rwNext = r && r.next_before_id != null ? r.next_before_id : null;
+      $("rwOlderBtn").hidden = rwNext == null;
+    } catch (err) {
+      if (gen !== rwGen || (err && err.signedOut)) return;
+      const list = $("rwSent"); if (!older) list.textContent = ""; list.append(emptyLine(explain(err)));
+    } finally { $("rwSentBtn").disabled = false; $("rwOlderBtn").disabled = false; }
+  }
+
+  // Stopped brokers, with their earlier stops, and the picker to stop any broker.
+  function stoppedRow(b) {
+    const row = el("div", "row"); const left = el("div");
+    const name = b.broker_name || `Broker ${b.broker_id}`;
+    left.append(el("div", "t", name), el("div", "d", b.email_address || "No address"), el("div", "rw-why", stopWords(b.stop)));
+    for (const h of Array.isArray(b.history) ? b.history : []) {
+      left.append(el("div", "d", `Earlier: stopped by ${h.stopped_by} on ${ukDay(h.stopped_at)}: ${h.stop_reason}. Restarted by ${h.restarted_by} on ${ukDay(h.restarted_at)}: ${h.restart_reason}`));
+    }
+    const host = el("div");
+    const btn = smallBtn("Restart"); btn.setAttribute("aria-label", `Restart ${name}`);
+    btn.addEventListener("click", () => askReason(host, btn, {
+      question: `Restart ${name}? Broker emails and copies start again for milestones the run has not yet caught. Anything skipped while stopped stays skipped.`,
+      confirm: "Yes, restart this broker",
+      run: async (reason) => { await api("renewals_restart", { broker_id: Number(b.broker_id), reason }); sayIn("rwStopMsg", `${name} is restarted.`); afterBrokerChange(); },
+    }));
+    left.append(btn, host);
+    row.append(left, el("span", "state", "Stopped"));
+    return row;
+  }
+  async function loadStopped() {
+    const gen = rwGen; $("rwStopBtn").disabled = true;
+    try {
+      const r = await api("renewals_stopped");
+      if (gen !== rwGen) return;
+      const list = $("rwStopped"); list.textContent = "";
+      const rs = Array.isArray(r) ? r : [];
+      if (!rs.length) { list.append(emptyLine("No broker is stopped.")); return; }
+      for (const b of rs) list.append(stoppedRow(b));
+    } catch (err) {
+      if (gen !== rwGen || (err && err.signedOut)) return;
+      const list = $("rwStopped"); list.textContent = ""; list.append(emptyLine(explain(err)));
+    } finally { $("rwStopBtn").disabled = false; }
+  }
+  function renderPicker() {
+    const q = $("rwSearch").value.trim().toLowerCase(), sel = $("rwPick"), keep = sel.value;
+    sel.textContent = "";
+    const shown = rwBrokers.filter(b => !q || (b.broker_name || "").toLowerCase().includes(q) || (b.email_address || "").toLowerCase().includes(q));
+    for (const b of shown) {
+      const o = document.createElement("option"); o.value = String(b.broker_id);
+      o.textContent = `${b.broker_name || `Broker ${b.broker_id}`}, ${b.email_address || "no address"}${b.stop ? " (stopped)" : ""}`;
+      o.disabled = !!b.stop; sel.append(o);
+    }
+    if (!shown.length) { const o = document.createElement("option"); o.disabled = true; o.textContent = rwBrokers.length ? "No broker matches that search." : "No brokers found."; sel.append(o); }
+    sel.value = shown.some(b => String(b.broker_id) === keep && !b.stop) ? keep : "";
+    $("rwPickStop").disabled = !pickedBroker() || !!$("rwPickAsk").querySelector(".rw-ask");
+  }
+  const pickedBroker = () => rwBrokers.find(b => String(b.broker_id) === $("rwPick").value && !b.stop) || null;
+  async function loadPicker() {
+    const gen = rwGen;
+    try {
+      const r = await api("renewals_brokers");
+      if (gen !== rwGen) return;
+      rwBrokers = Array.isArray(r) ? r : []; renderPicker();
+    } catch (err) {
+      if (gen !== rwGen || (err && err.signedOut)) return;
+      rwBrokers = []; $("rwPick").textContent = ""; const o = document.createElement("option"); o.disabled = true; o.textContent = explain(err); $("rwPick").append(o);
+    }
+  }
+  $("rwSearch").addEventListener("input", renderPicker);
+  $("rwPick").addEventListener("change", () => { $("rwPickStop").disabled = !pickedBroker() || !!$("rwPickAsk").querySelector(".rw-ask"); });
+  $("rwPickStop").addEventListener("click", () => {
+    const b = pickedBroker(); if (!b) return;
+    const name = b.broker_name || `Broker ${b.broker_id}`;
+    askReason($("rwPickAsk"), $("rwPickStop"), {
+      question: `Stop ${name}? No broker email goes to them and they are not copied on customer notices. Their customers still get their 60 and 30 day notices.`,
+      confirm: "Yes, stop this broker",
+      run: async (reason) => {
+        await api("renewals_stop", { broker_id: Number(b.broker_id), reason });
+        $("rwPickAsk").textContent = ""; $("rwSearch").value = ""; $("rwPick").value = "";
+        sayIn("rwStopMsg", `${name} is stopped.`); afterBrokerChange();
+      },
+    });
+  });
+  // A broker stop or restart changes the stopped list, the picker and the rows going out.
+  function afterBrokerChange() { loadStopped(); loadPicker(); loadUpcoming(); }
+  $("rwUpBtn").addEventListener("click", () => { sayIn("rwUpMsg", ""); loadUpcoming(); });
+  $("rwSentBtn").addEventListener("click", () => { sayIn("rwSentMsg", ""); loadSent(false); });
+  $("rwOlderBtn").addEventListener("click", () => loadSent(true));
+  $("rwStopBtn").addEventListener("click", () => { sayIn("rwStopMsg", ""); loadStopped(); loadPicker(); });
+  function loadRenewals() { rwLoaded = true; loadUpcoming(); loadSent(false); loadStopped(); loadPicker(); }
+  // On sign-out nothing from the tab stays in the page, and answers still on their way are dropped.
+  function resetRenewals() {
+    rwGen++; rwLoaded = false; rwNext = null; rwBrokers = [];
+    for (const id of ["rwUp", "rwSent", "rwStopped"]) { $(id).textContent = ""; $(id).append(emptyLine("Loading…")); }
+    for (const id of ["rwUpMsg", "rwSentMsg", "rwStopMsg", "rwGoLive", "rwBanner"]) { $(id).textContent = ""; $(id).hidden = true; }
+    $("rwOlderBtn").hidden = true; $("rwSearch").value = ""; $("rwPick").textContent = ""; $("rwPickAsk").textContent = ""; $("rwPickStop").disabled = true;
+  }
+
   // ---------- start
   // The picker offers only times the database will accept: from now, up to 30 days ahead.
   const pad2 = (n) => String(n).padStart(2, "0");
@@ -705,6 +1082,7 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
     for (const id of ["date", "products", "extra", "ownSubject", "ownBody", "link", "sendAt", "file", "addEmail", "search"]) $(id).value = "";
     $("fileInfo").textContent = ""; fileB64 = null; fileMeta = null; lastSent = "";
     $("e1").checked = true; document.querySelectorAll('input[name="kind"]').forEach(k => { k.checked = false; });
+    resetRenewals();
     setMsg(message || "");
   }
   async function boot() {
@@ -715,6 +1093,7 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
       $("signin").hidden = true; $("app").hidden = false; $("signOutBtn").hidden = false;
       $("testBanner").hidden = !me.testing;
       renderApprovers(me); refresh();
+      if (currentTab === "renewals" && !rwLoaded) loadRenewals();
       await loadBrokers(); loadRecent(); loadBounced();
     } catch (err) {
       if (err && err.signedOut) return;
@@ -758,6 +1137,7 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
   });
 
   refresh();
+  selectTab(currentTab, false);
   token = getToken();
   if (token) boot(); else showSignIn("");
 })();
