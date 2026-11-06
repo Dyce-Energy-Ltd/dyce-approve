@@ -1,2 +1,4 @@
 index.src.html
 send.src.html
+preview/
+__pycache__/
