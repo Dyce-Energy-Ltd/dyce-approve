@@ -261,6 +261,17 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
     <p class="stand">What the renewals journey sends at 09:30 each weekday, and what it has sent. You can stop an email or a broker, with a reason, and restart it. Nothing on this tab sends an email.</p>
     <div class="banner" id="rwBanner" role="status" hidden></div>
 
+    <section class="rw-section" aria-labelledby="rwPickTitle">
+      <h2 id="rwPickTitle" style="font-size:23px;line-height:30px;font-weight:800;margin:0">Stop a broker</h2>
+      <div class="msg" id="rwPickMsg" role="status" style="margin-top:6px" hidden></div>
+      <div class="rw-picker">
+        <div class="field"><label for="rwSearch">Search brokers</label><input type="search" id="rwSearch" placeholder="Search name or email" autocomplete="off"></div>
+        <div class="field"><label for="rwPick">Broker</label><select id="rwPick" size="8"></select></div>
+        <div class="actions"><button type="button" class="btn small" id="rwPickStop" disabled>Stop this broker</button></div>
+        <div id="rwPickAsk"></div>
+      </div>
+    </section>
+
     <section class="rw-section" aria-labelledby="rwUpTitle">
       <div class="recent-head"><h2 id="rwUpTitle" style="font-size:23px;line-height:30px;font-weight:800;margin:0">Going out in the next 10 days</h2><button type="button" class="btn ghost small" id="rwUpBtn">Refresh</button></div>
       <p class="hint" style="margin:6px 0 0">Grouped by the day each email goes. A weekend milestone goes on the Monday. A milestone the run catches while it is stopped stays skipped, even after a restart.</p>
@@ -282,13 +293,6 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
       <p class="hint" style="margin:6px 0 0">A stopped broker gets no broker emails and is not copied on customer notices. Their customers still get their 60 and 30 day notices.</p>
       <div class="msg" id="rwStopMsg" role="status" hidden></div>
       <div class="list" id="rwStopped"><div class="empty">Loading…</div></div>
-      <div class="rw-picker">
-        <h3 class="rw-day" style="margin:8px 0 0">Stop a broker</h3>
-        <div class="field"><label for="rwSearch">Search brokers</label><input type="search" id="rwSearch" placeholder="Search name or email" autocomplete="off"></div>
-        <div class="field"><label for="rwPick">Broker</label><select id="rwPick" size="8"></select></div>
-        <div class="actions"><button type="button" class="btn small" id="rwPickStop" disabled>Stop this broker</button></div>
-        <div id="rwPickAsk"></div>
-      </div>
     </section>
     <p class="hint" style="margin-top:34px">Broker and customer names, addresses and meters are read from the database after you sign in and are never saved in this page.</p>
   </div>
@@ -1030,7 +1034,7 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
       run: async (reason) => {
         await api("renewals_stop", { broker_id: Number(b.broker_id), reason });
         $("rwPickAsk").textContent = ""; $("rwSearch").value = ""; $("rwPick").value = "";
-        sayIn("rwStopMsg", `${name} is stopped.`); afterBrokerChange();
+        sayIn("rwPickMsg", `${name} is stopped.`); afterBrokerChange();
       },
     });
   });
@@ -1045,7 +1049,7 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--brand-magen
   function resetRenewals() {
     rwGen++; rwLoaded = false; rwNext = null; rwBrokers = [];
     for (const id of ["rwUp", "rwSent", "rwStopped"]) { $(id).textContent = ""; $(id).append(emptyLine("Loading…")); }
-    for (const id of ["rwUpMsg", "rwSentMsg", "rwStopMsg", "rwGoLive", "rwBanner"]) { $(id).textContent = ""; $(id).hidden = true; }
+    for (const id of ["rwPickMsg", "rwUpMsg", "rwSentMsg", "rwStopMsg", "rwGoLive", "rwBanner"]) { $(id).textContent = ""; $(id).hidden = true; }
     $("rwOlderBtn").hidden = true; $("rwSearch").value = ""; $("rwPick").textContent = ""; $("rwPickAsk").textContent = ""; $("rwPickStop").disabled = true;
   }
 
