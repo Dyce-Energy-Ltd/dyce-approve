@@ -93,6 +93,9 @@ input:focus-visible, button:focus-visible, select:focus-visible, textarea:focus-
 .row > * { min-width: 0; }
 .row .t { font-weight: 800; font-size: 15px; line-height: 22px; overflow-wrap: anywhere; }
 .row .d { font-size: 13px; line-height: 20px; color: var(--muted); overflow-wrap: anywhere; }
+/* Recent sends: the subject opens the email that went, underneath. */
+.row button.t { font: inherit; font-weight: 800; font-size: 15px; line-height: 22px; color: var(--ink); background: none; border: 0; padding: 0; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.row button.t:hover { text-decoration-thickness: 2px; }
 .state { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; border: 1px solid var(--hairline); border-radius: 999px; padding: 4px 10px; white-space: nowrap; align-self: start; }
 .state.off { background: var(--surface-raised); }
 
@@ -829,7 +832,8 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
         for (const x of s.sends) {
           const row = document.createElement("div"); row.className = "row";
           const left = document.createElement("div");
-          const t = document.createElement("div"); t.className = "t"; t.textContent = x.subject;
+          const t = document.createElement("button"); t.type = "button"; t.className = "t"; t.textContent = x.subject;
+          t.setAttribute("aria-expanded", "false"); t.title = "Show the email that was sent";
           const d = document.createElement("div"); d.className = "d";
           d.textContent = [KIND[x.category] || "", fmt(x.requested_at), x.send_after ? `scheduled for ${fmt(x.send_after)}` : "", `${x.broker_count} broker${x.broker_count === 1 ? "" : "s"}`,
             `${x.sent_count} sent`, x.sent_count ? `${x.delivered_count || 0} delivered` : "",
@@ -886,6 +890,33 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
             left.append(again);
           }
           left.append(where);
+          // The email as stored for this send (comms.send.html, what the brokers are given), in a
+          // sandboxed frame as Renewals shows its emails: no scripts, no forms, an opaque origin.
+          // The inline logo (cid:dyce-logo) is swapped for the same logo held in this page.
+          const holder = document.createElement("div"); holder.className = "rw-view"; holder.hidden = true;
+          t.addEventListener("click", async () => {
+            if (!holder.hidden) { holder.hidden = true; holder.textContent = ""; t.setAttribute("aria-expanded", "false"); return; }
+            const g = pGen;
+            t.disabled = true;
+            try {
+              if (!isUuid(x.send_id)) throw { message: "No send id." };
+              const m = await api("inputs", { send_id: x.send_id });
+              if (g !== pGen) return;
+              if (!m || typeof m.html !== "string") throw { message: "That email could not be read." };
+              const mail = document.createElement("div"); mail.className = "mail";
+              const head = document.createElement("div"); head.className = "mail-head";
+              const line = (label, text) => { const r = document.createElement("div"); const b = document.createElement("b"); b.textContent = label; r.append(b, " ", text); return r; };
+              head.append(line("Subject", m.subject || ""));
+              if (m.attachment_filename) head.append(line("Attached", m.attachment_filename));
+              if (m.link_url) head.append(line("Link", m.link_url));
+              const fr = document.createElement("iframe"); fr.className = "rw-frame"; fr.setAttribute("sandbox", ""); fr.title = "The email as it was sent";
+              fr.srcdoc = m.html.split("cid:dyce-logo").join(LOGO_PREVIEW);
+              mail.append(head, fr); holder.textContent = ""; holder.append(mail); holder.hidden = false;
+              t.setAttribute("aria-expanded", "true");
+            } catch (err) { if (g === pGen && !(err && err.signedOut)) where.textContent = explain(err); }
+            finally { t.disabled = false; }
+          });
+          left.append(holder);
           const st = document.createElement("span"); st.className = "state"; st.textContent = STATE[x.status] || x.status;
           row.append(left, st); list.append(row);
         }

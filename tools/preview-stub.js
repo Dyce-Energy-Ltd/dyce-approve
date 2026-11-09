@@ -163,6 +163,22 @@
   beInputs[S1] = { template_key: "new_prices", subject: beSends[0].subject, category: "pricing", link_url: "https://example.test/price-books", variables: { date: "2026-11-10", products: "fixed electricity and fixed gas", extra: "" } };
   beInputs[S2] = { template_key: "prices_withdrawn", subject: beSends[1].subject, category: "pricing", link_url: null, variables: { date: "2026-10-31", products: "fixed electricity", extra: "Call the TPI team with any questions." } };
   beInputs[S3] = { template_key: "own_email", subject: beSends[2].subject, category: "newsletter", link_url: "https://example.test/news", variables: { message: "Hello,\n\nThis is made-up preview text with **bold** words.\n\n- First point\n- Second point\n\nThe Dyce TPI team" } };
+  // The stored email of each send (made up), as comms.send_inputs gives it: html with the logo
+  // as cid:dyce-logo, and the file's name or null.
+  var mailHtml = function (title, lines) {
+    return '<!doctype html><html><body style="margin:0;padding:24px;font-family:Calibri,Arial,sans-serif;color:#0F2A34;background:#FFFFFF">'
+      + '<img src="cid:dyce-logo" alt="Dyce Energy" width="120" style="display:block;margin:0 0 18px">'
+      + '<h1 style="font-size:22px;margin:0 0 12px">' + title + '</h1>'
+      + '<div style="height:3px;width:56px;background:#DE00B9;margin:0 0 18px"></div>'
+      + lines.map(function (l) { return '<p style="margin:0 0 12px">' + l + '</p>'; }).join('')
+      + '</body></html>';
+  };
+  beInputs[S1].html = mailHtml(beSends[0].subject, ["Hello,", "Our new price books for fixed electricity and fixed gas are live from 10/11/2026.", "The Dyce TPI team"]);
+  beInputs[S1].attachment_filename = "Price book 10-11-2026.pdf";
+  beInputs[S2].html = mailHtml(beSends[1].subject, ["Hello,", "Current fixed electricity prices close. Submit contracts by 31/10/2026.", "Call the TPI team with any questions.", "The Dyce TPI team"]);
+  beInputs[S2].attachment_filename = null;
+  beInputs[S3].html = mailHtml(beSends[2].subject, ["Hello,", "This is made-up preview text with <b>bold</b> words.", "The Dyce TPI team"]);
+  beInputs[S3].attachment_filename = null;
   var beBounced = [
     { broker_name: "Example Brokers C Ltd", address: "old@brokers-c.example.test", last_at: "2026-11-03T10:15:00+00:00", times: 2, last_subject: "New prices are live from 03/11/2026", last_reason: "The mailbox does not exist.", last_type: "Bounced" },
     { broker_name: "Example Brokers D Ltd", address: "info@brokers-d.example.test", last_at: "2026-10-20T08:02:00+00:00", times: 1, last_subject: "", last_reason: "", last_type: "Complained" }
