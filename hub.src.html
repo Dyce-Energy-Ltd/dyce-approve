@@ -1726,7 +1726,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     // document (no script runs, nothing loads), then copied node by node into new elements of the
     // page: an element not on the list is dropped with everything inside it, and an attribute not
     // on the list, or with a value its rule refuses, is dropped. Nothing is turned back into a
-    // string, so what is shown is exactly what was checked.
+    // string, so what is shown is exactly what was checked. A link's page address goes into
+    // data-dv-href and its href becomes "#" (ruling R18): open in a new tab, copy link address and
+    // drag then carry no crn, invoice key or folder id into a github.io address or the history.
     const HTML_NS = "http://www.w3.org/1999/xhtml", SVG_NS = "http://www.w3.org/2000/svg";
     const HTML_TAGS = new Set(["a", "b", "button", "div", "form", "h2", "h3", "i", "input", "option", "p", "section", "select", "span", "table", "tbody", "thead", "td", "th", "tr"]);
     const SVG_TAGS = new Set(["svg", "circle", "line", "polyline", "rect", "text", "title"]);
@@ -1734,7 +1736,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       "fill", "fill-opacity", "stroke", "stroke-width", "stroke-dasharray", "stroke-dashoffset", "stroke-linejoin", "stroke-linecap", "stroke-opacity",
       "opacity", "transform", "font-size", "font-weight", "text-anchor"]);
     const TAG_ATTRS = {
-      a: ["href"], td: ["colspan"], th: ["colspan"], form: ["action", "method"],
+      td: ["colspan"], th: ["colspan"], form: ["action", "method"],
       input: ["type", "name", "value", "placeholder", "required", "accept"], button: ["type", "name", "value"],
       select: ["name"], option: ["value", "selected"],
     };
@@ -1743,8 +1745,8 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       "margin-top", "margin-bottom", "padding", "border", "border-radius", "font"]);
     const PLAIN_VALUE = /^[\w\s.,%#()+-]*$/;
     const LOADS = /url\s*\(|expression|image|javascript/i;
-    // A page address: "/..." but not "//" (another host), or "#...". No control character or backslash.
-    const pagePath = (v, hashToo) => !/[\x00-\x1f\\]/.test(v) && (/^\/(?!\/)/.test(v) || (hashToo && /^#/.test(v)));
+    // A page address: "/..." but not "//" (another host). No control character or backslash.
+    const pagePath = (v) => !/[\x00-\x1f\\]/.test(v) && /^\/(?!\/)/.test(v);
     function cleanStyle(v) {
       const out = [];
       for (const decl of v.split(";")) {
@@ -1759,13 +1761,13 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       if (name === "class" || name === "title" || name === "role" || /^aria-[a-z]+$/.test(name)) return v;
       if (name === "hidden") return "";
       if (name === "id") return /^[A-Za-z][\w-]*$/.test(v) ? "dv-" + v : null;
+      if (name === "data-dv-href") return null;
       if (name === "data-reads") return /^[A-Za-z][\w-]*$/.test(v) ? "dv-" + v : null;
       if (/^data-[a-z][a-z0-9-]*$/.test(name)) return v;
       if (ns === SVG_NS) return SVG_ATTRS.has(name) && PLAIN_VALUE.test(v) && !LOADS.test(v) ? v : null;
       if (name === "style") { const s = cleanStyle(v); return s || null; }
       if (!(TAG_ATTRS[tag] || []).includes(name)) return null;
-      if (name === "href") return pagePath(v, true) ? v : null;
-      if (name === "action") return pagePath(v, false) ? v : null;
+      if (name === "action") return pagePath(v) ? v : null;
       if (name === "method") return /^(get|post)$/i.test(v) ? v.toLowerCase() : null;
       if (name === "colspan") return /^\d{1,3}$/.test(v) ? v : null;
       if (name === "type") return (tag === "button" ? /^(button|submit)$/i : /^(hidden|text|search|file)$/i).test(v) ? v.toLowerCase() : null;
@@ -1777,11 +1779,15 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       const ns = n.namespaceURI, tag = n.localName;
       if (!(ns === HTML_NS ? HTML_TAGS : ns === SVG_NS ? SVG_TAGS : new Set()).has(tag)) return null;
       const out = document.createElementNS(ns, tag);
+      const link = ns === HTML_NS && tag === "a";
       for (const a of [...n.attributes]) {
         if (a.namespaceURI) continue;
+        if (link && a.name === "href") { if (pagePath(a.value)) out.setAttribute("data-dv-href", a.value); continue; }
         const v = keep(tag, ns, a.name, a.value);
         if (v != null) out.setAttribute(a.name, v);
       }
+      // href "#" keeps the link focusable and Enter-able; the click handler reads data-dv-href.
+      if (link) out.setAttribute("href", "#");
       for (const c of [...n.childNodes]) { const k = copyNode(c); if (k) out.append(k); }
       return out;
     }
@@ -1832,7 +1838,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
         el("footer", { text: "Data class: Red. Source: dyce-prod, contract_archive views. Files open through 60-second links." }));
       parts = { card, h1, sub, warn, sync, msg, body };
       r.addEventListener("click", onClick);
-      r.addEventListener("auxclick", (e) => { const a = e.target.closest("a[href]"); if (a && body.contains(a)) e.preventDefault(); });
+      r.addEventListener("auxclick", (e) => { const a = e.target.closest("a"); if (a && body.contains(a)) e.preventDefault(); });
       r.addEventListener("submit", onSubmit);
       // The broker picker on Reporting asks again as soon as it changes, as the laptop's did.
       r.addEventListener("change", (e) => { const s = e.target; if (s.localName === "select" && s.form && body.contains(s.form)) s.form.requestSubmit(); });
@@ -1877,7 +1883,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       body.append(sanitise(String(p.html ?? "")));
       // Original (bank details) needs Originals; the function refuses it without, and the page does not offer it.
       if (!ticks().includes(DV_ORIGINALS)) {
-        for (const a of [...body.querySelectorAll('a[href^="/open?"]')]) { const u = target(a.getAttribute("href")); if (u && u.query.which === "finance") a.remove(); }
+        for (const a of [...body.querySelectorAll('a[data-dv-href^="/open?"]')]) { const u = target(a.getAttribute("data-dv-href")); if (u && u.query.which === "finance") a.remove(); }
       }
       const sections = (Array.isArray(p.sections) ? p.sections : [])
         .filter((x) => x && typeof x.id === "string" && /^[A-Za-z][\w-]*$/.test(x.id) && typeof x.label === "string");
@@ -1917,12 +1923,11 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
         if (row && body.contains(row)) { row.hidden = !row.hidden; reads.textContent = row.hidden ? "Reads" : "Hide reads"; }
         return;
       }
-      const a = e.target.closest("a[href]");
+      const a = e.target.closest("a");
       if (!a || !body.contains(a)) return;
-      const href = a.getAttribute("href");
-      if (href.startsWith("#")) return;
       e.preventDefault();
-      const t = target(href); if (!t) return;
+      const href = a.getAttribute("data-dv-href");
+      const t = href && target(href); if (!t) return;
       if (t.path === "/open") { openFile("open", { sha: t.query.sha || "", which: t.query.which || "main" }); return; }
       if (t.path === "/open-invoice") { openFile("open_invoice", { key: t.query.key || "" }); return; }
       go(t, a.hasAttribute("data-keephash"), true);
@@ -1950,7 +1955,8 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       finally { lock(f, false); }
     }
     // Upload a redacted copy: a signed upload link from the function, the file put to it with its
-    // content type, then the function records it and says where to go next.
+    // content type and x-upsert (ruling R17: a re-upload replaces the earlier copy, as storage-js
+    // sends it), then the function records it and says where to go next.
     async function upload(f, fields) {
       const input = f.querySelector('input[type="file"]'), file = input && input.files && input.files[0];
       if (!file) { say(parts.msg, "Choose the redacted copy first.", true); return; }
@@ -1960,7 +1966,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
         if (!still(n)) return;
         if (!onStorage(u.url) || typeof u.path !== "string" || typeof u.contentType !== "string") throw { message: "Unexpected answer from the server." };
         let res;
-        try { res = await fetch(u.url, { method: "PUT", headers: { "Content-Type": u.contentType }, body: file, signal: AbortSignal.timeout(120000) }); }
+        try { res = await fetch(u.url, { method: "PUT", headers: { "Content-Type": u.contentType, "x-upsert": "true" }, body: file, signal: AbortSignal.timeout(120000) }); }
         catch { throw { message: "The file could not be uploaded. Check your connection and try again." }; }
         if (!still(n)) return;
         if (!res.ok) throw { message: "The file could not be uploaded. Try again." };

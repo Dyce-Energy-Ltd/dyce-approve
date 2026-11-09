@@ -492,7 +492,7 @@
   window.fetch = function (url, init) {
     var u = String(url);
     if (u.indexOf(DV_UPLOAD) === 0 && init && init.method === "PUT") {
-      calls.push({ op: "put", action: null, args: { path: u.slice(DV_UPLOAD.length).split("?")[0], contentType: (init.headers || {})["Content-Type"] || null }, status: 200, answer: {} });
+      calls.push({ op: "put", action: null, args: { path: u.slice(DV_UPLOAD.length).split("?")[0], contentType: (init.headers || {})["Content-Type"] || null, upsert: (init.headers || {})["x-upsert"] || null }, status: 200, answer: {} });
       return new Promise(function (resolve) { setTimeout(function () { resolve(new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } })); }, delay.put || 120); });
     }
     if (u !== ENDPOINT && u !== DV_ENDPOINT) return realFetch ? realFetch(url, init) : Promise.reject(new Error("no fetch"));
