@@ -178,6 +178,108 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 /* Beside the side menu the two columns need more room than send.html's page had. */
 @media (max-width: 1100px) { #be .grid { grid-template-columns: minmax(0, 1fr); } .sticky { position: static; } }
 
+/* DNA Viewer: the laptop contract library's styles (contract_library.py CSS), scoped to #dv and
+   on the hub's tokens. Its sidebar rules are not ported: the hub's side menu takes their place.
+   The status and maturity tokens are the Dyce dashboard tokens, used only for state badges and
+   the charts' bands, each with its word beside it. The last group undoes hub rules that share a
+   class or element with the laptop's markup (.actions, .row, h1, h2). */
+#dv {
+  --status-ok: #187244; --status-ok-wash: #E2F3E9; --status-ok-edge: #A5CCB8;
+  --status-warn: #8A5A00; --status-warn-wash: #FDEFCF; --status-warn-edge: #DAC291;
+  --status-critical: #B5281F; --status-critical-wash: #FBE0DD; --status-critical-edge: #E6A9A4;
+  --status-info: #1F5FAE; --status-info-wash: #E2ECF9; --status-info-edge: #A8C2E2;
+  --status-neutral: #5B6B72; --status-neutral-wash: #ECEFF1; --status-neutral-edge: #C0C7CB;
+  --maturity-3: #5E808C;
+  margin-top: 34px; background: var(--surface-raised); border-radius: var(--r-card); padding: 22px;
+  font: 400 14px/22px var(--font); color: var(--ink);
+}
+#dv .dvsync { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; color: var(--muted); font-size: 12px; line-height: 18px; margin-bottom: 14px; }
+#dv > .msg { margin-bottom: 14px; }
+#dv .titlecard { background: var(--surface); border-radius: 14px; padding: 18px 22px; margin-bottom: 14px; box-shadow: var(--shadow-card); }
+#dv .titlecard h1 { font: 800 24px/30px var(--font); letter-spacing: normal; margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+#dv .titlecard h1:focus { outline: none; }
+#dv .titlecard .sub { color: var(--muted); font-size: 13px; margin-top: 4px; overflow-wrap: anywhere; }
+/* > keeps a "warn" badge inside the card out of this rule (the laptop's selector caught it). */
+#dv .titlecard > .warn { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+#dv .panel { display: none; }
+#dv .panel.active { display: block; }
+#dv .panel > h2:first-child { margin-top: 0; }
+#dv .reads td { background: var(--surface-raised); }
+#dv .chart { width: 100%; height: auto; display: block; }
+#dv .reg { display: block; white-space: nowrap; }
+#dv .reg b { display: inline-block; min-width: 30px; color: var(--muted); font-weight: 800; }
+#dv .reg.total { border-top: 1px solid var(--hairline); margin-top: 2px; padding-top: 2px; }
+#dv td.reads-cell { white-space: nowrap; }
+#dv .nowrap { white-space: nowrap; }
+#dv .wide-table { overflow-x: auto; }
+#dv .history { background: var(--surface); border-radius: 14px; padding: 12px 22px; margin-bottom: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; box-shadow: var(--shadow-card); }
+#dv .history .k { font: 800 9px/12px var(--font); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
+#dv .chip { font: 800 12px/16px var(--font); color: var(--ink); text-decoration: none; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--hairline); background: var(--surface); }
+#dv .chip.on { background: var(--brand-navy); border-color: var(--brand-navy); color: var(--brand-white); }
+#dv .questions { background: var(--surface); border-radius: 14px; border-left: 4px solid var(--brand-magenta); padding: 14px 22px; margin-bottom: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 28px; box-shadow: var(--shadow-card); }
+#dv .questions .q { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+#dv .questions .ask { font: 800 12px/16px var(--font); color: var(--ink); }
+#dv .questions .ask b { font-size: 9px; color: var(--muted); margin-right: 6px; }
+#dv .questions .ans { font: 800 24px/28px var(--font); color: var(--brand-magenta); white-space: nowrap; }
+#dv .chartgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+#dv .chartgrid .card { margin-bottom: 0; padding: 18px 22px; }
+#dv .chartgrid .wide { grid-column: 1 / -1; }
+#dv .ctitle { display: inline-block; font: 800 10px/14px var(--font); letter-spacing: .12em; text-transform: uppercase; color: var(--ink); padding-bottom: 4px; border-bottom: 2px solid var(--brand-magenta); margin: 0 0 12px; }
+#dv .cnote { color: var(--muted); font-size: 11px; line-height: 16px; margin: 8px 0 0; }
+#dv .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+#dv .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 999px; margin-right: 6px; vertical-align: middle; }
+#dv .progress { margin: 6px 0 18px; }
+#dv .progress .row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+#dv .progress .row b { font: 800 22px/26px var(--font); color: var(--ink); }
+#dv .progress .track { height: 14px; border-radius: 999px; background: var(--status-neutral-wash); overflow: hidden; }
+#dv .progress .fill { height: 100%; border-radius: 999px; }
+@media (max-width: 900px) { #dv .questions { grid-template-columns: 1fr; } #dv .chartgrid { grid-template-columns: 1fr; } }
+#dv .head { background: var(--brand-navy); color: var(--brand-white); border-radius: 14px; padding: 22px; margin-bottom: 34px; }
+#dv .kicker { font: 800 11px/14px var(--font); letter-spacing: .3em; text-transform: uppercase; color: var(--brand-grey); }
+#dv .head h1 { font: 800 24px/30px var(--font); margin: 8px 0 4px; color: var(--brand-white); }
+#dv .head .meta { color: var(--brand-grey); font-size: 13px; margin-top: 8px; }
+#dv .head nav a { color: var(--brand-white); font-weight: 800; text-decoration: none; margin-right: 22px; }
+#dv .head nav { margin-top: 14px; }
+#dv h2 { font: 800 13px/18px var(--font); text-transform: uppercase; letter-spacing: .08em; color: var(--ink); margin: 34px 0 14px; padding-bottom: 6px; border-bottom: 2px solid var(--brand-magenta); display: inline-block; }
+#dv .card { background: var(--surface); border-radius: 14px; padding: 22px; margin-bottom: 14px; box-shadow: var(--shadow-card); }
+#dv form.search { display: flex; gap: 8px; }
+#dv input[type="text"], #dv input[type="file"] { flex: 1; font: 400 14px var(--font); padding: 10px 12px; border: 1px solid var(--hairline); border-radius: 8px; color: var(--ink); background: var(--surface); }
+#dv button, #dv .btn { font: 800 12px var(--font); letter-spacing: .04em; padding: 10px 14px; border-radius: 8px; cursor: pointer; border: 1px solid var(--brand-navy); background: var(--brand-navy); color: var(--brand-white); text-decoration: none; display: inline-block; }
+#dv .btn.secondary, #dv button.secondary { background: var(--surface); color: var(--ink); }
+#dv button[disabled] { opacity: 0.5; cursor: not-allowed; }
+#dv table { width: 100%; border-collapse: collapse; font-size: 13px; }
+#dv th { text-align: left; font: 800 10px/14px var(--font); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); padding: 8px 6px; border-bottom: 1px solid var(--hairline); }
+#dv td { padding: 8px 6px; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+#dv td a { color: var(--ink); font-weight: 800; }
+#dv .muted { color: var(--muted); }
+#dv .badge { font: 800 10px/14px var(--font); letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; border: 1px solid; white-space: nowrap; }
+#dv .badge.ok { color: var(--status-ok); background: var(--status-ok-wash); border-color: var(--status-ok-edge); }
+#dv .badge.warn { color: var(--status-warn); background: var(--status-warn-wash); border-color: var(--status-warn-edge); }
+#dv .badge.critical { color: var(--status-critical); background: var(--status-critical-wash); border-color: var(--status-critical-edge); }
+#dv .badge.info { color: var(--status-info); background: var(--status-info-wash); border-color: var(--status-info-edge); }
+#dv .badge.neutral { color: var(--status-neutral); background: var(--status-neutral-wash); border-color: var(--status-neutral-edge); }
+#dv .actions a, #dv .actions form { display: inline-block; margin: 0 6px 6px 0; }
+#dv .attention { border-left: 4px solid var(--status-warn); }
+#dv footer { color: var(--muted); font-size: 12px; margin-top: 34px; }
+#dv .groups.one { grid-template-columns: 1fr; }
+#dv .groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; }
+@media (max-width: 640px) { #dv .groups { grid-template-columns: 1fr; } }
+#dv .group { background: var(--surface); border-radius: 14px; padding: 14px 14px 8px; box-shadow: var(--shadow-card); }
+#dv .group h3 { font: 800 10px/14px var(--font); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+#dv .pills { display: flex; flex-wrap: wrap; gap: 6px; }
+#dv .pill { display: inline-flex; flex-direction: column; padding: 2px 14px 8px 0; max-width: 100%; }
+#dv .pill .k { font: 800 9px/12px var(--font); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+#dv .pill .v { font: 400 13px/18px var(--font); color: var(--ink); overflow-wrap: anywhere; }
+#dv .pill.wide { flex-basis: 100%; }
+#dv .strip { background: var(--surface); border-radius: 14px; padding: 14px 22px; margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 4px 28px; box-shadow: var(--shadow-card); }
+@media (max-width: 640px) { #dv .hide-sm { display: none; } #dv form.search { flex-direction: column; } }
+/* A wide table scrolls inside its card rather than widening the page. */
+#dv .card { overflow-x: auto; }
+/* Hub rules on the same classes, undone inside #dv. */
+#dv .actions { display: revert; gap: normal; flex-wrap: nowrap; align-items: normal; }
+#dv .progress .row { grid-template-columns: none; gap: 0; padding: 0; border-bottom: 0; }
+@media (max-width: 760px) { #dv { padding: 14px; margin-top: 22px; } }
+
 @media (max-width: 760px) {
   .bar { padding: 10px 16px; }
   .who { margin-left: 0; flex-basis: 100%; justify-content: space-between; }
@@ -441,6 +543,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
   // only for someone holding its tick (need); the server checks every action again, so hiding a
   // tab or an item is tidiness, not the gate.
   const REQUEST = "broker_emails.request", RENEWALS = "broker_emails.renewals";
+  const DV_VIEW = "dna_viewer.view", DV_REVIEW = "dna_viewer.review", DV_ORIGINALS = "dna_viewer.originals";
   const TOOLS = [
     { id: "broker_emails", label: "Broker Emails", allowed: (t) => t.some((c) => c.startsWith("broker_emails.")),
       items: [{ id: "new", label: "New email", group: "Price emails", need: REQUEST },
@@ -450,6 +553,10 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
               { id: "sent", label: "Recently sent", group: "Renewals", need: RENEWALS },
               { id: "stopped", label: "Stopped brokers", group: "Renewals", need: RENEWALS }],
       render: renderBrokerEmails },
+    { id: "dna_viewer", label: "DNA Viewer", allowed: (t) => t.some((c) => c.startsWith("dna_viewer.")),
+      items: [{ id: "search", label: "Search", need: DV_VIEW }, { id: "reporting", label: "Reporting", need: DV_VIEW },
+              { id: "queue", label: "Review queue", need: DV_REVIEW }],
+      render: renderDnaViewer },
     { id: "dna_admin", label: "DNA Admin", allowed: (t) => t.includes("dna_admin.admin"),
       items: [{ id: "people", label: "People and access" }, { id: "signins", label: "Who may sign in" },
               { id: "history", label: "Sign-in history" }, { id: "changes", label: "Changes made here" }], render: renderAdmin },
@@ -1586,6 +1693,314 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     return { start, show, reset };
   })();
 
+  // ---------- DNA Viewer: the laptop contract library (contract_library.py) in the hub. With
+  // Originals alone there is no menu item: Originals adds a button to pages View shows.
+  function renderDnaViewer(item, g) {
+    if (item) { DV.show(item, g); return; }
+    $("main").append(el("h1", {}, "DNA ", el("em", { text: "Viewer" })),
+      el("p", { class: "stand", text: "Originals lets you open a file's original, with its bank details, from the pages View shows. To search the library, see reporting or use the review queue, ask Phil Brook to add View or Review queue in DNA Admin." }));
+  }
+
+  // The DNA Viewer's pages come from the dna-viewer function as HTML it has already escaped. The
+  // page shows that HTML only after sanitise(), which keeps the elements and attributes the
+  // function's pages use and drops everything else, and it turns the pages' links and forms into
+  // calls to the function: nothing navigates the hub away and no form is submitted by the browser
+  // (form-action 'none'). Nothing from these pages goes into storage; the address bar holds only
+  // the account section's name (#meter), as the laptop app's did. dvGen is bumped on sign-out
+  // (reset) and on every move inside the tab, as Broker Emails' pGen, so an answer that arrives
+  // after either is dropped rather than drawn; g, the hub's gen, drops one after a move to
+  // another tool or menu item.
+  const DV = (() => {
+    const DV_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/dna-viewer";
+    // Signed links to open a file and to upload a redacted copy are made by the function on the
+    // file store of the same project. Any other address in an answer is refused.
+    const STORAGE = "https://rlpnbwjppylhcpybpqim.supabase.co/storage/v1/";
+    const PATHS = { search: "/", reporting: "/reporting", queue: "/queue" };
+    const ACT = { "/link": "link", "/unlink": "unlink", "/not-contract": "not_contract" };
+    const STATES = new Set(["ok", "warn", "critical", "info", "neutral"]);
+    let dvGen = 0, hubGen = -1, root = null, parts = null;
+    // Windows opened on a click, waiting for their signed link. Sign-out closes them.
+    const waiting = new Set();
+
+    // ---------- the allowlist sanitiser (Review Focus 3). The HTML is parsed into an inert
+    // document (no script runs, nothing loads), then copied node by node into new elements of the
+    // page: an element not on the list is dropped with everything inside it, and an attribute not
+    // on the list, or with a value its rule refuses, is dropped. Nothing is turned back into a
+    // string, so what is shown is exactly what was checked.
+    const HTML_NS = "http://www.w3.org/1999/xhtml", SVG_NS = "http://www.w3.org/2000/svg";
+    const HTML_TAGS = new Set(["a", "b", "button", "div", "form", "h2", "h3", "i", "input", "option", "p", "section", "select", "span", "table", "tbody", "thead", "td", "th", "tr"]);
+    const SVG_TAGS = new Set(["svg", "circle", "line", "polyline", "rect", "text", "title"]);
+    const SVG_ATTRS = new Set(["viewBox", "width", "height", "x", "y", "x1", "x2", "y1", "y2", "cx", "cy", "r", "rx", "ry", "points",
+      "fill", "fill-opacity", "stroke", "stroke-width", "stroke-dasharray", "stroke-dashoffset", "stroke-linejoin", "stroke-linecap", "stroke-opacity",
+      "opacity", "transform", "font-size", "font-weight", "text-anchor"]);
+    const TAG_ATTRS = {
+      a: ["href"], td: ["colspan"], th: ["colspan"], form: ["action", "method"],
+      input: ["type", "name", "value", "placeholder", "required", "accept"], button: ["type", "name", "value"],
+      select: ["name"], option: ["value", "selected"],
+    };
+    // Inline styles the pages use: progress bars, legend dots, a few margins and the broker picker.
+    const STYLE_PROPS = new Set(["width", "min-width", "background", "color", "display", "flex-direction", "align-items", "gap",
+      "margin-top", "margin-bottom", "padding", "border", "border-radius", "font"]);
+    const PLAIN_VALUE = /^[\w\s.,%#()+-]*$/;
+    const LOADS = /url\s*\(|expression|image|javascript/i;
+    // A page address: "/..." but not "//" (another host), or "#...". No control character or backslash.
+    const pagePath = (v, hashToo) => !/[\x00-\x1f\\]/.test(v) && (/^\/(?!\/)/.test(v) || (hashToo && /^#/.test(v)));
+    function cleanStyle(v) {
+      const out = [];
+      for (const decl of v.split(";")) {
+        const m = decl.match(/^\s*([a-z-]+)\s*:\s*(.+?)\s*$/i);
+        if (m && STYLE_PROPS.has(m[1].toLowerCase()) && PLAIN_VALUE.test(m[2]) && !LOADS.test(m[2])) out.push(`${m[1].toLowerCase()}:${m[2]}`);
+      }
+      return out.join(";");
+    }
+    // The value to keep for one attribute, or null to drop it. ids and data-reads (which names an
+    // id) get a dv- prefix, so the page's ids never meet the hub's.
+    function keep(tag, ns, name, v) {
+      if (name === "class" || name === "title" || name === "role" || /^aria-[a-z]+$/.test(name)) return v;
+      if (name === "hidden") return "";
+      if (name === "id") return /^[A-Za-z][\w-]*$/.test(v) ? "dv-" + v : null;
+      if (name === "data-reads") return /^[A-Za-z][\w-]*$/.test(v) ? "dv-" + v : null;
+      if (/^data-[a-z][a-z0-9-]*$/.test(name)) return v;
+      if (ns === SVG_NS) return SVG_ATTRS.has(name) && PLAIN_VALUE.test(v) && !LOADS.test(v) ? v : null;
+      if (name === "style") { const s = cleanStyle(v); return s || null; }
+      if (!(TAG_ATTRS[tag] || []).includes(name)) return null;
+      if (name === "href") return pagePath(v, true) ? v : null;
+      if (name === "action") return pagePath(v, false) ? v : null;
+      if (name === "method") return /^(get|post)$/i.test(v) ? v.toLowerCase() : null;
+      if (name === "colspan") return /^\d{1,3}$/.test(v) ? v : null;
+      if (name === "type") return (tag === "button" ? /^(button|submit)$/i : /^(hidden|text|search|file)$/i).test(v) ? v.toLowerCase() : null;
+      return v;
+    }
+    function copyNode(n) {
+      if (n.nodeType === Node.TEXT_NODE) return document.createTextNode(n.data);
+      if (n.nodeType !== Node.ELEMENT_NODE) return null;
+      const ns = n.namespaceURI, tag = n.localName;
+      if (!(ns === HTML_NS ? HTML_TAGS : ns === SVG_NS ? SVG_TAGS : new Set()).has(tag)) return null;
+      const out = document.createElementNS(ns, tag);
+      for (const a of [...n.attributes]) {
+        if (a.namespaceURI) continue;
+        const v = keep(tag, ns, a.name, a.value);
+        if (v != null) out.setAttribute(a.name, v);
+      }
+      for (const c of [...n.childNodes]) { const k = copyNode(c); if (k) out.append(k); }
+      return out;
+    }
+    function sanitise(html) {
+      const doc = new DOMParser().parseFromString("<!doctype html><html><body>" + html, "text/html");
+      const frag = document.createDocumentFragment();
+      for (const c of [...doc.body.childNodes]) { const k = copyNode(c); if (k) frag.append(k); }
+      return frag;
+    }
+
+    // ---------- the function. A signedOut answer, to any op, ends the session as api() does.
+    async function call(op, fields) {
+      const t = token;
+      let res, j;
+      try {
+        res = await fetch(DV_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ op, token: t, ...fields }), signal: AbortSignal.timeout(30000) });
+        j = await res.json();
+      } catch { throw { message: "The server did not answer. Check your connection and try again." }; }
+      if (!j || typeof j !== "object") throw { message: "Unexpected answer from the server." };
+      if (res.status === 401 && j.signedOut) { if (t && token === t) showSignIn("Your session has ended. Sign in again."); throw { signedOut: true, message: "Your session has ended. Sign in again." }; }
+      if (!j.ok) throw { message: j.error || "Something went wrong." };
+      return j;
+    }
+    const still = (n) => n === dvGen && hubGen === gen && !!me && !!root && root.isConnected;
+    const onStorage = (u) => typeof u === "string" && u.startsWith(STORAGE);
+    // A page address as the function takes it: the path, and the query with the first value of each name.
+    function target(href) {
+      let u;
+      try { u = new URL(href, "https://dv.invalid"); } catch { return null; }
+      if (u.origin !== "https://dv.invalid") return null;
+      const query = {};
+      for (const [k, v] of u.searchParams) if (!(k in query)) query[k] = v;
+      return { path: u.pathname, query };
+    }
+    const hashId = () => { try { return decodeURIComponent(location.hash.slice(1)); } catch { return ""; } };
+    function setHash(id) { try { history.replaceState(history.state, "", "#" + id); } catch { /* the section still shows */ } }
+    function clearHash() { if (location.hash) { try { history.replaceState(history.state, "", location.pathname + location.search); } catch { /* nothing to clear */ } } }
+    const badgeEl = (b) => el("span", { class: "badge " + (b && STATES.has(b.state) ? b.state : "neutral"), text: String((b && b.text) ?? "") });
+
+    // ---------- the tab: sync line, the title card and its badges, a message line, the page, the footer
+    function build() {
+      const card = el("div", { class: "titlecard", hidden: true });
+      const h1 = el("h1", { tabindex: "-1" }), sub = el("div", { class: "sub", hidden: true }), warn = el("div", { class: "warn", hidden: true });
+      card.append(h1, sub, warn);
+      const sync = el("div", { class: "dvsync" }), msg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
+      const body = el("div");
+      const r = el("div", { id: "dv" }, sync, card, msg, body,
+        el("footer", { text: "Data class: Red. Source: dyce-prod, contract_archive views. Files open through 60-second links." }));
+      parts = { card, h1, sub, warn, sync, msg, body };
+      r.addEventListener("click", onClick);
+      r.addEventListener("auxclick", (e) => { const a = e.target.closest("a[href]"); if (a && body.contains(a)) e.preventDefault(); });
+      r.addEventListener("submit", onSubmit);
+      // The broker picker on Reporting asks again as soon as it changes, as the laptop's did.
+      r.addEventListener("change", (e) => { const s = e.target; if (s.localName === "select" && s.form && body.contains(s.form)) s.form.requestSubmit(); });
+      return r;
+    }
+
+    function show(item, g) {
+      hubGen = g; dvGen++;
+      root = build(); $("main").append(root);
+      clearHash();
+      go({ path: PATHS[item] || "/", query: {} }, false);
+    }
+
+    // Asks for a page and draws it. keepHash: the link asked to stay on the same account section.
+    async function go(t, keepHash, focusTitle) {
+      const n = ++dvGen;
+      if (!keepHash) clearHash();
+      say(parts.msg, "Loading…"); root.setAttribute("aria-busy", "true");
+      try {
+        const r = await call("page", { path: t.path, query: t.query });
+        if (!still(n)) return;
+        say(parts.msg, "");
+        draw(r.page, t);
+        if (focusTitle) { parts.h1.focus({ preventScroll: true }); if (root.getBoundingClientRect().top < 0) root.scrollIntoView(); }
+      } catch (err) {
+        if (still(n) && !(err && err.signedOut)) say(parts.msg, explain(err), true);
+      } finally { if (still(n)) root.removeAttribute("aria-busy"); }
+    }
+
+    function draw(page, t) {
+      const p = (page && typeof page === "object") ? page : {};
+      const { card, h1, sub, warn, sync, body } = parts;
+      // title, sub and every badge text are plain text: textContent only.
+      const s = (p.sync && typeof p.sync === "object") ? p.sync : {};
+      sync.textContent = "";
+      sync.append(el("span", { text: `Back-book contracts and invoices. ${String(s.text ?? "")}` }), ...(Array.isArray(s.badges) ? s.badges : []).map(badgeEl));
+      h1.textContent = String(p.title ?? "");
+      sub.textContent = String(p.sub ?? ""); sub.hidden = !p.sub;
+      warn.textContent = ""; warn.append(...(Array.isArray(p.badges) ? p.badges : []).map(badgeEl)); warn.hidden = !warn.childNodes.length;
+      card.hidden = false;
+      body.textContent = "";
+      body.append(sanitise(String(p.html ?? "")));
+      // Original (bank details) needs Originals; the function refuses it without, and the page does not offer it.
+      if (!ticks().includes(DV_ORIGINALS)) {
+        for (const a of [...body.querySelectorAll('a[href^="/open?"]')]) { const u = target(a.getAttribute("href")); if (u && u.query.which === "finance") a.remove(); }
+      }
+      const sections = (Array.isArray(p.sections) ? p.sections : [])
+        .filter((x) => x && typeof x.id === "string" && /^[A-Za-z][\w-]*$/.test(x.id) && typeof x.label === "string");
+      drawMenu(sections, t.path.toLowerCase().replace(/\/+$/, "") || "/");
+      if (sections.length) { const h = hashId(); pickSection(sections.some((x) => x.id === h) ? h : sections[0].id, false); }
+      else clearHash();
+    }
+
+    // The side menu marks the page shown, as the laptop's did (Search for an account without
+    // sections or a folder), and on an account page lists its sections under "This account".
+    function drawMenu(sections, path) {
+      const menu = $("sidemenu");
+      for (const n of [...menu.querySelectorAll("[data-dv-account]")]) n.remove();
+      const cur = sections.length ? null : ({ "/reporting": "reporting", "/queue": "queue" }[path] || "search");
+      for (const b of menu.querySelectorAll("button[data-item]")) { if (b.dataset.item === cur) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
+      if (!sections.length) return;
+      menu.append(el("div", { class: "menu-group", "data-dv-account": "", text: "This account" }));
+      for (const x of sections) {
+        const b = el("button", { type: "button", class: "menu-item", "data-dv-account": "", "data-section": x.id, text: x.label });
+        b.addEventListener("click", () => pickSection(x.id, true));
+        menu.append(b);
+      }
+    }
+    // Shows one section of an account page. A click puts its name in the address, as the laptop's did.
+    function pickSection(id, byClick) {
+      for (const p of parts.body.querySelectorAll("section.panel")) p.classList.toggle("active", p.id === "dv-" + id);
+      for (const b of $("sidemenu").querySelectorAll("button[data-section]")) { if (b.dataset.section === id) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
+      if (byClick) setHash(id);
+    }
+
+    // ---------- links and forms
+    function onClick(e) {
+      const { body } = parts;
+      const reads = e.target.closest("button[data-reads]");
+      if (reads && body.contains(reads)) {
+        const row = document.getElementById(reads.dataset.reads);
+        if (row && body.contains(row)) { row.hidden = !row.hidden; reads.textContent = row.hidden ? "Reads" : "Hide reads"; }
+        return;
+      }
+      const a = e.target.closest("a[href]");
+      if (!a || !body.contains(a)) return;
+      const href = a.getAttribute("href");
+      if (href.startsWith("#")) return;
+      e.preventDefault();
+      const t = target(href); if (!t) return;
+      if (t.path === "/open") { openFile("open", { sha: t.query.sha || "", which: t.query.which || "main" }); return; }
+      if (t.path === "/open-invoice") { openFile("open_invoice", { key: t.query.key || "" }); return; }
+      go(t, a.hasAttribute("data-keephash"), true);
+    }
+    function onSubmit(e) {
+      const f = e.target;
+      if (!parts.body.contains(f)) return;
+      e.preventDefault();
+      const action = f.getAttribute("action") || "", post = f.getAttribute("method") === "post";
+      const fields = {};
+      for (const [k, v] of new FormData(f)) if (typeof v === "string" && !(k in fields)) fields[k] = v;
+      if (!post) { go({ path: action || "/", query: fields }, false, true); return; }
+      if (action === "/redaction") { upload(f, fields); return; }
+      if (ACT[action]) act(f, ACT[action], fields);
+    }
+    const lock = (f, on) => { for (const b of f.querySelectorAll("button")) b.disabled = on; };
+    // Link, Remove link and Mark as not a contract: the function does it and says where to go next.
+    async function act(f, action, fields) {
+      const n = dvGen; lock(f, true); say(parts.msg, "");
+      try {
+        const r = await call("act", { action, fields });
+        if (!still(n)) return;
+        const t = target(String(r.go || "")); if (t) go(t, false, true);
+      } catch (err) { if (still(n) && !(err && err.signedOut)) say(parts.msg, explain(err), true); }
+      finally { lock(f, false); }
+    }
+    // Upload a redacted copy: a signed upload link from the function, the file put to it with its
+    // content type, then the function records it and says where to go next.
+    async function upload(f, fields) {
+      const input = f.querySelector('input[type="file"]'), file = input && input.files && input.files[0];
+      if (!file) { say(parts.msg, "Choose the redacted copy first.", true); return; }
+      const n = dvGen; lock(f, true); say(parts.msg, "Uploading the redacted copy…");
+      try {
+        const u = await call("upload_url", { sha: fields.sha || "", filename: file.name });
+        if (!still(n)) return;
+        if (!onStorage(u.url) || typeof u.path !== "string" || typeof u.contentType !== "string") throw { message: "Unexpected answer from the server." };
+        let res;
+        try { res = await fetch(u.url, { method: "PUT", headers: { "Content-Type": u.contentType }, body: file, signal: AbortSignal.timeout(120000) }); }
+        catch { throw { message: "The file could not be uploaded. Check your connection and try again." }; }
+        if (!still(n)) return;
+        if (!res.ok) throw { message: "The file could not be uploaded. Try again." };
+        const d = await call("redaction_done", { sha: fields.sha || "", path: u.path });
+        if (!still(n)) return;
+        const t = target(String(d.go || "")); if (t) go(t, false, true);
+      } catch (err) { if (still(n) && !(err && err.signedOut)) say(parts.msg, explain(err), true); }
+      finally { lock(f, false); }
+    }
+    // Open a file or an invoice: a window opened on the click, sent to the 60-second signed link
+    // when it comes. If the function refuses, the window closes and its sentence shows here.
+    function openFile(op, fields) {
+      const msg = parts.msg;
+      const w = window.open("", "_blank");
+      if (!w) { say(msg, "The browser stopped the new window. Allow pop-ups for this page and try again.", true); return; }
+      try { w.opener = null; } catch { /* the link still opens */ }
+      waiting.add(w); say(msg, "");
+      (async () => {
+        try {
+          const r = await call(op, fields);
+          if (!waiting.has(w)) return;
+          if (!onStorage(r.url)) throw { message: "Unexpected answer from the server." };
+          w.location.replace(r.url);
+        } catch (err) {
+          try { w.close(); } catch { /* already closed */ }
+          if (waiting.has(w) && me && msg.isConnected && !(err && err.signedOut)) say(msg, explain(err), true);
+        } finally { waiting.delete(w); }
+      })();
+    }
+
+    // On sign-out nothing from the viewer stays in the page: showSignIn has emptied #main and the
+    // side menu; answers on their way are dropped and windows waiting for a link are closed.
+    function reset() {
+      dvGen++; root = null; parts = null;
+      for (const w of waiting) { try { w.close(); } catch { /* already closed */ } }
+      waiting.clear(); clearHash();
+    }
+    return { show, reset };
+  })();
+
   // ---------- DNA Admin
   const live = (g) => g === gen && me;
   function panelHead(title, accent, stand) {
@@ -1789,7 +2204,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
   // holds only a tool and menu name, and anyone without that tool starts at their first.
   function showSignIn(message) {
     gen++; token = null; me = null; dropStored(TOKEN_KEY);
-    $("tabs").textContent = ""; $("sidemenu").textContent = ""; clearMain(); BE.reset();
+    $("tabs").textContent = ""; $("sidemenu").textContent = ""; clearMain(); BE.reset(); DV.reset();
     $("app").hidden = true; $("signin").hidden = false; $("who").hidden = true; $("conn").textContent = "";
     $("emailStep").hidden = false; $("codeStep").hidden = true; $("retryStep").hidden = true; $("siCode").value = "";
     setMsg(message || "");

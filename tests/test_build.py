@@ -109,6 +109,34 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertEqual(lf((tmp / "hub.html").read_bytes()), lf((ROOT / "hub.html").read_bytes()),
                          "hub.html is not the build of hub.src.html: run python build.py")
 
+    def test_preview_of_the_hub_builds(self):
+        # The committed hub and stub, built as python build.py --preview builds them.
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        shutil.copytree(ASSETS, tmp / "assets")
+        shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
+        (tmp / "tools").mkdir()
+        shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
+        r = run_build(tmp, "--preview")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        preview = (tmp / "preview" / "hub.html").read_text(encoding="utf-8")
+        self.assertIn("var DV_PAGES = [", preview)
+        self.assertLess(preview.index("var DV_PAGES = ["), preview.index('const DV_ENDPOINT = "'))
+
+    def test_no_personal_address_in_the_hub_or_its_stub(self):
+        # Made-up people only: the preview stub and the built page name nobody by address.
+        for path in (ROOT / "hub.html", ROOT / "hub.src.html", ROOT / "tools" / "preview-stub.js"):
+            self.assertNotIn("philip.brook", path.read_text(encoding="utf-8").lower(), path.name)
+
+    def test_hub_csp_is_unchanged(self):
+        # The DNA Viewer talks to the same Supabase host as comms-web; the policy is not loosened.
+        csp = ("default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; "
+               "font-src https://fonts.gstatic.com; img-src data:; connect-src https://rlpnbwjppylhcpybpqim.supabase.co; "
+               "base-uri 'none'; form-action 'none'")
+        page = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        self.assertEqual(page.count('http-equiv="Content-Security-Policy"'), 1)
+        self.assertIn('<meta http-equiv="Content-Security-Policy" content="%s">' % csp, page)
+
     def test_send_html_only_forwards_to_the_hub(self):
         page = (ROOT / "send.html").read_text(encoding="utf-8")
         self.assertIn('<meta http-equiv="refresh" content="0; url=hub.html">', page)
