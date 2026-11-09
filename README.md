@@ -10,7 +10,7 @@ Source of the logic: Dyce-Energy-Ltd/dyce-spine, supabase/functions/comms-approv
 
 ## hub.html: the DNA Hub
 
-`hub.html` is one sign-in for Dyce's tools. People on the hub's list sign in with an emailed 8-digit code; anyone else is turned away. It holds no data and no keys; it talks only to the comms-web function in Dyce's database project. The session token is kept in this browser's localStorage (key `dyce.hub.token`), and the last tool and menu item used under `dyce.hub.where`.
+`hub.html` is one sign-in for Dyce's tools. People on the hub's list sign in with an emailed 8-digit code; anyone else is turned away. It holds no data and no keys; it talks only to the comms-web function in Dyce's database project, and the DNA Viewer tab to the dna-viewer function there. The session token is kept in this browser's localStorage (key `dyce.hub.token`), and the last tool and menu item used under `dyce.hub.where`.
 
 A navy bar across the top shows a tab for each tool the person may use, and a side menu moves around inside the tool. What a person sees follows their ticks, set in DNA Admin; the database checks the tick again on every call, so hiding a tab or menu item is tidiness, not the gate.
 
@@ -25,7 +25,9 @@ A navy bar across the top shows a tab for each tool the person may use, and a si
 
 The Renewals items show what the renewals journey will send at its 09:30 weekday run in the next 10 days, grouped by the day each email goes, with the reason for any that will not go; the renewal emails already sent, 50 at a time, each viewable as stored in a sandboxed frame; and the stopped brokers. They never send anything, and while the journey's redirect is set they say where every email goes. They call the `renewals_*` actions of `comms.web_call`; the Price emails items call its broker email actions.
 
-`hub.html` is built from `hub.src.html` by `python build.py`, which embeds the logos from `assets/`. `python build.py --preview` also writes `preview/hub.html` (git-ignored) with `tools/preview-stub.js`, which answers in place of comms-web with made-up people and brokers; choose who signs in with `?as=admin`, `requester`, `requestonly`, `renewalsonly`, `approveonly`, `adminonly` or `none`. `python -m unittest discover -s tests` runs the build tests.
+The DNA Viewer tab is the laptop contract library moved into the hub, behind three ticks: View (search, account pages, reporting, opening documents and invoices), Review queue (the queue, a folder's page and its actions) and Originals (opening a file's original, with its bank details). Its pages come from the dna-viewer function and are shown only after the page's allowlist sanitiser.
+
+`hub.html` is built from `hub.src.html` by `python build.py`, which embeds the logos from `assets/`. `python build.py --preview` also writes `preview/hub.html` (git-ignored) with `tools/preview-stub.js`, which answers in place of comms-web with made-up people and brokers; choose who signs in with `?as=admin`, `requester`, `requestonly`, `renewalsonly`, `approveonly`, `adminonly`, `viewer` (DNA Viewer View only) or `none`. `python -m unittest discover -s tests` runs the build tests; the sanitiser test runs in a headless Chrome or Edge (or the browser `DV_BROWSER` names) and is skipped when none is found.
 
 Source of the logic: Dyce-Energy-Ltd/dyce-spine, supabase/functions/comms-web and the `comms`, `hub` and `renewals` schemas. Data class: Red (it shows names and addresses after sign-in). Owner: Phil Brook.
 

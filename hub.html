@@ -1701,27 +1701,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       el("p", { class: "stand", text: "Originals lets you open a file's original, with its bank details, from the pages View shows. To search the library, see reporting or use the review queue, ask Phil Brook to add View or Review queue in DNA Admin." }));
   }
 
-  // The DNA Viewer's pages come from the dna-viewer function as HTML it has already escaped. The
-  // page shows that HTML only after sanitise(), which keeps the elements and attributes the
-  // function's pages use and drops everything else, and it turns the pages' links and forms into
-  // calls to the function: nothing navigates the hub away and no form is submitted by the browser
-  // (form-action 'none'). Nothing from these pages goes into storage; the address bar holds only
-  // the account section's name (#meter), as the laptop app's did. dvGen is bumped on sign-out
-  // (reset) and on every move inside the tab, as Broker Emails' pGen, so an answer that arrives
-  // after either is dropped rather than drawn; g, the hub's gen, drops one after a move to
-  // another tool or menu item.
-  const DV = (() => {
-    const DV_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/dna-viewer";
-    // Signed links to open a file and to upload a redacted copy are made by the function on the
-    // file store of the same project. Any other address in an answer is refused.
-    const STORAGE = "https://rlpnbwjppylhcpybpqim.supabase.co/storage/v1/";
-    const PATHS = { search: "/", reporting: "/reporting", queue: "/queue" };
-    const ACT = { "/link": "link", "/unlink": "unlink", "/not-contract": "not_contract" };
-    const STATES = new Set(["ok", "warn", "critical", "info", "neutral"]);
-    let dvGen = 0, hubGen = -1, root = null, parts = null;
-    // Windows opened on a click, waiting for their signed link. Sign-out closes them.
-    const waiting = new Set();
-
+  // BEGIN DV SANITISER: tests/test_build.py cuts this block out of hub.html and runs it on
+  // hostile input in a headless browser, so it must stand alone (document, Node and DOMParser only).
+  const dvSanitise = (() => {
     // ---------- the allowlist sanitiser (Review Focus 3). The HTML is parsed into an inert
     // document (no script runs, nothing loads), then copied node by node into new elements of the
     // page: an element not on the list is dropped with everything inside it, and an attribute not
@@ -1797,6 +1779,30 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       for (const c of [...doc.body.childNodes]) { const k = copyNode(c); if (k) frag.append(k); }
       return frag;
     }
+    return sanitise;
+  })();
+  // END DV SANITISER
+
+  // The DNA Viewer's pages come from the dna-viewer function as HTML it has already escaped. The
+  // page shows that HTML only after dvSanitise(), which keeps the elements and attributes the
+  // function's pages use and drops everything else, and it turns the pages' links and forms into
+  // calls to the function: nothing navigates the hub away and no form is submitted by the browser
+  // (form-action 'none'). Nothing from these pages goes into storage; the address bar holds only
+  // the account section's name (#meter), as the laptop app's did. dvGen is bumped on sign-out
+  // (reset) and on every move inside the tab, as Broker Emails' pGen, so an answer that arrives
+  // after either is dropped rather than drawn; g, the hub's gen, drops one after a move to
+  // another tool or menu item.
+  const DV = (() => {
+    const DV_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/dna-viewer";
+    // Signed links to open a file and to upload a redacted copy are made by the function on the
+    // file store of the same project. Any other address in an answer is refused.
+    const STORAGE = "https://rlpnbwjppylhcpybpqim.supabase.co/storage/v1/";
+    const PATHS = { search: "/", reporting: "/reporting", queue: "/queue" };
+    const ACT = { "/link": "link", "/unlink": "unlink", "/not-contract": "not_contract" };
+    const STATES = new Set(["ok", "warn", "critical", "info", "neutral"]);
+    let dvGen = 0, hubGen = -1, root = null, parts = null;
+    // Windows opened on a click, waiting for their signed link. Sign-out closes them.
+    const waiting = new Set();
 
     // ---------- the function. A signedOut answer, to any op, ends the session as api() does.
     async function call(op, fields) {
@@ -1880,7 +1886,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       warn.textContent = ""; warn.append(...(Array.isArray(p.badges) ? p.badges : []).map(badgeEl)); warn.hidden = !warn.childNodes.length;
       card.hidden = false;
       body.textContent = "";
-      body.append(sanitise(String(p.html ?? "")));
+      body.append(dvSanitise(String(p.html ?? "")));
       // Original (bank details) needs Originals; the function refuses it without, and the page does not offer it.
       if (!ticks().includes(DV_ORIGINALS)) {
         for (const a of [...body.querySelectorAll('a[data-dv-href^="/open?"]')]) { const u = target(a.getAttribute("data-dv-href")); if (u && u.query.which === "finance") a.remove(); }

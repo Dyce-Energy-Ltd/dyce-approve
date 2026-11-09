@@ -1,4 +1,7 @@
 import base64
+import html
+import json
+import os
 import re
 import shutil
 import subprocess
@@ -10,6 +13,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 BUILD = ROOT / "build.py"
 ASSETS = ROOT / "assets"
+SANITISER = re.compile(r"\n  // BEGIN DV SANITISER.*?\n  // END DV SANITISER\n", re.S)
+# Where a Chromium browser is found for the sanitiser check; DV_BROWSER names another.
+BROWSERS = [
+    os.environ.get("DV_BROWSER", ""),
+    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    shutil.which("google-chrome") or "", shutil.which("chromium") or "", shutil.which("chrome") or "",
+]
 FIXTURE = (
     "<html><body><img src=\"{{LOGO_ORIG}}\"><img src=\"{{LOGO_INV}}\">"
     "<script>var page = 1;</script></body></html>"
@@ -136,6 +149,42 @@ class CommittedPagesTests(unittest.TestCase):
         page = (ROOT / "hub.src.html").read_text(encoding="utf-8")
         self.assertEqual(page.count('http-equiv="Content-Security-Policy"'), 1)
         self.assertIn('<meta http-equiv="Content-Security-Policy" content="%s">' % csp, page)
+
+    def test_dv_sanitiser_refuses_hostile_input(self):
+        # The real sanitiser, cut out of the built hub.html (not a copy), run in a headless
+        # Chromium over tools/dv-sanitise-check.js, which says what it checks.
+        page = (ROOT / "hub.html").read_text(encoding="utf-8")
+        blocks = SANITISER.findall(page)
+        self.assertEqual(len(blocks), 1, "hub.html must hold one DV SANITISER block")
+        self.assertIn("body.append(dvSanitise(", page, "the DNA Viewer draws pages through the block")
+        browser = next((b for b in BROWSERS if b and Path(b).is_file()), None)
+        if browser is None:
+            self.skipTest("no Chromium browser found (set DV_BROWSER to one)")
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        # "<\/" is "</" inside a JavaScript string, and cannot end the page's <script> early.
+        check = (ROOT / "tools" / "dv-sanitise-check.js").read_text(encoding="utf-8").replace("</", "<\\/")
+        (tmp / "check.html").write_text(
+            "<!doctype html><html><head><meta charset=\"utf-8\"></head><body><pre id=\"result\"></pre>"
+            "<script>" + blocks[0] + check + "</script></body></html>", encoding="utf-8")
+        try:
+            r = subprocess.run(
+                [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+                 "--user-data-dir=" + str(tmp / "profile"), "--virtual-time-budget=5000", "--dump-dom",
+                 (tmp / "check.html").as_uri()],
+                capture_output=True, text=True, encoding="utf-8", timeout=60)
+        except subprocess.TimeoutExpired:
+            # A dialog the input opened (an alert() in a frame, say) holds the page open.
+            self.fail("the check page did not finish in 60 seconds: the input blocked it, so it ran")
+        m = re.search(r'<pre id="result">(.*?)</pre>', r.stdout, re.S)
+        self.assertTrue(m and m.group(1), "the check page wrote no result: %s" % r.stderr[-500:])
+        result = json.loads(html.unescape(m.group(1)))
+        if os.environ.get("DV_SANITISE_REPORT"):
+            print(json.dumps(result, indent=1, ensure_ascii=False))
+        self.assertEqual(result["cases"], 18)
+        self.assertEqual(result["fired"], 0, "an alert() in the input ran")
+        failed = [c for c in result["results"] if c["problems"]]
+        self.assertEqual(failed, [], json.dumps(failed, indent=1, ensure_ascii=False))
 
     def test_send_html_only_forwards_to_the_hub(self):
         page = (ROOT / "send.html").read_text(encoding="utf-8")
