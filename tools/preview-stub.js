@@ -169,7 +169,9 @@
   segContacts[9].name = null;
   segContacts.push({ hubspot_contact_id: "5100000900", email: "shared@contacts-1.example.test", name: "Shared One", primary_company_id: "30000000" });
   segContacts.push({ hubspot_contact_id: "5100000917", email: "shared@contacts-1.example.test", name: "Shared Two", primary_company_id: "30000000" });
-  var segCopiedAt = "2026-11-10T09:15:00+00:00";
+  var segOld = new URLSearchParams(location.search).get("segmentold") === "1";
+  // ?segmentold=1 makes the copy a day old, to see the dated line.
+  var segCopiedAt = segOld ? new Date(Math.floor(Date.now() / 1000) * 1000 - 86400000).toISOString().replace(".000Z", "+00:00") : "2026-11-10T09:15:00+00:00";
   var segRun = { status: "succeeded", started_at: "2026-11-10T09:14:50+00:00", finished_at: "2026-11-10T09:15:00+00:00", error: null };
   var segKnown = function (ids) { return ids.every(function (id) { return segContacts.some(function (c) { return c.hubspot_contact_id === id; }); }); };
 
@@ -279,6 +281,12 @@
       if (!args.approver) refuse("Choose who approves this email.");
       var id = uuid();
       var rgrp = r.recipient_group || "broker_primary_email", rcount = (r.broker_keys || r.contact_ids || []).length;
+      // As the database does, a segment send counts the distinct addresses among the selected contacts.
+      if (rgrp === "broker_contact_segment") {
+        var addrs = {};
+        (r.contact_ids || []).forEach(function (id) { segContacts.forEach(function (c) { if (c.hubspot_contact_id === id) addrs[c.email.toLowerCase()] = 1; }); });
+        rcount = Object.keys(addrs).length;
+      }
       if ((r.broker_keys || []).length && (r.contact_ids || []).length) refuse("Choose brokers or contacts, not both.");
       if (rgrp === "broker_contact_segment" && !segKnown(r.contact_ids || [])) refuse("Some of those contacts are no longer in the segment. Reload it.");
       beSends.unshift({ send_id: id, subject: r.subject, category: r.category, requested_at: now(), send_after: r.send_after || null, broker_count: rcount, sent_count: 0, delivered_count: 0, failed_count: 0, bounced_count: 0, clicked_count: 0, status: "awaiting_approval", requested_by: me, recipient_group: rgrp });

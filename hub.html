@@ -151,9 +151,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 .brokers input { accent-color: var(--brand-magenta); }
 .brokers .nm { font-weight: 800; overflow-wrap: anywhere; }
 .brokers .em { color: var(--muted); overflow-wrap: anywhere; }
-.brokers.seg label, .brokers.seg .seg-head { grid-template-columns: auto minmax(0, 1.3fr) minmax(0, 0.9fr) minmax(0, 1fr); }
+.brokers.seg label, .brokers.seg .seg-head { grid-template-columns: 20px minmax(0, 1.3fr) minmax(0, 0.9fr) minmax(0, 1fr); }
 .brokers .seg-head { display: grid; gap: 4px 12px; padding: 7px 12px; position: sticky; top: 0; background: var(--field); border-bottom: 1px solid var(--hairline); font-size: 13px; line-height: 18px; font-weight: 800; }
-#group { font: inherit; font-size: 14px; line-height: 20px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; width: 100%; padding: 9px 10px; }
+#group { font: inherit; font-size: 15px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; width: 100%; padding: 9px 12px; }
 .seg-line { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 0 0 8px; }
 #be .empty { padding: 14px; }
 .mail { background: var(--brand-white); color: var(--brand-navy); border: 1px solid var(--hairline); border-radius: var(--r-card); box-shadow: var(--shadow-card); overflow: hidden; }
@@ -560,6 +560,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     const chosenSet = () => isSeg() ? segSel : selected;
     const chosenTotal = () => isSeg() ? segment.length : brokers.length;
     const hm = (iso) => { try { return new Date(iso).toLocaleTimeString("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
+    // DD/MM/YYYY in London. "14:05" for a copy made today, "14:05 on 08/11/2026" for an earlier one.
+    const ldate = (d) => { try { return new Date(d).toLocaleDateString("en-GB", { timeZone: "Europe/London", day: "2-digit", month: "2-digit", year: "numeric" }); } catch { return ""; } };
+    const hmOn = (iso) => { const t = hm(iso), d = ldate(iso); return !t || !d || d === ldate(Date.now()) ? t : `${t} on ${d}`; };
     // Only an https address with no spaces, quotes or angle brackets becomes a link in the preview or the email.
     const safeLink = (u) => /^https:\/\/[^\s"<>]+$/.test(u || "") ? u : "";
     const ONE_ADDRESS = /^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$/;
@@ -904,7 +907,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     function drawSegLine() {
       $("segBar").hidden = !isSeg();
       $("segAgain").disabled = segBusy;
-      const at = segCopiedAt ? hm(segCopiedAt) : "";
+      const at = segCopiedAt ? hmOn(segCopiedAt) : "";
       let t = segCopiedAt ? `Copied from HubSpot at ${at}` : "No copy from HubSpot is held yet.";
       if (segRun && segRun.status === "failed") {
         const why = segRun.error || "no reason was given";
@@ -1076,7 +1079,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
           t.setAttribute("aria-expanded", "false"); t.title = "Show the email that was sent";
           const d = document.createElement("div"); d.className = "d";
           d.textContent = [KIND[x.category] || "", fmt(x.requested_at), x.send_after ? `scheduled for ${fmt(x.send_after)}` : "", GROUP_LABEL[x.recipient_group] || GROUP_LABEL[G_PRIMARY],
-            x.recipient_group === G_SEGMENT ? `${x.broker_count} contact${x.broker_count === 1 ? "" : "s"}` : `${x.broker_count} broker${x.broker_count === 1 ? "" : "s"}`,
+            x.recipient_group === G_SEGMENT ? `${x.broker_count} address${x.broker_count === 1 ? "" : "es"}` : `${x.broker_count} broker${x.broker_count === 1 ? "" : "s"}`,
             `${x.sent_count} sent`, x.sent_count ? `${x.delivered_count || 0} delivered` : "",
             x.failed_count ? `${x.failed_count} failed` : "", x.bounced_count ? `${x.bounced_count} bounced` : "",
             x.clicked_count ? `${x.clicked_count} clicked` : ""].filter(Boolean).join(" · ");
