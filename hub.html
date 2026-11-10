@@ -555,7 +555,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     // each fetch and sign-out, so an older fetch stops drawing.
     const G_PRIMARY = "broker_primary_email", G_SEGMENT = "broker_contact_segment";
     const GROUP_LABEL = { [G_PRIMARY]: "Broker primary email (HubSpot company)", [G_SEGMENT]: "Broker Contact Segment" };
-    let segment = [], segSel = new Set(), segCopiedAt = null, segRun = null, segSeq = 0, segMsg = "", segBusy = false;
+    let segment = [], segSel = new Set(), segCopiedAt = null, segRun = null, segSeq = 0, segMsg = "", segBusy = false, segTouched = false;
     const isSeg = () => $("group").value === G_SEGMENT;
     const chosenSet = () => isSeg() ? segSel : selected;
     const chosenTotal = () => isSeg() ? segment.length : brokers.length;
@@ -891,11 +891,12 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     $("brokers").addEventListener("change", (e) => {
       const k = e.target.dataset && e.target.dataset.key; if (!k) return;
       const set = chosenSet();
+      if (isSeg() && segBusy) segTouched = true;
       if (e.target.checked) set.add(k); else set.delete(k); scheduleDelivery();
     });
     $("search").addEventListener("input", renderBrokers);
-    $("allBtn").addEventListener("click", () => { if (isSeg()) segment.forEach(c => segSel.add(c.hubspot_contact_id)); else brokers.forEach(b => selected.add(b.broker_key)); renderBrokers(); scheduleDelivery(); });
-    $("noneBtn").addEventListener("click", () => { chosenSet().clear(); renderBrokers(); scheduleDelivery(); });
+    $("allBtn").addEventListener("click", () => { if (isSeg() && segBusy) segTouched = true; if (isSeg()) segment.forEach(c => segSel.add(c.hubspot_contact_id)); else brokers.forEach(b => selected.add(b.broker_key)); renderBrokers(); scheduleDelivery(); });
+    $("noneBtn").addEventListener("click", () => { if (isSeg() && segBusy) segTouched = true; chosenSet().clear(); renderBrokers(); scheduleDelivery(); });
 
     // ---------- the group menu and the Broker Contact Segment
     // The line above the list: when the copy was made, whether the last fetch failed, and what is
@@ -927,14 +928,19 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     // by its started_at differing from the one noted from the answer already held; the browser
     // clock is never compared with the database's times. If a run was already going (started
     // false), the page waits for that run to stop running. After 60 seconds the copy held stays on show.
-    async function loadSegment() {
+    // fresh is true when the group has just been chosen: the first list to arrive ticks everyone.
+    // Fetch again keeps the ticks as they are. Ticks changed while a fetch runs are kept when it
+    // finishes; only contacts no longer in the copy are dropped, and new ones are ticked only if
+    // nobody has touched the ticks.
+    async function loadSegment(fresh) {
       const g = pGen, seq = ++segSeq, live = () => g === pGen && seq === segSeq;
+      segTouched = fresh !== true;
       segBusy = true; segMsg = "Fetching from HubSpot…"; drawSegLine(); renderBrokers();
       try {
         const first = await api("segment");
         if (!live()) return;
         const noted = (first && first.last_run && first.last_run.started_at) || null;
-        applySegment(first, true);
+        applySegment(first, fresh === true);
         const st = await api("segment_refresh");
         if (!live()) return;
         const started = !!(st && st.started);
@@ -944,7 +950,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
           const r = await api("segment");
           if (!live()) return;
           const lr = r && r.last_run;
-          if (lr && lr.status !== "running" && (!started || lr.started_at !== noted)) { segMsg = ""; segBusy = false; applySegment(r, true); return; }
+          if (lr && lr.status !== "running" && (!started || lr.started_at !== noted)) { segMsg = ""; segBusy = false; applySegment(r, !segTouched); return; }
         }
         segMsg = "The fetch is taking longer than a minute, so the copy held is shown.";
       } catch (err) {
@@ -952,7 +958,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
         segMsg = explain(err);
       } finally { if (live()) { segBusy = false; drawSegLine(); renderBrokers(); } }
     }
-    $("segAgain").addEventListener("click", loadSegment);
+    $("segAgain").addEventListener("click", () => loadSegment(false));
     // Sets the menu's wording for the chosen group.
     function drawGroup() {
       const seg = isSeg();
@@ -968,8 +974,8 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       $("group").value = value; segSeq++; segBusy = false; segMsg = ""; $("search").value = "";
       drawGroup();
       if (isSeg()) {
-        selected.clear(); segSel.clear(); segment = []; segCopiedAt = null; segRun = null;
-        renderBrokers(); scheduleDelivery(); loadSegment();
+        selected.clear(); segSel.clear(); segment = []; segCopiedAt = null; segRun = null; segTouched = false;
+        renderBrokers(); scheduleDelivery(); loadSegment(true);
       } else {
         segSel.clear(); selected.clear(); brokers.forEach(b => selected.add(b.broker_key));
         renderBrokers(); scheduleDelivery();
@@ -1554,7 +1560,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     // On sign-out nothing typed by this person, and nothing read from the database, stays in the page.
     function reset() {
       pGen++; signedIn = false; busy = false; REQUESTER = ""; priceLoaded = false; APPROVERS = [];
-      brokers = []; selected.clear(); typed = []; segSeq++; segBusy = false; segMsg = ""; segment = []; segSel.clear(); segCopiedAt = null; segRun = null; $("group").value = G_PRIMARY; drawGroup(); $("brokers").classList.remove("seg"); $("segLine").textContent = ""; delivery = null; deliveryFor = ""; clearTimeout(deliveryTimer); deliverySeq++;
+      brokers = []; selected.clear(); typed = []; segSeq++; segBusy = false; segMsg = ""; segment = []; segSel.clear(); segCopiedAt = null; segRun = null; segTouched = false; $("group").value = G_PRIMARY; drawGroup(); $("brokers").classList.remove("seg"); $("segLine").textContent = ""; delivery = null; deliveryFor = ""; clearTimeout(deliveryTimer); deliverySeq++;
       for (const id of ["date", "products", "extra", "ownSubject", "ownBody", "link", "sendAt", "file", "beAddEmail", "search"]) $(id).value = "";
       $("fileInfo").textContent = ""; fileB64 = null; fileMeta = null; lastSent = "";
       $("e1").checked = true; document.querySelectorAll('input[name="kind"]').forEach(k => { k.checked = false; });
