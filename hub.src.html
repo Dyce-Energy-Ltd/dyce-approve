@@ -151,6 +151,10 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 .brokers input { accent-color: var(--brand-magenta); }
 .brokers .nm { font-weight: 800; overflow-wrap: anywhere; }
 .brokers .em { color: var(--muted); overflow-wrap: anywhere; }
+.brokers.seg label, .brokers.seg .seg-head { grid-template-columns: auto minmax(0, 1.3fr) minmax(0, 0.9fr) minmax(0, 1fr); }
+.brokers .seg-head { display: grid; gap: 4px 12px; padding: 7px 12px; position: sticky; top: 0; background: var(--field); border-bottom: 1px solid var(--hairline); font-size: 13px; line-height: 18px; font-weight: 800; }
+#group { font: inherit; font-size: 14px; line-height: 20px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; width: 100%; padding: 9px 10px; }
+.seg-line { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 0 0 8px; }
 #be .empty { padding: 14px; }
 .mail { background: var(--brand-white); color: var(--brand-navy); border: 1px solid var(--hairline); border-radius: var(--r-card); box-shadow: var(--shadow-card); overflow: hidden; }
 .mail-head { padding: 12px 22px; border-bottom: 1px solid #D8D9DB; font-size: 13px; line-height: 20px; color: #5B6B72; background: #EDEEEF; }
@@ -272,6 +276,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 
               <section class="step" aria-labelledby="s3">
                 <h2 id="s3"><span class="n">3</span> The brokers</h2>
+                <div class="field" style="margin-bottom:12px"><label for="group">Who is it for?</label>
+                  <select id="group"><option value="broker_primary_email" selected>Broker primary email (HubSpot company)</option><option value="broker_contact_segment">Broker Contact Segment</option></select></div>
+                <div class="seg-line" id="segBar" hidden><span class="hint" id="segLine" role="status"></span><button type="button" class="btn ghost small" id="segAgain">Fetch again</button></div>
                 <div class="brokers-bar">
                   <input type="search" id="search" placeholder="Search name or email" aria-label="Search brokers">
                   <button type="button" class="btn ghost small" id="allBtn">Select all</button>
@@ -282,7 +289,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
                   <span class="hint" id="addInfo">While testing is on, only Phil Brook and Chris Beardsmore can be added.</span>
                 </div>
                 <div class="brokers" id="typed" hidden style="margin-bottom:12px"></div>
-                <p class="hint" style="margin:0 0 8px"><span class="count" id="count">0 of 0</span> brokers selected. Every broker with a broker id and a general email, live from the spine.</p>
+                <p class="hint" style="margin:0 0 8px"><span class="count" id="count">0 of 0</span> <span id="countText"></span></p>
                 <div class="brokers" id="brokers"><div class="empty">Loading brokers…</div></div>
               </section>
             </div>
@@ -542,6 +549,17 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     // is first shown, as send.html loaded them at sign-in. pGen is bumped on sign-out, so an answer
     // still on its way then is dropped rather than drawn.
     let priceLoaded = false, pGen = 0;
+    // Mailing groups. segment holds the copy of the HubSpot Broker Contact Segment as last read
+    // from the database; segSel holds the ticked contacts, keyed by hubspot_contact_id as text, in
+    // its own set so the two groups never share ticks. segSeq is bumped on every change of group,
+    // each fetch and sign-out, so an older fetch stops drawing.
+    const G_PRIMARY = "broker_primary_email", G_SEGMENT = "broker_contact_segment";
+    const GROUP_LABEL = { [G_PRIMARY]: "Broker primary email (HubSpot company)", [G_SEGMENT]: "Broker Contact Segment" };
+    let segment = [], segSel = new Set(), segCopiedAt = null, segRun = null, segSeq = 0, segMsg = "", segBusy = false;
+    const isSeg = () => $("group").value === G_SEGMENT;
+    const chosenSet = () => isSeg() ? segSel : selected;
+    const chosenTotal = () => isSeg() ? segment.length : brokers.length;
+    const hm = (iso) => { try { return new Date(iso).toLocaleTimeString("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
     // Only an https address with no spaces, quotes or angle brackets becomes a link in the preview or the email.
     const safeLink = (u) => /^https:\/\/[^\s"<>]+$/.test(u || "") ? u : "";
     const ONE_ADDRESS = /^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$/;
@@ -721,14 +739,17 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       const link = $("link").value.trim();
       if (!fileMeta && !link) p.push("add a file or a link");
       if (link && !/^https:\/\/\S+$/.test(link)) p.push("make the link start https://");
-      if (!selected.size && !typed.some(t => t.on)) p.push("select a broker or add an address");
+      if (!chosenSet().size && !typed.some(t => t.on)) p.push(isSeg() ? "select a contact or add an address" : "select a broker or add an address");
       if (!chosenApprover()) p.push("choose who approves it");
       const at = sendAtIso();
       if (at === "bad" || (at && (new Date(at) <= new Date() || new Date(at) > new Date(Date.now() + 30 * 86400000)))) p.push("set the send time in the future, within 30 days");
       return p;
     }
     const extraEmails = () => typed.filter(t => t.on).map(t => t.email);
-    const selectionKey = () => JSON.stringify([[...selected].sort(), extraEmails().sort()]);
+    const selectionKey = () => JSON.stringify([$("group").value, [...chosenSet()].sort(), extraEmails().sort()]);
+    // The recipient part of a request: the group, and brokers or contacts, never both.
+    const recipientArgs = () => isSeg() ? { recipient_group: G_SEGMENT, contact_ids: [...segSel] }
+      : { recipient_group: G_PRIMARY, broker_keys: [...selected].map(Number) };
     // Asks the database exactly where this send would go. Send stays locked until the answer
     // matches the current selection.
     function scheduleDelivery() {
@@ -736,18 +757,18 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       $("confirm").hidden = true; deliverySeq++;
       delivery = null; $("deliver").textContent = "Checking with the database…";
       clearTimeout(deliveryTimer);
-      if (!signedIn || (!selected.size && !typed.some(t => t.on))) { $("deliver").textContent = "Choose recipients to see where this goes."; refresh(); return; }
+      if (!signedIn || (!chosenSet().size && !typed.some(t => t.on))) { $("deliver").textContent = "Choose recipients to see where this goes."; refresh(); return; }
       deliveryTimer = setTimeout(loadDelivery, 500); refresh();
     }
     async function loadDelivery() {
       const seq = ++deliverySeq, key = selectionKey();
       try {
-        const req = { broker_keys: [...selected].map(Number), extra_emails: extraEmails() };
+        const req = { ...recipientArgs(), extra_emails: extraEmails() };
         const r = await api("preview", req);
         if (seq !== deliverySeq) return;
         delivery = Array.isArray(r) ? r : []; deliveryFor = key;
         const box = $("deliver"); box.textContent = "";
-        const SRC = { redirect: "testing: all ticked brokers come here, one copy", typed: "added by hand", broker: "broker" };
+        const SRC = { redirect: isSeg() ? "testing: all ticked contacts come here, one copy" : "testing: all ticked brokers come here, one copy", typed: "added by hand", broker: "broker", contact: "contact" };
         const shown = delivery.slice(0, 12);
         for (const d of shown) { const line = document.createElement("div"); const b = document.createElement("b"); b.textContent = d.deliver_to; line.append(b, document.createTextNode(` (${SRC[d.source] || d.source})`)); box.append(line); }
         if (delivery.length > shown.length) box.append(document.createTextNode(`and ${delivery.length - shown.length} more.`));
@@ -798,7 +819,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       $("pBody").innerHTML = emailHtml(LOGO_PREVIEW);
       $("pAttach").hidden = !fileMeta;
       $("pAttach").textContent = fileMeta ? `Attached: ${fileMeta.name} (${(fileMeta.size / 1048576).toFixed(1)} MB)` : "";
-      $("count").textContent = `${selected.size} of ${brokers.length}`;
+      $("count").textContent = `${chosenSet().size} of ${chosenTotal()}`;
       const p = problems();
       const confirmed = !!delivery && delivery.length > 0 && deliveryFor === selectionKey();
       $("check").textContent = p.length ? "Before sending: " + p.join(", ") + "."
@@ -809,7 +830,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       $("sendBtn").disabled = busy || !signedIn || p.length > 0 || !confirmed || repeat;
     }
     ["input", "change"].forEach(ev => $("be").querySelector(".grid").addEventListener(ev, (e) => {
-      if (e.target.id === "file" || e.target.closest(".brokers")) return; refresh();
+      if (e.target.id === "file" || e.target.id === "group" || e.target.closest(".brokers")) return; refresh();
     }));
     // The price email's button goes to the pricing documents page unless someone types another link.
     fillNewPrices(); $("link").value = PRICING_PAGE;
@@ -833,6 +854,8 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     function renderBrokers() {
       const q = $("search").value.trim().toLowerCase();
       const box = $("brokers"); box.textContent = "";
+      box.classList.toggle("seg", isSeg());
+      if (isSeg()) { renderSegment(q, box); return; }
       const shown = brokers.filter(b => !q || (b.broker_name || "").toLowerCase().includes(q) || (b.email || "").includes(q));
       if (!shown.length) { const e = document.createElement("div"); e.className = "empty"; e.textContent = brokers.length ? "No broker matches that search." : "No brokers found."; box.append(e); return; }
       const frag = document.createDocumentFragment();
@@ -846,13 +869,113 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       }
       box.append(frag);
     }
+    // The segment's rows: Email, Primary Associated Company ID, Name. Search matches any of the three.
+    function renderSegment(q, box) {
+      const shown = segment.filter(c => !q || (c.email || "").toLowerCase().includes(q) || (c.primary_company_id || "").toLowerCase().includes(q) || (c.name || "").toLowerCase().includes(q));
+      if (!shown.length) { const e = document.createElement("div"); e.className = "empty"; e.textContent = segment.length ? "No contact matches that search." : (segBusy ? "Loading the segment…" : "No contacts held yet."); box.append(e); return; }
+      const head = document.createElement("div"); head.className = "seg-head";
+      for (const t of ["", "Email", "Primary Associated Company ID", "Name"]) { const h = document.createElement("span"); h.textContent = t; head.append(h); }
+      box.append(head);
+      const frag = document.createDocumentFragment();
+      for (const c of shown) {
+        const l = document.createElement("label");
+        const k = document.createElement("input"); k.type = "checkbox"; k.checked = segSel.has(c.hubspot_contact_id); k.dataset.key = c.hubspot_contact_id;
+        k.setAttribute("aria-label", c.email);
+        const a = document.createElement("span"); a.className = "nm"; a.textContent = c.email;
+        const b = document.createElement("span"); b.className = "em"; b.textContent = c.primary_company_id || "";
+        const n = document.createElement("span"); n.className = "em"; n.textContent = c.name || "";
+        l.append(k, a, b, n); frag.append(l);
+      }
+      box.append(frag);
+    }
     $("brokers").addEventListener("change", (e) => {
       const k = e.target.dataset && e.target.dataset.key; if (!k) return;
-      if (e.target.checked) selected.add(k); else selected.delete(k); scheduleDelivery();
+      const set = chosenSet();
+      if (e.target.checked) set.add(k); else set.delete(k); scheduleDelivery();
     });
     $("search").addEventListener("input", renderBrokers);
-    $("allBtn").addEventListener("click", () => { brokers.forEach(b => selected.add(b.broker_key)); renderBrokers(); scheduleDelivery(); });
-    $("noneBtn").addEventListener("click", () => { selected.clear(); renderBrokers(); scheduleDelivery(); });
+    $("allBtn").addEventListener("click", () => { if (isSeg()) segment.forEach(c => segSel.add(c.hubspot_contact_id)); else brokers.forEach(b => selected.add(b.broker_key)); renderBrokers(); scheduleDelivery(); });
+    $("noneBtn").addEventListener("click", () => { chosenSet().clear(); renderBrokers(); scheduleDelivery(); });
+
+    // ---------- the group menu and the Broker Contact Segment
+    // The line above the list: when the copy was made, whether the last fetch failed, and what is
+    // happening now. Every value goes in as text.
+    function drawSegLine() {
+      $("segBar").hidden = !isSeg();
+      $("segAgain").disabled = segBusy;
+      const at = segCopiedAt ? hm(segCopiedAt) : "";
+      let t = segCopiedAt ? `Copied from HubSpot at ${at}` : "No copy from HubSpot is held yet.";
+      if (segRun && segRun.status === "failed") {
+        const why = segRun.error || "no reason was given";
+        t = segCopiedAt ? `The last fetch failed: ${why}. Showing the copy from ${at}.` : `The last fetch failed: ${why}. No copy is held yet.`;
+      }
+      $("segLine").textContent = [t, segMsg].filter(Boolean).join(" · ");
+    }
+    // Draws a copy read from the database. tickAll ticks every contact, as after a
+    // fetch; otherwise ticks of contacts no longer in the copy are dropped.
+    function applySegment(r, tickAll) {
+      segment = Array.isArray(r && r.contacts) ? r.contacts : [];
+      segment.forEach(c => { c.hubspot_contact_id = String(c.hubspot_contact_id); });
+      segCopiedAt = (r && r.copied_at) || null; segRun = (r && r.last_run) || null;
+      if (tickAll) { segSel.clear(); segment.forEach(c => segSel.add(c.hubspot_contact_id)); }
+      else { const have = new Set(segment.map(c => c.hubspot_contact_id)); [...segSel].forEach(k => { if (!have.has(k)) segSel.delete(k); }); }
+      drawSegLine(); renderBrokers(); scheduleDelivery();
+    }
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    // Shows the stored copy at once, asks for a fresh fetch, then reads the copy again every 2
+    // seconds, up to 60, until the run has finished. The new run is told apart from the one before
+    // by its started_at differing from the one noted from the answer already held; the browser
+    // clock is never compared with the database's times. If a run was already going (started
+    // false), the page waits for that run to stop running. After 60 seconds the copy held stays on show.
+    async function loadSegment() {
+      const g = pGen, seq = ++segSeq, live = () => g === pGen && seq === segSeq;
+      segBusy = true; segMsg = "Fetching from HubSpot…"; drawSegLine(); renderBrokers();
+      try {
+        const first = await api("segment");
+        if (!live()) return;
+        const noted = (first && first.last_run && first.last_run.started_at) || null;
+        applySegment(first, true);
+        const st = await api("segment_refresh");
+        if (!live()) return;
+        const started = !!(st && st.started);
+        for (let i = 0; i < 30; i++) {
+          await sleep(2000);
+          if (!live()) return;
+          const r = await api("segment");
+          if (!live()) return;
+          const lr = r && r.last_run;
+          if (lr && lr.status !== "running" && (!started || lr.started_at !== noted)) { segMsg = ""; segBusy = false; applySegment(r, true); return; }
+        }
+        segMsg = "The fetch is taking longer than a minute, so the copy held is shown.";
+      } catch (err) {
+        if (!live()) return;
+        segMsg = explain(err);
+      } finally { if (live()) { segBusy = false; drawSegLine(); renderBrokers(); } }
+    }
+    $("segAgain").addEventListener("click", loadSegment);
+    // Sets the menu's wording for the chosen group.
+    function drawGroup() {
+      const seg = isSeg();
+      $("search").placeholder = seg ? "Search email, company id or name" : "Search name or email";
+      $("search").setAttribute("aria-label", seg ? "Search contacts" : "Search brokers");
+      $("countText").textContent = seg ? "contacts selected. Everyone in the Broker Contact Segment, as copied from HubSpot."
+        : "brokers selected. Every broker with a broker id and a general email, live from the spine.";
+      $("segBar").hidden = !seg;
+    }
+    // Choosing a group clears the other group's ticks, ticks everyone in the chosen one, and asks the
+    // database again where the send would go.
+    function setGroup(value) {
+      $("group").value = value; segSeq++; segBusy = false; segMsg = ""; $("search").value = "";
+      drawGroup();
+      if (isSeg()) {
+        selected.clear(); segSel.clear(); segment = []; segCopiedAt = null; segRun = null;
+        renderBrokers(); scheduleDelivery(); loadSegment();
+      } else {
+        segSel.clear(); selected.clear(); brokers.forEach(b => selected.add(b.broker_key));
+        renderBrokers(); scheduleDelivery();
+      }
+    }
+    $("group").addEventListener("change", () => setGroup($("group").value));
     async function loadBrokers() {
       const g = pGen;
       try {
@@ -898,6 +1021,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       $("link").value = safeLink(s.link_url);
       $("file").value = ""; fileB64 = null; fileMeta = null; $("fileInfo").textContent = "";
       $("sendAt").value = ""; lastSent = "";
+      // A send made before groups existed has none: it was to broker primary emails.
+      const wantGroup = s.recipient_group === G_SEGMENT ? G_SEGMENT : G_PRIMARY;
+      if (wantGroup !== $("group").value) setGroup(wantGroup);
       refresh(); where.textContent = note;
       showTool("broker_emails", "new"); sayAgain(note);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -943,7 +1069,8 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
           const t = document.createElement("button"); t.type = "button"; t.className = "t"; t.textContent = x.subject;
           t.setAttribute("aria-expanded", "false"); t.title = "Show the email that was sent";
           const d = document.createElement("div"); d.className = "d";
-          d.textContent = [KIND[x.category] || "", fmt(x.requested_at), x.send_after ? `scheduled for ${fmt(x.send_after)}` : "", `${x.broker_count} broker${x.broker_count === 1 ? "" : "s"}`,
+          d.textContent = [KIND[x.category] || "", fmt(x.requested_at), x.send_after ? `scheduled for ${fmt(x.send_after)}` : "", GROUP_LABEL[x.recipient_group] || GROUP_LABEL[G_PRIMARY],
+            x.recipient_group === G_SEGMENT ? `${x.broker_count} contact${x.broker_count === 1 ? "" : "s"}` : `${x.broker_count} broker${x.broker_count === 1 ? "" : "s"}`,
             `${x.sent_count} sent`, x.sent_count ? `${x.delivered_count || 0} delivered` : "",
             x.failed_count ? `${x.failed_count} failed` : "", x.bounced_count ? `${x.bounced_count} bounced` : "",
             x.clicked_count ? `${x.clicked_count} clicked` : ""].filter(Boolean).join(" · ");
@@ -1074,7 +1201,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
         const req = { template_key: chosen(), variables: own() ? { message: $("ownBody").value }
             : chosen() === "new_prices" ? { date: $("date").value, ...npVariables() }
             : { date: $("date").value, products: $("products").value.trim(), extra: $("extra").value.trim() },
-          subject: w.subject, html: emailHtml(LOGO_CID), broker_keys: [...selected].map(Number), extra_emails: extraEmails(),
+          subject: w.subject, html: emailHtml(LOGO_CID), ...recipientArgs(), extra_emails: extraEmails(),
           attachment_id: attachmentId, link_url: $("link").value.trim() || null, send_after: sendAtIso(), category: own() ? kind() : "pricing" };
         // One call, one transaction on the server: if asking for approval fails, the send is not kept either.
         // The server sets who requested it from the signed-in session.
@@ -1427,7 +1554,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     // On sign-out nothing typed by this person, and nothing read from the database, stays in the page.
     function reset() {
       pGen++; signedIn = false; busy = false; REQUESTER = ""; priceLoaded = false; APPROVERS = [];
-      brokers = []; selected.clear(); typed = []; delivery = null; deliveryFor = ""; clearTimeout(deliveryTimer); deliverySeq++;
+      brokers = []; selected.clear(); typed = []; segSeq++; segBusy = false; segMsg = ""; segment = []; segSel.clear(); segCopiedAt = null; segRun = null; $("group").value = G_PRIMARY; drawGroup(); $("brokers").classList.remove("seg"); $("segLine").textContent = ""; delivery = null; deliveryFor = ""; clearTimeout(deliveryTimer); deliverySeq++;
       for (const id of ["date", "products", "extra", "ownSubject", "ownBody", "link", "sendAt", "file", "beAddEmail", "search"]) $(id).value = "";
       $("fileInfo").textContent = ""; fileB64 = null; fileMeta = null; lastSent = "";
       $("e1").checked = true; document.querySelectorAll('input[name="kind"]').forEach(k => { k.checked = false; });
@@ -1446,7 +1573,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       refresh();
     }
 
-    refresh();
+    drawGroup(); refresh();
     return { start, show, reset };
   })();
 

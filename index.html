@@ -115,7 +115,9 @@ iframe { display: block; width: 100%; height: 640px; border: 0; background: var(
     try {
       const { request: r } = await call("view");
       $("mRequester").textContent = r.requester_name || "";
-      $("mCount").textContent = `${r.broker_count} broker${r.broker_count === 1 ? "" : "s"}`;
+      $("mCount").textContent = r.recipient_group === "broker_contact_segment"
+        ? `${r.broker_count} address${r.broker_count === 1 ? "" : "es"} in the Broker Contact Segment`
+        : `${r.broker_count} broker${r.broker_count === 1 ? "" : "s"}`;
       $("mAttach").textContent = r.attachment_filename || "Nothing (a link only)";
       $("mExpires").textContent = fmt(r.expires_at);
       $("mSubject").textContent = r.subject || "";
