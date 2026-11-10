@@ -230,7 +230,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
                 <h2 id="s1"><span class="n">1</span> The email</h2>
                 <fieldset>
                   <legend>Which email?</legend>
-                  <label class="choice"><input type="radio" name="email" id="e1" value="new_prices" checked><span><b>New prices are live</b><span>Price books are ready to use from a date.</span></span></label>
+                  <label class="choice"><input type="radio" name="email" id="e1" value="new_prices" checked><span><b>New prices are live</b><span>The weekly price update: this week's news, the download button, and our three products.</span></span></label>
                   <label class="choice"><input type="radio" name="email" id="e2" value="prices_withdrawn"><span><b>Prices withdrawn</b><span>Current prices close; contracts by a cut-off.</span></span></label>
                   <label class="choice"><input type="radio" name="email" id="e3" value="new_prices_arriving"><span><b>New prices coming</b><span>A heads-up that new prices are due.</span></span></label>
                   <label class="choice"><input type="radio" name="email" id="e4" value="own_email"><span><b>Your own email</b><span>Write the subject and message yourself, such as a newsletter.</span></span></label>
@@ -238,9 +238,19 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
                 <div id="priceFields">
                   <div class="fields">
                     <div class="field"><label for="date" id="dateLabel">Live from</label><input type="date" id="date"></div>
-                    <div class="field"><label for="products">Products</label><input type="text" id="products" maxlength="120" placeholder="fixed electricity and fixed gas"></div>
+                    <div class="field" id="productsField"><label for="products">Products</label><input type="text" id="products" maxlength="120" placeholder="fixed electricity and fixed gas"></div>
                   </div>
-                  <div class="field" style="margin-top:14px"><label for="extra">Extra line (optional)</label><input type="text" id="extra" maxlength="300" placeholder="Leave blank unless needed"></div>
+                  <div class="field" id="extraField" style="margin-top:14px"><label for="extra">Extra line (optional)</label><input type="text" id="extra" maxlength="300" placeholder="Leave blank unless needed"></div>
+                  <!-- New prices are live: filled with Kelly Philpot's wording (10/11/2026) by fillNewPrices();
+                       the button, the products and the sign-off are fixed in newPricesHtml(). -->
+                  <div id="newFields">
+                    <div class="field" style="margin-top:14px"><label for="npHeadline">Headline</label><input type="text" id="npHeadline" maxlength="120"></div>
+                    <div class="field" style="margin-top:14px"><label for="npIntro">Opening message</label><textarea id="npIntro" rows="6" maxlength="2000"></textarea>
+                      <span class="hint">Goes under "Hello," and above the download button.</span></div>
+                    <div class="field" style="margin-top:14px"><label for="npBoxTitle">Box heading (optional)</label><input type="text" id="npBoxTitle" maxlength="120"></div>
+                    <div class="field" style="margin-top:14px"><label for="npBoxBody">Box message (optional)</label><textarea id="npBoxBody" rows="9" maxlength="3000"></textarea>
+                      <span class="hint">Leave the heading and message blank to leave the box out. In both messages: **bold** for bold, a line starting "- " for a bullet point, and [words](https://address) for a link.</span></div>
+                  </div>
                 </div>
                 <div id="ownFields" hidden>
                   <fieldset style="margin:0 0 14px 0"><legend>Kind</legend>
@@ -249,7 +259,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
                   </fieldset>
                   <div class="field"><label for="ownSubject">Subject</label><input type="text" id="ownSubject" maxlength="150" placeholder="Dyce partner news, November"></div>
                   <div class="field" style="margin-top:14px"><label for="ownBody">Message</label><textarea id="ownBody" rows="12" maxlength="6000" placeholder="Hello,&#10;&#10;Write the whole email here, including the sign-off. A blank line starts a new paragraph."></textarea>
-                    <span class="hint">**bold** for bold, a line starting "- " for a bullet point, and web addresses starting https:// become links. The link in step 2 becomes a "View the document" button under your message.</span></div>
+                    <span class="hint">**bold** for bold, a line starting "- " for a bullet point, web addresses starting https:// become links, and [words](https://address) links the words. The link in step 2 becomes a "View the document" button under your message.</span></div>
                 </div>
               </section>
 
@@ -542,19 +552,25 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     const isUuid = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s || "");
 
     // ---------- wording (draft, to be agreed by the sales team)
-    const LABEL = { new_prices: "Live from", prices_withdrawn: "Submit contracts by", new_prices_arriving: "Due on", own_email: "Live from" };
+    const LABEL = { new_prices: "Price update date", prices_withdrawn: "Submit contracts by", new_prices_arriving: "Due on", own_email: "Live from" };
     const chosen = () => document.querySelector('input[name="email"]:checked').value;
     const own = () => chosen() === "own_email";
     const kind = () => { const k = document.querySelector('input[name="kind"]:checked'); return k ? k.value : null; };
     const KIND = { pricing: "Pricing", newsletter: "Newsletter", adhoc: "Ad hoc" };
     // An own email's message: escaped, a blank line starts a paragraph, a single line break stays.
-    const ownParas = () => $("ownBody").value.replace(/\r\n?/g, "\n").trim().split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-    // The three formatting rules, applied to text that is already escaped, so only these tags
-    // can appear: **bold**, https:// links (a trailing . , or ) left outside), and "- " bullets.
+    const parasOf = (id) => $(id).value.replace(/\r\n?/g, "\n").trim().split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+    const ownParas = () => parasOf("ownBody");
+    // The formatting rules, applied to text that is already escaped, so only these tags can
+    // appear: **bold**, [words](https://address) links, bare https:// links (a trailing . , or )
+    // left outside), and "- " bullets. Both kinds of link are matched in one pass, so a link
+    // already made is never matched again.
     // Load-bearing: a link stops at an escaped quote or angle bracket, so "<https://x>" or
     // a quoted address links to the address alone.
+    const A = "color:#0F2A34;text-decoration:underline;";
     const inline = (t) => t.replace(/\*\*(\S(?:[^*]*?\S)?)\*\*/g, "<strong>$1</strong>")
-      .replace(/https:\/\/(?:(?!&quot;|&lt;|&gt;)[^\s<])+/g, (u) => { const m = u.match(/^(.*?)([.,)]*)$/); return `<a href="${m[1]}" style="color:#0F2A34;text-decoration:underline;">${m[1]}</a>${m[2]}`; });
+      .replace(/\[([^\]\n]+)\]\((https:\/\/(?:(?!&quot;|&lt;|&gt;)[^\s<)\]])+)\)|https:\/\/(?:(?!&quot;|&lt;|&gt;)[^\s<])+/g, (u, words, href) => {
+        if (words) return `<a href="${href}" style="${A}font-weight:bold;">${words}</a>`;
+        const m = u.match(/^(.*?)([.,)]*)$/); return `<a href="${m[1]}" style="${A}">${m[1]}</a>${m[2]}`; });
     function ownBlock(para) {
       const out = []; let lines = [], items = [];
       const P = "margin:0 0 14px 0;";
@@ -577,11 +593,89 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
         para: `We are withdrawing our current prices for ${P}. Please submit any contracts on current prices by ${D}. New prices will follow.` };
       if (k === "new_prices_arriving") return { subject: `New prices coming on ${D}`,
         para: `New price books for ${P} are due on ${D}. We will email you when they are live.` };
-      return { subject: `New prices are live from ${D}`, para: `Our new price books for ${P} are live from ${D}.` };
+      return { subject: `Price update ${D}: ${$("npHeadline").value.trim() || "[headline]"}` };
+    }
+
+    // ---------- New prices are live: Kelly Philpot's broker email, 10/11/2026
+    // The four boxes are filled with her wording, and the link with the pricing documents page,
+    // on opening, on sign-out, and when Use again meets a send made before this email existed.
+    const PRICING_PAGE = "https://dyce-energy.co.uk/pricingdocuments/";
+    const NP_DEFAULT = {
+      headline: "New gas prices are ready to download",
+      intro: "**New Gold and Advanced Saver gas prices are available.** The price files and matrices are on our pricing documents page now, with all current electricity and gas files.\n\n"
+        + "**Electricity and Silver prices are unchanged** from our update yesterday.",
+      box_title: "Before you load this week's files",
+      box_body: "**Our gas files have been updated.** Following feedback from our partners, we have changed the gas files so Gold and Advanced Saver can be told apart in pricing portals.\n\n"
+        + "**Gold and Advanced Saver electricity prices are not set by LLF band.** The rates do not change with the site's line loss factor. If your pricing portal maps electricity rates by LLF band, the Gold and Advanced Saver files may need remapping before you upload them.\n\n"
+        + "**Silver has its own contract pad.** It is different from the Gold and Advanced Saver contract pad, so please check you send your customer the right one.\n\n"
+        + `Both contract pads, and the price files, are in the link on the [pricing documents page](${PRICING_PAGE}).`,
+    };
+    const NP_FIELDS = { headline: "npHeadline", intro: "npIntro", box_title: "npBoxTitle", box_body: "npBoxBody" };
+    function fillNewPrices(v) {
+      for (const [k, id] of Object.entries(NP_FIELDS)) $(id).value = v && typeof v[k] === "string" ? v[k] : NP_DEFAULT[k];
+    }
+    const npVariables = () => Object.fromEntries(Object.entries(NP_FIELDS).map(([k, id]) => [k, $(id).value]));
+    // Every value goes through esc() (ownBlock escapes before formatting) or safeLink(); the
+    // products table, the guidance and the sign-off below are fixed text.
+    function newPricesHtml(logoSrc) {
+      const F = "font-family:Calibri,Segoe UI,Arial,sans-serif;";
+      const NAVY = "#0F2A34", MAG = "#DE00B9", GREY = "#D8D9DB";
+      const link = safeLink($("link").value.trim()); const D = ukDate($("date").value) || "[date]";
+      const row = (inner, pad = "32px 40px 0 40px") => `<tr><td style="padding:${pad};${F}font-size:15px;line-height:23px;color:${NAVY};">${inner}</td></tr>`;
+      const h2 = (t) => `<h2 style="${F}font-size:20px;line-height:28px;margin:0 0 8px 0;color:${NAVY};font-weight:bold;">${t}</h2>`;
+      const P = (t, last) => `<p style="margin:0 0 ${last ? 0 : 14}px 0;">${t}</p>`;
+      const intro = parasOf("npIntro"); const boxTitle = $("npBoxTitle").value.trim(); const box = parasOf("npBoxBody");
+      const cell = "border-bottom:1px solid " + GREY + ";padding:10px 8px;vertical-align:top;font-size:14px;line-height:20px;";
+      const PRODUCTS = [["", "Gold", "Silver", "Advanced Saver"],
+        ["What it is", "Our core fixed-price contract", "For customers with a lower credit score, priced slightly above Gold", "Our lowest-priced tariff, for one month's usage paid upfront"],
+        ["Creditsafe score", "50 or more", "30 to 49, subject to criteria", "50 or more"],
+        ["Fuels", "Gas and electricity", "Electricity only", "Gas and electricity"],
+        ["Contract terms", "3, 6, 12, 24 or 36 months", "12, 24 or 36 months", "3, 6, 12, 24 or 36 months"],
+        ["Start dates", "Up to 12 months ahead", "Up to 12 months ahead, depending on term", "Up to 12 months ahead"],
+        ["Upfront payment", "None", "None", "One month's usage, taken on or around the go-live date"]];
+      const FITS = [["50+", "Gold or Advanced Saver.", "Advanced Saver is the lower price if your customer can pay one month's usage upfront. Gold has no upfront payment."],
+        ["30 to 49", "Silver, subject to criteria.", "Electricity only. Send us the customer's details before you quote and we will confirm whether Silver is available."],
+        ["Below 30", "Not available.", "Customers with a Creditsafe score below 30 cannot take any of the three products."]];
+      const mail = (a) => `<a href="mailto:${a}" style="color:${NAVY};font-weight:bold;">${a}</a>`;
+      return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#FFFFFF;"><tr><td align="center" style="padding:24px 0;">`
+        + `<table role="presentation" cellpadding="0" cellspacing="0" width="600" style="width:100%;max-width:600px;background:#FFFFFF;border-collapse:collapse;">`
+        + row(`<img src="${logoSrc}" alt="Dyce Energy" width="170" style="display:block;width:170px;height:auto;">`, "32px 40px 20px 40px")
+        + row(`<div style="font-size:13px;line-height:16px;letter-spacing:2px;font-weight:bold;margin:0 0 8px 0;">Price update · ${esc(D)}</div>`
+          + `<h1 style="${F}font-size:28px;line-height:36px;margin:0 0 14px 0;color:${NAVY};font-weight:bold;">${esc($("npHeadline").value.trim() || "[headline]")}</h1>`
+          + `<div style="height:3px;width:56px;background:${MAG};"></div>`, "8px 40px 0 40px")
+        + row(P("Hello,") + (intro.length ? intro : ["[opening message]"]).map(ownBlock).join(""), "20px 40px 0 40px")
+        + (link ? row(`<a href="${esc(link)}" style="background:${NAVY};color:#FFFFFF;text-decoration:none;font-weight:bold;padding:14px 28px;border-radius:6px;display:inline-block;">Download this week's prices</a>`, "8px 40px 0 40px") : "")
+        + (fileMeta ? row(P(`${esc(fileMeta.name)} is attached to this email.`, true), "14px 40px 0 40px") : "")
+        + (boxTitle || box.length ? row(`<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;"><tr>`
+          + `<td style="width:5px;background:${MAG};font-size:0;line-height:0;">&nbsp;</td>`
+          + `<td style="padding:22px 24px;${F}font-size:15px;line-height:23px;color:${NAVY};">`
+          + (boxTitle ? `<div style="font-size:17px;line-height:24px;font-weight:bold;margin:0 0 12px 0;">${esc(boxTitle)}</div>` : "")
+          + box.map(ownBlock).join("") + `</td></tr></table>`, "28px 40px 0 40px") : "")
+        + row(h2("Our three products") + P("Three fixed-price products for business energy. Your customer's Creditsafe score decides which ones they can take.")
+          + `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;border-top:2px solid ${NAVY};">`
+          + PRODUCTS.map((r, i) => `<tr>${r.map((c, j) => `<td style="${cell}${j === 0 ? "padding-left:0;width:84px;" : ""}${i === 0 || j === 0 ? "font-weight:bold;" : ""}">${esc(c) || "&nbsp;"}</td>`).join("")}</tr>`).join("")
+          + `</table>`)
+        + row(h2("Which product fits your customer")
+          + `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:0 0 14px 0;">`
+          + FITS.map(([n, lead, rest]) => `<tr><td style="border-top:3px solid ${MAG};padding:12px 12px 12px 0;vertical-align:top;width:130px;color:${MAG};font-size:26px;line-height:34px;font-weight:bold;">${esc(n)}</td>`
+            + `<td style="border-top:3px solid ${MAG};padding:12px 0;vertical-align:top;line-height:22px;"><strong>${esc(lead)}</strong> ${esc(rest)}</td></tr>`).join("")
+          + `</table>` + P("<strong>Renewals.</strong> Existing customers whose bills are fully up to date can renew on Gold or Advanced Saver. Their Creditsafe score does not affect these renewals.", true))
+        + row(h2("How far ahead we price") + `<ul style="margin:0;padding-left:20px;">`
+          + `<li style="margin:0 0 8px 0;"><strong>Gold and Advanced Saver</strong> are priced on a 48 month curve: a start date up to 12 months ahead, then a contract of up to 36 months.</li>`
+          + `<li style="margin:0;"><strong>Silver</strong> is priced on a 42 month curve. The start date and the contract together fall within the 42 months.</li></ul>`)
+        + row(h2("Larger sites and portfolios")
+          + P(`Sites above the volumes in our standard price file, and multi-site portfolios, are priced on a bespoke basis. Send your tenders to ${mail("tenders@dyce-energy.co.uk")} and we will come back to you with a price.`)
+          + P("<strong>Billed and serviced by Dyce.</strong> Every contract is a Dyce contract. We issue every bill, and our team in Rotherham looks after your customer from go-live to renewal. Your customer can submit meter reads and check usage, bills and payments across multiple sites in Your Energy Online.", true))
+        + row(P("We review our pricing regularly in line with the market and will tell you about any changes in advance.")
+          + P(`Any questions, please email ${mail("tpi@dyce-energy.co.uk")} or call us on 01709 357315.`)
+          + P("Kind regards,<br>The Dyce Energy Team", true))
+        + row(`<p style="border-top:1px solid ${GREY};padding-top:12px;margin:0;font-size:12px;line-height:18px;">Dyce Energy · 01709 357315 · <a href="https://dyce-energy.co.uk/" style="color:${NAVY};">dyce-energy.co.uk</a><br>Prices are subject to change, credit approval and contract terms.</p>`, "32px 40px 32px 40px")
+        + `</table></td></tr></table>`;
     }
     // The email as HTML. Every value in it, typed or read back from an earlier send, goes through
     // esc() (and a link through safeLink() first); the page builds every tag itself.
     function emailHtml(logoSrc) {
+      if (chosen() === "new_prices") return newPricesHtml(logoSrc);
       const w = wording(); const link = safeLink($("link").value.trim()); const extra = $("extra").value.trim();
       const F = "font-family:Calibri,Segoe UI,Arial,sans-serif;";
       const docLine = fileMeta && link ? "The price books are attached, and you can also open them using the button below."
@@ -616,6 +710,10 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
         if (!kind()) p.push("choose Newsletter or Ad hoc");
         if (!$("ownSubject").value.trim()) p.push("type the subject");
         if (!ownParas().length) p.push("write the message");
+      } else if (chosen() === "new_prices") {
+        if (!$("date").value) p.push("pick the date");
+        if (!$("npHeadline").value.trim()) p.push("type the headline");
+        if (!parasOf("npIntro").length) p.push("write the opening message");
       } else {
         if (!$("date").value) p.push("pick the date");
         if (!$("products").value.trim()) p.push("type the products");
@@ -688,8 +786,12 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     });
     function refresh() {
       $("dateLabel").textContent = LABEL[chosen()];
+      const np = chosen() === "new_prices";
       $("priceFields").hidden = own(); $("ownFields").hidden = !own();
-      $("pNote").textContent = own() ? "Your wording. The approver sees it exactly as above." : "Draft wording, to be agreed by the sales team.";
+      $("productsField").hidden = np; $("extraField").hidden = np; $("newFields").hidden = !np;
+      $("pNote").textContent = own() ? "Your wording. The approver sees it exactly as above."
+        : np ? "Kelly Philpot's wording, 10/11/2026. Change the boxes for this week's news; the approver sees it exactly as above."
+        : "Draft wording, to be agreed by the sales team.";
       const w = wording();
       $("pSubject").textContent = w.subject;
       // Load-bearing: emailHtml escapes every value it is given (see emailHtml), as send.html did.
@@ -709,6 +811,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     ["input", "change"].forEach(ev => $("be").querySelector(".grid").addEventListener(ev, (e) => {
       if (e.target.id === "file" || e.target.closest(".brokers")) return; refresh();
     }));
+    // The price email's button goes to the pricing documents page unless someone types another link.
+    fillNewPrices(); $("link").value = PRICING_PAGE;
+    $("e1").addEventListener("change", () => { if (!$("link").value.trim()) { $("link").value = PRICING_PAGE; refresh(); } });
 
     $("file").addEventListener("change", () => {
       const f = $("file").files[0]; fileB64 = null; fileMeta = null; $("fileInfo").textContent = "";
@@ -784,6 +889,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
         $("ownBody").value = typeof v.message === "string" ? v.message : "";
         const k = document.querySelector(`input[name="kind"][value="${s.category === "newsletter" ? "newsletter" : "adhoc"}"]`); if (k) k.checked = true;
         if (typeof v.message !== "string") note = "Filled in the subject. This email was sent before messages were kept, so type the message again.";
+      } else if (s.template_key === "new_prices") {
+        $("date").value = v.date || ""; fillNewPrices(v);
+        if (typeof v.headline !== "string") note = "Filled in the date. That send used the old wording, so the boxes hold the current price email. Add the file again if it needs one, and check the send time.";
       } else {
         $("date").value = v.date || ""; $("products").value = v.products || ""; $("extra").value = v.extra || "";
       }
@@ -963,7 +1071,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
         }
         say("Creating the send…");
         const w = wording();
-        const req = { template_key: chosen(), variables: own() ? { message: $("ownBody").value } : { date: $("date").value, products: $("products").value.trim(), extra: $("extra").value.trim() },
+        const req = { template_key: chosen(), variables: own() ? { message: $("ownBody").value }
+            : chosen() === "new_prices" ? { date: $("date").value, ...npVariables() }
+            : { date: $("date").value, products: $("products").value.trim(), extra: $("extra").value.trim() },
           subject: w.subject, html: emailHtml(LOGO_CID), broker_keys: [...selected].map(Number), extra_emails: extraEmails(),
           attachment_id: attachmentId, link_url: $("link").value.trim() || null, send_after: sendAtIso(), category: own() ? kind() : "pricing" };
         // One call, one transaction on the server: if asking for approval fails, the send is not kept either.
@@ -1321,6 +1431,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       for (const id of ["date", "products", "extra", "ownSubject", "ownBody", "link", "sendAt", "file", "beAddEmail", "search"]) $(id).value = "";
       $("fileInfo").textContent = ""; fileB64 = null; fileMeta = null; lastSent = "";
       $("e1").checked = true; document.querySelectorAll('input[name="kind"]').forEach(k => { k.checked = false; });
+      fillNewPrices(); $("link").value = PRICING_PAGE;
       renderTyped(); $("addInfo").textContent = ADD_INFO; $("testBanner").hidden = true; sayAgain("");
       const box = $("approverBox"); box.textContent = "";
       const legend = document.createElement("legend"); legend.textContent = "Who approves it?";
