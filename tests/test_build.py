@@ -101,6 +101,23 @@ class BuildTests(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertFalse((self.tmp / "preview" / "fixture.html").exists())
 
+    def test_include_inlined(self):
+        (self.tmp / "parts").mkdir()
+        (self.tmp / "parts" / "pool-lib.js").write_text("var LIB = {a: '{x}'};", encoding="utf-8")
+        (self.tmp / "fixture.src.html").write_text(FIXTURE + "<script>{{POOL_LIB_JS}}</script>", encoding="utf-8")
+        r = run_build(self.tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = (self.tmp / "fixture.html").read_text(encoding="utf-8")
+        self.assertIn("<script>var LIB = {a: '{x}'};</script>", out)
+        self.assertNotIn("{{", out)
+
+    def test_missing_include_stops_build(self):
+        (self.tmp / "fixture.src.html").write_text(FIXTURE + "<script>{{POOL_SCREEN_JS}}</script>", encoding="utf-8")
+        r = run_build(self.tmp)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("parts/pool-screen.js", r.stderr)
+        self.assertFalse((self.tmp / "fixture.html").exists())
+
     def test_no_src_files_does_nothing(self):
         (self.tmp / "fixture.src.html").unlink()
         r = run_build(self.tmp)

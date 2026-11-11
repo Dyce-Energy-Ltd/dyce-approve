@@ -1,4 +1,5 @@
-"""Build every X.src.html into X.html, embedding the Dyce logos as data URIs.
+"""Build every X.src.html into X.html, embedding the Dyce logos as data URIs
+and inlining the parts/ files named in INCLUDES.
 
     python build.py            writes X.html next to each X.src.html
     python build.py --preview  also writes preview/X.html with tools/preview-stub.js
@@ -16,6 +17,11 @@ LOGOS = {
     "LOGO_ORIG": "dyce-logo-original.png",
     "LOGO_INV": "dyce-logo-invert.png",
 }
+INCLUDES = {
+    "POOL_LIB_JS": "parts/pool-lib.js",
+    "POOL_SCREEN_JS": "parts/pool-screen.js",
+    "POOL_SCREEN_CSS": "parts/pool-screen.css",
+}
 PLACEHOLDER = re.compile(r"\{\{([A-Za-z0-9_]+)\}\}")
 
 
@@ -23,9 +29,16 @@ def data_uri(path):
     return "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
 
 
-def render(text, assets, name):
+def render(text, root, name):
+    assets = root / "assets"
+
     def sub(m):
         key = m.group(1)
+        if key in INCLUDES:
+            path = root / INCLUDES[key]
+            if not path.is_file():
+                raise SystemExit("%s: {{%s}} needs %s, which is missing" % (name, key, INCLUDES[key]))
+            return path.read_text(encoding="utf-8")
         if key not in LOGOS:
             raise SystemExit("%s: unknown placeholder {{%s}}" % (name, key))
         return data_uri(assets / LOGOS[key])
@@ -69,7 +82,7 @@ def main(argv=None):
     for src in sources:
         out_name = src.name[: -len(".src.html")] + ".html"
         html = check_no_braces(
-            render(src.read_text(encoding="utf-8"), root / "assets", src.name), src.name)
+            render(src.read_text(encoding="utf-8"), root, src.name), src.name)
         preview = None
         if stub is not None:
             preview = check_no_braces(inline_stub(html, stub, src.name),
