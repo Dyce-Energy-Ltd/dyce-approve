@@ -170,7 +170,7 @@
     return vote.note ? `${head}. ${vote.note}` : head;
   }
 
-  // opts.toReview: boards I have not marked. opts.awaiting: boards with votes and no decision.
+  // opts.toReview: boards I have not marked. opts.awaiting: boards with no decision yet.
   // opts.changed: decided boards with a vote newer than the decision. opts.area: one area.
   // ctx: {votes, email, decisions}. Sorted by num.
   function filterBoards(boards, opts, ctx) {
@@ -180,7 +180,7 @@
       .filter(b => {
         if (o.area && b.area !== o.area) return false;
         if (o.toReview && myMark(c.votes, c.email, b.id) !== null) return false;
-        if (o.awaiting && (decided.has(b.id) || votedCount(c.votes, b.id) === 0)) return false;
+        if (o.awaiting && decided.has(b.id)) return false;
         if (o.changed && !(decided.has(b.id) && changedSinceDecided(c.votes, decided.get(b.id)))) return false;
         return true;
       })

@@ -92,7 +92,7 @@ test("filterBoards", () => {
   assert.deepEqual(L.filterBoards(boards, {}, ctx).map(b => b.id), ["b1", "b2", "b3"]);
   assert.deepEqual(L.filterBoards(boards, {area: "ops"}, ctx).map(b => b.id), ["b2", "b3"]);
   assert.deepEqual(L.filterBoards(boards, {toReview: true}, ctx).map(b => b.id), ["b1", "b3"]);
-  assert.deepEqual(L.filterBoards(boards, {awaiting: true}, ctx).map(b => b.id), ["b2"]);
+  assert.deepEqual(L.filterBoards(boards, {awaiting: true}, ctx).map(b => b.id), ["b2", "b3"]);
   assert.deepEqual(L.filterBoards(boards, {changed: true}, ctx).map(b => b.id), ["b1"]);
   assert.deepEqual(L.filterBoards(boards, {}, undefined).map(b => b.id), ["b1", "b2", "b3"]);
 });
@@ -113,7 +113,7 @@ test("fmt shows a dash for unknown values", () => {
 test("fmt numbers", () => {
   assert.equal(L.fmt(12345, "int"), "12,345");
   assert.equal(L.fmt(1234.5, "gbp"), "£1,235");
-  assert.equal(L.fmt(892.62, "gbp"), "£892.62");
+  assert.equal(L.fmt(7.25, "gbp"), "£7.25");
   assert.equal(L.fmt(-50, "gbp"), "-£50.00");
   assert.equal(L.fmt(2500000, "kwh"), "2.5 GWh");
   assert.equal(L.fmt(45000, "kwh"), "45 MWh");
@@ -150,12 +150,12 @@ test("axisLabel", () => {
 });
 
 test("fillTemplate fills placeholders with formatted values", () => {
-  const row = {n: 145, total: 739, gbp: 1234.5, missing: null};
-  assert.equal(L.fillTemplate("{n:int} meters of {total:int}", row), "145 meters of 739");
+  const row = {n: 3, total: 8, gbp: 1234.5, missing: null};
+  assert.equal(L.fillTemplate("{n:int} widgets of {total:int}", row), "3 widgets of 8");
   assert.equal(L.fillTemplate("Value {gbp:gbp}", row), "Value £1,235");
   assert.equal(L.fillTemplate("Gone {missing:int}", row), "Gone " + L.DASH);
   assert.equal(L.fillTemplate("No placeholders", row), "No placeholders");
-  assert.equal(L.fillTemplate("{n}", row), "145");
+  assert.equal(L.fillTemplate("{n}", row), "3");
   assert.equal(L.fillTemplate("{nope:int}", row), L.DASH);
   assert.equal(L.fillTemplate(undefined, row), "");
 });
@@ -208,18 +208,18 @@ test("plainTables handles the broker alias list, unknown tables and digits", () 
   assert.equal(L.plainTables("No tables here"), "No tables here");
 });
 
-test("plainTables handles the singular row (board 17 and 18 definitions)", () => {
+test("plainTables handles the singular row (invented sentences)", () => {
   assert.equal(
-    L.plainTables("Every spine.entity_loss_report row with loss_cos_date in this calendar month, whatever its status."),
-    "Every row in the loss report table in the spine with loss_cos_date in this calendar month, whatever its status.");
+    L.plainTables("Each spine.entity_loss_report row with some_date_field in the test period, whatever its flag."),
+    "Each row in the loss report table in the spine with some_date_field in the test period, whatever its flag.");
   assert.equal(
-    L.plainTables("Every spine.entity_loss_report row grouped by loss_status, named as on wallboard 6."),
-    "Every row in the loss report table in the spine grouped by loss_status, named as on wallboard 6.");
+    L.plainTables("Each spine.entity_loss_report row grouped by some_flag, named as in the example list."),
+    "Each row in the loss report table in the spine grouped by some_flag, named as in the example list.");
   assert.equal(L.plainTables("Count of spine.entity_quote rows won"), "Count of rows in the quote table in the spine won");
   assert.equal(L.plainTables("spine.entity_quote rowsum"), "The quote table in the spine rowsum");
 });
 
 test("plainTables does not capitalise an identifier", () => {
   assert.equal(L.plainTables("month_token is read from spine.entity_contract"), "month_token is read from the contract table in the spine");
-  assert.equal(L.plainTables("loss_status counted in spine.entity_quote rows"), "loss_status counted in rows in the quote table in the spine");
+  assert.equal(L.plainTables("some_flag counted in spine.entity_quote rows"), "some_flag counted in rows in the quote table in the spine");
 });
