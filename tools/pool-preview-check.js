@@ -6,13 +6,15 @@
 //
 // ?as=reviewer: the opening line, the count, marks, a vote, an audience tick, a change to Pass
 // (the ticks clear), a typed note that survives moving to another board and a save there, the
-// fallback caveat on the board that fell back, notes shown as text, the only storage key, and
-// sign-out clearing the tool. ?as=decider: the tab shows without the Review tick, and voting is
-// not offered, and the decision panel is. ?as=admin (the decider, who also holds the tick): "N of M
+// fallback caveat on the board that fell back, its 30/09 date in place of the source load times,
+// notes shown as text, the only storage key, and sign-out clearing the tool. ?as=decider: me says
+// is_decider, the tab shows without the Review tick, voting is not offered, and the decision
+// panel is. ?as=admin (the decider, who also holds the tick): "N of M
 // reviewers have voted" with no names, the audience picks, a former reviewer's vote, the two
 // filters, a decision, a later vote by Sam (through __stub.poolVote) raising the flag, saving the
 // same decision again clearing it, clearing the decision, and the Summary's count, flag and
-// reviewer filter. ?as=viewer: no tab. ?poolempty=1: the not-loaded sentence.
+// reviewer filter. ?as=viewer: no tab, and no pool_state is asked. ?poolempty=1: the not-loaded
+// sentence.
 (() => {
   const FLAG = "Votes changed since decided";
   const FALLBACK = "These figures are as at 30/09/2026. This board could not be refreshed after the database changes of late October.";
@@ -44,6 +46,7 @@
     check("board 1 marked To review and Decided: kept", b1 && /To review/.test(b1.textContent) && /Decided: kept/.test(b1.textContent), b1 && b1.textContent);
     check("the screen is drawn and scaled", $("#pool .dwrap .dscreen") && /scale\(/.test($("#pool .dwrap .dscreen").style.transform), $("#pool .dwrap") && $("#pool .dwrap").outerHTML.slice(0, 200));
     check("no caveat on a refreshed board", !$("#pool .pool-caveat"));
+    check("a refreshed board's footer gives its source load time", /^Example widget load: as at /.test(text("#pool .dfoot span")), text("#pool .dfoot span"));
     check("decision line", text("#pool .pool-decision") === "Decided: kept, for Wallboard", text("#pool .pool-decision"));
     check("everyone's votes", voteLines().includes("Sam Example: Keep (Wallboard, App: Sales). Useful on the wall by the line."), voteLines().join(" | "));
     check("Full screen and the figures table are offered", button("Full screen", $("#pool")) && text("#pool details.pool-figs summary") === "Show the figures as a table");
@@ -103,6 +106,8 @@
     check("fallback caveat, exact", cav && cav.textContent === FALLBACK, cav && cav.textContent);
     check("caveat above the screen", cav && frame && (cav.compareDocumentPosition(frame) & Node.DOCUMENT_POSITION_FOLLOWING));
     check("fallback board's figures date", /Figures as at 30\/09\/2026/.test(text("#pool .pool-board-head .hint")), text("#pool .pool-board-head .hint"));
+    check("fallback board's footer gives the figures' date, not the source times", text("#pool .dfoot span") === "Figures as at 30/09/2026", text("#pool .dfoot span"));
+    check("fallback board's source line too", text("#pool .pool-how .hint") === "Figures as at 30/09/2026. Snapshot, not live.", text("#pool .pool-how .hint"));
 
     // The To review filter leaves only board 3, the one not yet marked; then the Summary counts.
     $("#poolToReview").click();
@@ -133,7 +138,8 @@
   async function decider() {
     if (!(await until(() => $("#pool .pool-board-head h2")))) { check("the board is drawn", false, document.body.textContent.slice(0, 300)); return; }
     check("tab shows without the Review tick", button("Dashboard Pool", $("#tabs")) && !/dashboard_pool\.review/.test(JSON.stringify(window.__stub.calls.find((c) => c.action === "me").answer)));
-    check("decider learnt from pool_state", calls("pool_state").length >= 1);
+    const meAnswer = ((calls("me")[0] || {}).answer || {}).result || {};
+    check("me says is_decider", meAnswer.is_decider === true, JSON.stringify(meAnswer));
     await until(() => /Voting needs/.test(text("#pool")));
     check("voting not offered", !button("Keep", $("#pool")) && /Voting needs the Review tick in DNA Admin\./.test(text("#pool")));
     check("the decision panel is offered", button("Keep this board", $("#pool")) && button("Drop this board", $("#pool")) && button("Clear decision", $("#pool")));
@@ -243,8 +249,9 @@
     await until(() => $("#tabs button"));
     await sleep(500);
     check("no Dashboard Pool tab", !button("Dashboard Pool", $("#tabs")), text("#tabs"));
-    const probe = calls("pool_state");
-    check("the one probe was refused", probe.length === 1 && probe[0].status === 400, JSON.stringify(probe));
+    const meAnswer = ((calls("me")[0] || {}).answer || {}).result || {};
+    check("me says not the decider", meAnswer.is_decider === false, JSON.stringify(meAnswer));
+    check("no pool_state is asked without the tick", calls("pool_state").length === 0, JSON.stringify(calls("pool_state")));
     check("nothing of the pool drawn", !$("#pool"));
   }
 

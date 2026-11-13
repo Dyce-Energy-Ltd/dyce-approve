@@ -428,7 +428,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #pool .pool-link { font: inherit; font-weight: 800; color: var(--ink); background: none; border: 0; padding: 0; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 #pool .pool-sum td.c, #pool .pool-sum th.c { text-align: center; font-variant-numeric: tabular-nums; }
 /* The decider's parts: the count of reviewers who have voted, the decision panel and the flag. */
-.pool-flag { font-size: 12px; line-height: 16px; font-weight: 800; color: var(--status-warn); background: var(--status-warn-wash); border: 1px solid var(--status-warn-edge); border-radius: 6px; padding: 2px 8px; display: inline-block; }
+.pool-flag { font-size: 12px; line-height: 16px; font-weight: 800; color: var(--ink); background: transparent; border: 1px solid var(--hairline); border-radius: 6px; padding: 2px 8px; display: inline-block; }
 #pool .pool-voted { margin: 6px 0 0; font-size: 14px; line-height: 22px; font-variant-numeric: tabular-nums; }
 #pool .pool-picks { margin: 6px 0 0; font-size: 14px; line-height: 22px; color: var(--muted); }
 #pool .pool-decision-box .pool-flag { margin-top: 6px; }
@@ -1210,8 +1210,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       items: [{ id: "search", label: "Search", need: DV_VIEW }, { id: "reporting", label: "Reporting", need: DV_VIEW },
               { id: "queue", label: "Review queue", need: DV_REVIEW }],
       render: renderDnaViewer },
-    // The decider sees the tab with or without the Review tick (learnDecider below).
-    { id: "dashboard_pool", label: "Dashboard Pool", allowed: (t) => t.includes(POOL_REVIEW) || !!(me && me.is_decider),
+    // The decider sees the tab with or without the Review tick: "me" says who decides
+    // (is_decider), as the address is held only in the database.
+    { id: "dashboard_pool", label: "Dashboard Pool", allowed: (t) => t.includes(POOL_REVIEW) || !!(me && me.is_decider === true),
       items: [{ id: "boards", label: "Boards" }, { id: "summary", label: "Summary" }],
       render: renderPool },
     { id: "dna_admin", label: "DNA Admin", allowed: (t) => t.includes("dna_admin.admin"),
@@ -2735,12 +2736,10 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       const labels = audLabels(), aud = (Array.isArray(d.audiences) ? d.audiences : []).map((a) => labels[a] || a);
       return "Decided: kept" + (aud.length ? `, for ${listAnd(aud)}` : "");
     }
-    // Takes a pool_state answer, unless a newer one has already been taken. The decider's tab shows
-    // without the Review tick, so the hub's "me" learns is_decider here too.
+    // Takes a pool_state answer, unless a newer one has already been taken.
     function take(k, s) {
       if (k < applied || !s || typeof s !== "object") return;
       applied = k; state = s;
-      if (me && s.me && s.me.is_decider === true) me.is_decider = true;
     }
     async function ask(action, args) { const k = ++asked; const s = await api(action, args); return [k, s]; }
 
@@ -2894,16 +2893,18 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       if (!b) { parts.body.append(el("p", { class: "empty", text: "No boards." })); return; }
       const snap = content.snapshot, row = (snap.boards && snap.boards[b.id]) || {};
       const fb = snap.fallback && snap.fallback[b.id];
-      const asAt = fb && fb.as_at ? fb.as_at : snap.as_at;
+      const asAt = L.boardAsAt(snap, b.id), asAtText = asAt ? L.fmt(asAt, "date") : L.DASH;
+      // A board on fallback figures shows their date, not today's source load times.
+      const srcLine = fb ? `Figures as at ${asAtText}` : sourcesLine(b);
       const h2 = el("h2", { tabindex: "-1" }, el("span", { class: "pool-num", text: String(b.num) }), String(b.title ?? ""));
       const art = el("article", { class: "pool-board-head" }, h2,
-        el("p", { class: "hint", style: "margin:4px 0 0", text: `${areaLabel(b.area)} · Figures as at ${asAt ? L.fmt(asAt, "date") : L.DASH}` }));
+        el("p", { class: "hint", style: "margin:4px 0 0", text: `${areaLabel(b.area)} · Figures as at ${asAtText}` }));
       if (fb) art.append(el("p", { class: "pool-caveat", role: "note", text: FALLBACK }));
       let wrap = null;
       try {
         const logo = document.querySelector("#topbar .logo");
-        wrap = Screen.render(b, row, { logo: logo ? logo.src : "", time: asAt ? L.fmt(asAt, "date") : L.DASH, date: "Figures as at",
-          asat: sourcesLine(b), area: areaLabel(b.area), rotation: false });
+        wrap = Screen.render(b, row, { logo: logo ? logo.src : "", time: asAtText, date: "Figures as at",
+          asat: srcLine, area: areaLabel(b.area), rotation: false });
       } catch { wrap = null; }
       if (wrap) {
         art.append(el("div", { class: "pool-frame" }, wrap));
@@ -2921,7 +2922,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
         el("h2", { id: "poolHow", text: "How each question is answered" }),
         el("ol", {}, ...qs.map((q) => el("li", {}, el("b", { text: String(q.q ?? "") }), " ", L.plainTables(q.definition)))),
         cav.length ? el("ul", { class: "pool-caveats" }, ...cav.map((c) => el("li", { text: String(c) }))) : null,
-        el("p", { class: "hint", style: "margin:10px 0 0", text: `Source: ${sourcesLine(b)}. Snapshot, not live.` })));
+        el("p", { class: "hint", style: "margin:10px 0 0", text: fb ? `${srcLine}. Snapshot, not live.` : `Source: ${srcLine}. Snapshot, not live.` })));
       parts.vote = el("section", { class: "pool-sec", "aria-labelledby": "poolVoteTitle" });
       parts.decision = el("div", { class: "pool-decision-box" });
       parts.votes = el("section", { class: "pool-sec", "aria-labelledby": "poolVotesTitle" });
@@ -3190,28 +3191,13 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     return adminChanges(g);
   }
 
-  // The Dashboard Pool tab shows for the Review tick or for the decider, whose address is held
-  // only in the database. "me" does not say who decides, so someone without the tick asks
-  // pool_state once: only the decider gets an answer, and anyone else's refusal is dropped. Once
-  // known for this address it is carried over when "me" is asked again; with the tick, the tool
-  // learns it from its own pool_state.
-  async function learnDecider(m, prev) {
-    if (!m || typeof m !== "object") return;
-    if (prev && prev.email === m.email && prev.is_decider) { m.is_decider = true; return; }
-    if (!Array.isArray(m.ticks) || m.ticks.includes(POOL_REVIEW)) return;
-    try { const s = await api("pool_state"); if (s && s.me && s.me.is_decider === true) m.is_decider = true; }
-    catch { /* not the decider, or no answer: the tab follows the tick */ }
-  }
-
   // After a change to the signed-in person's own ticks or switch, their tabs follow at once.
   async function refreshMe() {
     // The session token, not gen: a move between tools must not drop this answer, but one that
     // arrives after sign-out (token null) or a new sign-in (a new token) must change nothing.
     const t = token;
     try {
-      const m = await api("me");
-      await learnDecider(m, me);
-      if (!me || !t || token !== t) return;
+      const m = await api("me"); if (!me || !t || token !== t) return;
       me = m; $("conn").textContent = me.email;
       if (!visibleTools().some((t) => t.id === where.tool)) showTool(where.tool); else renderTabs();
     } catch { /* a signedOut answer has already shown the sign-in; anything else waits for the next load */ }
@@ -3394,12 +3380,8 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     setMsg(message || "");
   }
   async function boot() {
-    const t = token;
     try {
       const m = await api("me");
-      await learnDecider(m, null);
-      // The session ended while the decider check was on its way: the sign-in is already shown.
-      if (token !== t) return;
       me = m; $("conn").textContent = me.email;
       $("signin").hidden = true; $("app").hidden = false; $("who").hidden = false;
       BE.start(me);

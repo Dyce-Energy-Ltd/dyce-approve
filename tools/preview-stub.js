@@ -553,7 +553,9 @@
           var approvers = people.filter(function (x) { return x.active && x.email !== me && x.grants.indexOf("broker_emails.approve") >= 0; })
             .map(function (x) { return { email: x.email, display_name: x.display_name, available: true }; });
           approvers.push({ email: "unavailable.example@dyce-energy.co.uk", display_name: "Robin Unavailable", available: false });
-          return [200, { ok: true, result: { email: me, display_name: p2.display_name, testing: true, approvers: approvers, ticks: p2.active ? sorted(p2.grants) : [] } }];
+          // is_decider as comms.web_call's me gives it: true for the decider alone (Admin Example here).
+          return [200, { ok: true, result: { email: me, display_name: p2.display_name, testing: true, is_decider: me === POOL_DECIDER,
+            approvers: approvers, ticks: p2.active ? sorted(p2.grants) : [] } }];
         }
         if (/^admin_/.test(action)) return [200, { ok: true, result: adminAction(me, action, args) }];
         if (/^pool_/.test(action)) return [200, { ok: true, result: poolAction(me, action, args) }];

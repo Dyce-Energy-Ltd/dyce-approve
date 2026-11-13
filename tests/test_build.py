@@ -211,7 +211,7 @@ class CommittedPagesTests(unittest.TestCase):
         i_dv, i_pool, i_admin = (page.index('{ id: "%s"' % t) for t in ("dna_viewer", "dashboard_pool", "dna_admin"))
         self.assertLess(i_dv, i_pool)
         self.assertLess(i_pool, i_admin)
-        self.assertIn('{ id: "dashboard_pool", label: "Dashboard Pool", allowed: (t) => t.includes(POOL_REVIEW) || !!(me && me.is_decider),', page)
+        self.assertIn('{ id: "dashboard_pool", label: "Dashboard Pool", allowed: (t) => t.includes(POOL_REVIEW) || !!(me && me.is_decider === true),', page)
         self.assertIn('items: [{ id: "boards", label: "Boards" }, { id: "summary", label: "Summary" }],', page)
         # The screen reads PoolLib as it loads, so the helpers are inlined first; the CSS is in the style.
         self.assertLess(page.index("{{POOL_LIB_JS}}"), page.index("{{POOL_SCREEN_JS}}"))
