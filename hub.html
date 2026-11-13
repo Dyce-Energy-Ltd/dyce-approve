@@ -3116,7 +3116,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 
     // ---------- the Summary: every board, its counts and the decision
     // The decider also sees "N of M voted", the flag, and a reviewer filter: with one reviewer
-    // chosen, the counts are that person's votes and their vote is shown beside them.
+    // chosen, only the boards that person voted on are listed, with their counts and vote; the
+    // boards they have not voted on are left out, never marked, so no list of who has not voted
+    // can be built from it.
     function drawSummary() {
       const decider = isDecider(), labels = audLabels();
       const voters = [];
@@ -3138,10 +3140,11 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
         const open = el("button", { type: "button", class: "pool-link", "data-pool-focus": "sum:" + b.id, text: String(b.title ?? "") });
         open.addEventListener("click", () => openBoard(b.id));
         const mine = one ? t.voters[0] : null;
+        if (one && !mine) continue;
         tb.append(el("tr", {}, el("td", { class: "c", text: String(b.num) }),
           el("td", {}, open, el("div", { class: "em", text: areaLabel(b.area) })),
           ...L.VERDICTS.map((k) => el("td", { class: "c", text: String(t[k]) })),
-          one ? el("td", { text: mine ? L.voteLine({ ...mine, name: voterName(mine) }, labels) : "No vote" }) : null,
+          one ? el("td", { text: L.voteLine({ ...mine, name: voterName(mine) }, labels) }) : null,
           decider ? el("td", { class: "c", text: votedOf(b.id) ? `${votedOf(b.id)} voted` : L.DASH }) : null,
           el("td", {}, d ? decisionLine(d) : "Not decided", decider && flagged(b.id) ? el("div", {}, el("span", { class: "pool-flag", text: FLAG })) : null)));
       }

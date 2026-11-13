@@ -227,6 +227,16 @@
     check("one reviewer: row 1", row(0) === "1|0|0|0|Sam Example: Keep (Wallboard, App: Sales). Useful on the wall by the line.|1 of 2 voted|Decided: kept, for Wallboard" + FLAG, row(0));
     check("one reviewer: row 3", row(2) === "0|0|0|1|Sam Example: Pass|1 of 2 voted|Not decided", row(2));
     check("the filter keeps its choice", $("#poolWho").value === "sam.example@dyce-energy.co.uk");
+    // Someone who voted on one board: only that board is listed; the others are left out, not marked.
+    const shownBoards = () => $$("#pool table.pool-sum tbody tr").map((r) => r.cells[1].querySelector("button").textContent);
+    $("#poolWho").value = "alex.example@dyce-energy.co.uk"; $("#poolWho").dispatchEvent(new Event("change", { bubbles: true }));
+    await sleep(50);
+    check("one reviewer: only the boards they voted on", JSON.stringify(shownBoards()) === '["Parcels waiting"]', shownBoards().join(","));
+    check("one reviewer: their vote", row(0) === "0|0|1|0|Alex Example (former reviewer): Drop. <i>Not</i> needed: the depots have their own list.|1 of 2 voted|Not decided", row(0));
+    check("no marker of a missing vote", !/No vote/.test(text("#pool")), text("#pool"));
+    $("#poolWho").value = ""; $("#poolWho").dispatchEvent(new Event("change", { bubbles: true }));
+    await sleep(50);
+    check("Everyone again: every board", $$("#pool table.pool-sum tbody tr").length === 3 && heads() === "#|Board|Keep|Maybe|Drop|Pass|Reviewers|Decision", heads());
   }
 
   async function viewer() {
