@@ -12,7 +12,7 @@ Source of the logic: Dyce-Energy-Ltd/dyce-spine, supabase/functions/comms-approv
 
 `hub.html` is one sign-in for Dyce's tools. People on the hub's list sign in with an emailed 8-digit code; anyone else is turned away. It holds no data and no keys; it talks only to the comms-web function in Dyce's database project, and the DNA Viewer tab to the dna-viewer function there. The session token is kept in this browser's localStorage (key `dyce.hub.token`), and the last tool and menu item used under `dyce.hub.where`.
 
-A navy bar across the top shows a tab for each tool the person may use, and a side menu moves around inside the tool. What a person sees follows their ticks, set in DNA Admin; the database checks the tick again on every call, so hiding a tab or menu item is tidiness, not the gate.
+A navy rail down the left shows each tool the person may use, with the open tool's menu beneath its name, and the signed-in address and Sign out at the foot; a line above the content says where you are. A soft glow of the Stage magenta tint sits behind the current menu item and follows the pointer or keyboard focus over the rail, and a row under the pointer in the content fills with the magenta tint with a magenta rule on its left edge (Phil Brook's choice, 13/11/2026; the gradient agreed with Chris Beardsmore). At phone width the rail sits above the content. What a person sees follows their ticks, set in DNA Admin; the database checks the tick again on every call, so hiding a tab or menu item is tidiness, not the gate.
 
 | Tool | Tick | What it allows |
 |---|---|---|

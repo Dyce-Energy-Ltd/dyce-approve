@@ -10,9 +10,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,800;1,400&display=swap">
 <style>
-/* Layout: Dyce Dashboard mode, white ground. A navy top bar (Invert logo, DNA Hub, the tool tabs
-   the person may see, the signed-in address and Sign out), then a side menu per tool beside the
-   content; at phone width the side menu sits above the content. Token names as send.html. */
+/* Layout: Dyce Dashboard mode, white ground. A navy rail down the left (Invert logo, DNA Hub, each
+   tool the person may see with the open tool's menu beneath it, the signed-in address and Sign out)
+   beside the content; at phone width the rail sits above the content. Token names as send.html. */
 :root {
   --brand-magenta: #DE00B9; --brand-navy: #0F2A34; --brand-grey: #D8D9DB; --brand-white: #FFFFFF;
   --surface: #FFFFFF; --surface-raised: #EDEEEF; --hairline: #D8D9DB; --ink: #0F2A34; --muted: #5B6B72;
@@ -27,19 +27,42 @@
 :root { --page: 1560px; --gutter: clamp(22px, 3vw, 56px); }
 body { margin: 0; background: var(--surface); color: var(--ink); font-family: var(--font); font-size: 16px; line-height: 26px; }
 
-/* Top bar */
-#topbar { background: var(--brand-navy); color: var(--brand-white); }
-.bar { max-width: var(--page); margin: 0 auto; padding: 12px var(--gutter); display: flex; align-items: center; gap: 10px 22px; flex-wrap: wrap; }
-.brand { display: flex; align-items: center; gap: 14px; }
-.logo { height: 34px; width: auto; display: block; }
-.hubname { font-weight: 800; font-size: 17px; line-height: 23px; white-space: nowrap; }
-#tabs { display: flex; gap: 4px; flex-wrap: wrap; }
-.tab { font: inherit; font-weight: 800; font-size: 14px; line-height: 20px; padding: 8px 14px; border-radius: 6px; background: transparent; color: var(--brand-grey); border: 1px solid transparent; cursor: pointer; }
-.tab:hover { border-color: var(--brand-grey); }
-.tab[aria-selected="true"] { background: var(--brand-white); color: var(--brand-navy); }
-.who { margin-left: auto; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 14px; line-height: 22px; min-width: 0; }
+/* The rail (Phil Brook's choice "4B", 13/11/2026). The logo sits on flat brand navy, as its file
+   is made for that ground. Below it a soft glow of the Stage magenta tint sits behind the current
+   menu item and follows the pointer or keyboard focus over the rail (gradient agreed with Chris
+   Beardsmore, 13/11/2026). Inside the rail the hub's tokens take their Stage values, so the side
+   menu's own rules (Dashboard Pool's filters and board list, DNA Viewer's account sections) draw
+   on navy without rules of their own. */
+@property --glow-y { syntax: "<length>"; inherits: false; initial-value: 120px; }
+.shell { display: grid; grid-template-columns: 264px minmax(0, 1fr); min-height: 100vh; }
+.shell > * { min-width: 0; }
+/* A grid item with auto side margins shrinks to its content, so the content column is told its width. */
+.shell > .wrap { width: 100%; }
+.rail {
+  --surface: #0F2A34; --surface-raised: #273F48; --hairline: #445961; --ink: #FFFFFF; --muted: #D8D9DB;
+  --magenta-tint: #3D2151; --field: #0F2A34;
+  background: var(--brand-navy); color: var(--ink);
+  position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column;
+  scrollbar-width: thin; scrollbar-color: var(--hairline) transparent;
+}
+.rail .pool-side > :not(.pool-list) { margin-inline: 12px; }
+.brand { display: grid; gap: 6px; padding: 22px 22px 16px; border-bottom: 1px solid var(--hairline); }
+.logo { height: 44px; width: auto; display: block; }
+.hubname { font-weight: 800; font-size: 17px; line-height: 23px; }
+#tabs { flex: 1 0 auto; display: flex; flex-direction: column; gap: 2px; padding: 12px 10px 18px;
+  background: radial-gradient(260px 200px at 45% var(--glow-y), var(--magenta-tint) 0%, transparent 70%);
+  transition: --glow-y 300ms ease; }
+.tab { font: inherit; font-weight: 800; font-size: 14px; line-height: 20px; text-align: left; padding: 9px 12px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; display: flex; justify-content: space-between; gap: 10px; }
+.tab::after { content: "+"; }
+.tab:hover { background: var(--surface-raised); color: var(--ink); }
+.tab[aria-current="true"] { color: var(--ink); }
+.tab[aria-current="true"]::after { content: "\2212"; }
+.who { display: grid; gap: 10px; justify-items: start; padding: 14px 22px 22px; border-top: 1px solid var(--hairline); font-size: 13px; line-height: 20px; color: var(--muted); }
 .who .addr { overflow-wrap: anywhere; }
-#topbar button:focus-visible { outline: 3px solid var(--brand-magenta); outline-offset: 2px; }
+.rail button:focus-visible, .rail select:focus-visible, .rail input:focus-visible { outline: 3px solid var(--brand-magenta); outline-offset: 2px; }
+/* Where you are, above the content: tool / group / item. */
+.crumb { font-size: 13px; line-height: 20px; color: var(--muted); margin: 22px 0 0; }
+.crumb b { color: var(--ink); font-weight: 800; }
 
 /* Shared pieces, as send.html */
 h1 { font-size: 32px; line-height: 36px; letter-spacing: -0.02em; font-weight: 800; margin: 34px 0 10px; text-wrap: balance; }
@@ -70,20 +93,23 @@ input:focus-visible, button:focus-visible, select:focus-visible, textarea:focus-
 .signin { max-width: 520px; display: grid; gap: 14px; margin-top: 22px; }
 .signin-box { border: 1px solid var(--hairline); border-radius: var(--r-card); padding: 22px; background: var(--surface-raised); display: grid; gap: 14px; }
 
-/* Frame: side menu and content */
-.app { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 34px; align-items: start; }
-.app > * { min-width: 0; }
-#sidemenu { border-right: 1px solid var(--hairline); padding: 34px 14px 0 0; display: grid; gap: 2px; align-content: start; min-height: 320px; }
-.menu-item { font: inherit; font-size: 15px; line-height: 22px; text-align: left; padding: 8px 12px; border: 0; border-left: 3px solid transparent; background: transparent; color: var(--ink); cursor: pointer; border-radius: 0; }
-.menu-item:hover { background: var(--surface-raised); }
-.menu-item[aria-current="page"] { border-left-color: var(--brand-magenta); font-weight: 800; background: var(--surface-raised); }
-/* A group name in the side menu (Broker Emails: Price emails, Renewals); the items under it are indented. */
-.menu-group { font-weight: 800; font-size: 13px; line-height: 20px; padding: 18px 12px 4px; color: var(--ink); }
-.menu-group:first-child { padding-top: 0; }
-.menu-group ~ .menu-item { padding-left: 22px; }
+/* The side menu: the open tool's items, in the rail under the tool's name. */
+#sidemenu { display: grid; gap: 2px; align-content: start; margin: 2px 0 10px; }
+.menu-item { font: inherit; font-size: 14px; line-height: 20px; text-align: left; padding: 7px 12px 7px 22px; border: 0; border-left: 3px solid transparent; background: transparent; color: var(--muted); cursor: pointer; border-radius: 0; }
+.menu-item:hover { background: var(--surface-raised); color: var(--ink); }
+.menu-item[aria-current="page"] { border-left-color: var(--brand-magenta); font-weight: 800; color: var(--ink); background: var(--surface-raised); }
+/* A group name in the side menu (Broker Emails: Price emails, Renewals). */
+.menu-group { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); padding: 14px 12px 4px 22px; }
+.menu-group:first-child { padding-top: 4px; }
 #main { padding-bottom: 22px; }
-/* With no side menu (no items, or no tools), the content takes the whole width. */
-#sidemenu[hidden] + #main { grid-column: 1 / -1; }
+
+/* Hover on the right (Phil Brook's choice "B", 13/11/2026): the row under the pointer fills with
+   the magenta tint and shows a magenta rule on its left edge. */
+.list .row { padding-inline: 12px; }
+.list .row, .brokers label, #pool .pool-votes li, .ticks tbody tr > *, #dv tbody tr > *, #pool .pool-sum tbody tr > * { transition: background-color 160ms ease, box-shadow 160ms ease; }
+.list .row:hover, .brokers label:hover, #pool .pool-votes li:hover { background: var(--magenta-tint); box-shadow: inset 4px 0 0 var(--brand-magenta); }
+.ticks tbody tr:hover > *, #dv tbody tr:not(:has(th)):hover > *, #pool .pool-sum tbody tr:hover > * { background: var(--magenta-tint); }
+.ticks tbody tr:hover > :first-child, #dv tbody tr:not(:has(th)):hover > :first-child, #pool .pool-sum tbody tr:hover > :first-child { box-shadow: inset 4px 0 0 var(--brand-magenta); }
 
 /* Lists */
 .section { margin-top: 34px; }
@@ -165,7 +191,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 .sendbox { border: 1px solid var(--hairline); border-radius: var(--r-card); padding: 18px; background: var(--surface-raised); display: grid; gap: 12px; margin-top: 22px; }
 .progress { font-size: 14px; line-height: 22px; font-variant-numeric: tabular-nums; }
 .recent-head { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; flex-wrap: wrap; }
-#be .row { gap: 6px 22px; padding: 14px 0; }
+#be .row { gap: 6px 22px; padding: 14px 12px; }
 .rw-day { font-size: 17px; line-height: 23px; font-weight: 800; margin: 22px 0 0; }
 .rw-contracts { list-style: none; margin: 6px 0 0; padding: 0; font-size: 13px; line-height: 20px; font-variant-numeric: tabular-nums; }
 .rw-contracts li { overflow-wrap: anywhere; }
@@ -292,6 +318,13 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
   --status-critical: #B5281F; --status-critical-wash: #FBE0DD; --status-critical-edge: #E6A9A4;
   --status-neutral: #5B6B72; --status-neutral-wash: #ECEFF1; --status-neutral-edge: #C0C7CB;
 }
+/* The board list sits in the navy rail, so its marks take the Stage status values. */
+.rail .pool-side {
+  --status-ok: #3FD2A0; --status-ok-wash: #153E41; --status-ok-edge: #1E6057;
+  --status-warn: #F5B942; --status-warn-wash: #2B3B36; --status-warn-edge: #595838;
+  --status-critical: #FF8A80; --status-critical-wash: #2C363D; --status-critical-edge: #5C494C;
+  --status-neutral: #D8D9DB; --status-neutral-wash: #273F48; --status-neutral-edge: #4F6269;
+}
 .pool-mark { font-size: 10px; line-height: 14px; letter-spacing: 0.12em; font-weight: 800; text-transform: uppercase; border: 1px solid var(--hairline); border-radius: 999px; padding: 2px 8px; white-space: nowrap; color: var(--ink); background: var(--surface); }
 .pool-mark.keep { color: var(--status-ok); background: var(--status-ok-wash); border-color: var(--status-ok-edge); }
 .pool-mark.maybe { color: var(--status-warn); background: var(--status-warn-wash); border-color: var(--status-warn-edge); }
@@ -358,26 +391,28 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 @media (max-width: 760px) { .pool-list { max-height: 50vh; overflow-y: auto; } }
 
 @media (max-width: 760px) {
-  .bar { padding: 10px 16px; }
-  .who { margin-left: 0; flex-basis: 100%; justify-content: space-between; }
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .rail { position: static; height: auto; overflow: visible; }
+  .brand { grid-auto-flow: column; justify-content: start; align-items: center; gap: 14px; padding: 12px 16px; }
+  .logo { height: 34px; }
+  .who { grid-auto-flow: column; justify-content: space-between; align-items: center; padding: 10px 16px; }
   .wrap { padding-inline: 16px; }
-  .app { grid-template-columns: minmax(0, 1fr); gap: 0; }
-  #sidemenu { border-right: 0; border-bottom: 1px solid var(--hairline); padding: 14px 0; min-height: 0; }
   h1 { font-size: 28px; line-height: 32px; margin-top: 22px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
-<header id="topbar">
-  <div class="bar">
-    <span class="brand"><img class="logo" src="{{LOGO_INV}}" alt="Dyce Energy"><span class="hubname">DNA Hub</span></span>
-    <nav id="tabs" role="tablist" aria-label="Tools"></nav>
-    <span class="who" id="who" hidden><span class="addr" id="conn"></span><button type="button" class="btn onnavy small" id="signOutBtn">Sign out</button></span>
-  </div>
-</header>
+<div class="shell">
+<aside class="rail" aria-label="DNA Hub">
+  <div class="brand"><img class="logo" src="{{LOGO_INV}}" alt="Dyce Energy"><span class="hubname">DNA Hub</span></div>
+  <!-- The tools, with the open tool's menu (#sidemenu) moved in under its name by renderTabs(). -->
+  <nav id="tabs" aria-label="Tools"><div id="sidemenu" role="group" aria-label="Menu" hidden></div></nav>
+  <div class="who" id="who" hidden><span class="addr" id="conn"></span><button type="button" class="btn onnavy small" id="signOutBtn">Sign out</button></div>
+</aside>
 
 <div class="wrap">
+  <p class="crumb" id="crumb" hidden></p>
   <section id="signin" class="signin" aria-labelledby="signinTitle">
     <h1 id="signinTitle">Sign in to the DNA <em>Hub</em></h1>
     <p class="stand">Sign in with your Dyce email address. If it has access to the DNA Hub, we will email you an 8-digit code.</p>
@@ -396,7 +431,6 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
   </section>
 
   <div class="app" id="app" hidden>
-    <nav id="sidemenu" aria-label="Menu"></nav>
     <main id="main" tabindex="-1">
       <!-- Broker Emails, moved from send.html. Static, so a half-written email survives a move to
            another menu item or tool; the side menu shows one item (data-item) at a time. -->
@@ -557,6 +591,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 
   <p class="foot">Names and addresses are read from the database after you sign in and are never saved in this page. Data class: Red.</p>
 </div>
+</div>
 
 <!-- The Dashboard Pool's helpers (window.PoolLib) and board screen (window.DashScreen), inlined by
      build.py from parts/. The screen reads PoolLib once as it loads, so the helpers come first. -->
@@ -653,24 +688,61 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
   const ticks = () => (me && Array.isArray(me.ticks)) ? me.ticks : [];
   const visibleTools = () => TOOLS.filter((t) => t.allowed(ticks()));
 
+  // The rail: a button per tool, with the side menu (#sidemenu, kept as one element because the
+  // tools draw into it) moved in under the open tool's name.
   function renderTabs() {
-    const bar = $("tabs"); bar.textContent = "";
+    const bar = $("tabs"), menu = $("sidemenu");
+    bar.textContent = "";
     for (const t of visibleTools()) {
-      const b = el("button", { type: "button", class: "tab", role: "tab", "data-tool": t.id, "aria-selected": String(t.id === where.tool), "aria-controls": "main", tabindex: t.id === where.tool ? "0" : "-1", text: t.label });
+      const on = t.id === where.tool;
+      const b = el("button", { type: "button", class: "tab", "data-tool": t.id, "aria-current": on ? "true" : null, text: t.label });
       b.addEventListener("click", () => showTool(t.id, undefined, "tab"));
       bar.append(b);
+      if (on) bar.append(menu);
     }
+    if (!menu.isConnected) bar.append(menu);
+    glow();
   }
-  // Arrow keys move to the next or previous tab, Home and End to the first or last. The tabs are
-  // drawn again by showTool, so focus goes to the new button for that tool.
+  // Arrow keys move to the next or previous tool, Home and End to the first or last. The tools are
+  // drawn again by showTool, so focus goes to the new button for that tool. Keys from the menu
+  // items, or the Dashboard Pool's filters, are left alone.
   $("tabs").addEventListener("keydown", (e) => {
-    if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) return;
+    if (!["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) return;
     const tabs = [...$("tabs").querySelectorAll("button[data-tool]")];
     const i = tabs.indexOf(document.activeElement); if (i < 0) return;
-    const n = tabs.length;
-    const next = e.key === "Home" ? tabs[0] : e.key === "End" ? tabs[n - 1] : tabs[(i + (e.key === "ArrowRight" ? 1 : n - 1)) % n];
+    const n = tabs.length, on = e.key === "ArrowDown" || e.key === "ArrowRight";
+    const next = e.key === "Home" ? tabs[0] : e.key === "End" ? tabs[n - 1] : tabs[(i + (on ? 1 : n - 1)) % n];
     e.preventDefault(); showTool(next.dataset.tool, undefined, "tab");
   });
+  // The glow behind the current item follows the pointer or keyboard focus over the rail's buttons
+  // and goes back to the current item when they leave. The tools mark their own current item
+  // (aria-current), so a watcher moves the glow when that changes.
+  function glowAt(b) {
+    const bar = $("tabs");
+    if (!b || !bar.contains(b) || b.closest("[hidden]")) return;
+    const r = b.getBoundingClientRect(), top = bar.getBoundingClientRect().top;
+    bar.style.setProperty("--glow-y", Math.round(r.top - top + r.height / 2) + "px");
+  }
+  // The deepest current item wins: a Dashboard Pool board or a DNA Viewer account section sits
+  // below the menu item that holds it.
+  function glow() {
+    const bar = $("tabs"), cur = bar.querySelectorAll("#sidemenu [aria-current]");
+    glowAt(cur[cur.length - 1] || bar.querySelector('button[data-tool][aria-current="true"]'));
+  }
+  $("tabs").addEventListener("mouseover", (e) => { const b = e.target.closest("button"); if (b) glowAt(b); });
+  $("tabs").addEventListener("focusin", (e) => { const b = e.target.closest("button"); if (b) glowAt(b); });
+  $("tabs").addEventListener("mouseleave", glow);
+  $("tabs").addEventListener("focusout", (e) => { if (!$("tabs").contains(e.relatedTarget)) glow(); });
+  new MutationObserver(glow).observe($("tabs"), { subtree: true, childList: true, attributes: true, attributeFilter: ["aria-current", "hidden"] });
+
+  // Where you are, above the content.
+  function setCrumb(t, it) {
+    const c = $("crumb"); c.textContent = "";
+    if (!t) { c.hidden = true; return; }
+    if (it) c.append([t.label, it.group].filter(Boolean).join(" / ") + " / ", el("b", { text: it.label }));
+    else c.append(el("b", { text: t.label }));
+    c.hidden = false;
+  }
 
   // Empties the content area for the next panel. Broker Emails' static markup (#be) stays in the
   // page, hidden, so its form and lists keep their state; everything else drawn there goes.
@@ -690,7 +762,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     const main = $("main"), menu = $("sidemenu");
     clearMain(); menu.textContent = "";
     if (!t) {
-      where = { tool: "", item: "" }; renderTabs(); menu.hidden = true;
+      where = { tool: "", item: "" }; renderTabs(); menu.hidden = true; setCrumb(null);
       main.append(el("h1", {}, "Welcome to the DNA ", el("em", { text: "Hub" })),
         el("p", { class: "stand", text: "You have no tools yet. Ask Phil Brook to add them in DNA Admin." }));
       return;
@@ -699,7 +771,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     const it = items.find((x) => x.id === item) || items[0] || null;
     where = { tool: t.id, item: it ? it.id : "" };
     putStored(WHERE_KEY, JSON.stringify(where));
-    renderTabs();
+    renderTabs(); setCrumb(t, it);
     menu.hidden = !items.length;
     let group = null;
     for (const x of items) {
@@ -2333,7 +2405,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       if (fb) art.append(el("p", { class: "pool-caveat", role: "note", text: FALLBACK }));
       let wrap = null;
       try {
-        const logo = document.querySelector("#topbar .logo");
+        const logo = document.querySelector(".rail .logo");
         wrap = Screen.render(b, row, { logo: logo ? logo.src : "", time: asAtText, date: "Figures as at",
           asat: srcLine, area: areaLabel(b.area), rotation: false });
       } catch { wrap = null; }
@@ -2805,7 +2877,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
   // holds only a tool and menu name, and anyone without that tool starts at their first.
   function showSignIn(message) {
     gen++; token = null; me = null; dropStored(TOKEN_KEY);
-    $("tabs").textContent = ""; $("sidemenu").textContent = ""; clearMain(); BE.reset(); DV.reset(); POOL.reset();
+    // The side menu lives inside the rail's tool list, so it is emptied and kept, not cleared away.
+    const side = $("sidemenu"); side.textContent = ""; side.hidden = true; $("tabs").replaceChildren(side); setCrumb(null);
+    clearMain(); BE.reset(); DV.reset(); POOL.reset();
     $("app").hidden = true; $("signin").hidden = false; $("who").hidden = true; $("conn").textContent = "";
     $("emailStep").hidden = false; $("codeStep").hidden = true; $("retryStep").hidden = true; $("siCode").value = "";
     setMsg(message || "");
@@ -2822,7 +2896,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     } catch (err) {
       if (err && err.signedOut) return;
       // Not a sign-out: keep the token, so a network blip or a server error does not end a valid session.
-      $("app").hidden = true; $("signin").hidden = false; $("who").hidden = true;
+      $("app").hidden = true; $("signin").hidden = false; $("who").hidden = true; setCrumb(null);
       $("emailStep").hidden = true; $("codeStep").hidden = true; $("retryStep").hidden = false;
       setMsg(explain(err));
     }
