@@ -228,6 +228,9 @@ class CommittedPagesTests(unittest.TestCase):
             "You've reviewed ${reviewed} of ${all.length}",
             '"Decided: kept"', '"Decided: dropped"', 'text: "Pass"',
             "Show the figures as a table", "Full screen",
+            # The decider's parts.
+            "${n} reviewers have voted", 'const FLAG = "Votes changed since decided";',
+            '"Keep this board"', '"Drop this board"', '"Clear decision"', '"Awaiting decision"',
         ):
             self.assertIn(copy, page)
 
@@ -246,8 +249,8 @@ class CommittedPagesTests(unittest.TestCase):
 
     def test_pool_preview_in_a_browser(self):
         # The preview hub, signed in through the stub, driven by tools/pool-preview-check.js in a
-        # headless Chromium: voting, Pass, drafts, the fallback caveat, storage, sign-out, and the
-        # tab for the decider without the tick.
+        # headless Chromium: voting, Pass, drafts, the fallback caveat, storage, sign-out, the tab
+        # for the decider without the tick, and the decider's count, flag, decisions and Summary.
         browser = next((b for b in BROWSERS if b and Path(b).is_file()), None)
         if browser is None:
             self.skipTest("no Chromium browser found (set DV_BROWSER to one)")
@@ -270,7 +273,7 @@ class CommittedPagesTests(unittest.TestCase):
         j = page.rindex("</body>")  # the stub's made-up emails hold "</body>" too
         page = page[:j] + "<script>" + check + "</script>" + page[j:]
         (tmp / "check.html").write_text(page, encoding="utf-8")
-        for query in ("as=reviewer", "as=decider", "as=viewer", "as=reviewer&poolempty=1"):
+        for query in ("as=reviewer", "as=decider", "as=admin", "as=viewer", "as=reviewer&poolempty=1"):
             with self.subTest(query=query):
                 r = subprocess.run(
                     [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",

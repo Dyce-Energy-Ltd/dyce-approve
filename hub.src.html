@@ -282,7 +282,8 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 
 /* Dashboard Pool: the board screen exactly as agreed (parts/pool-screen.css, a fixed 1920 x 1080
    canvas with its own tokens, scaled to fit), then the tool's own pieces on the hub's tokens. The
-   status colours are used only on vote marks, always with the word beside them. The board list
+   status colours are used only on vote marks and the decider's "Votes changed since decided"
+   flag, always with the words. The board list
    sits in the side menu, in .pool-side. */
 {{POOL_SCREEN_CSS}}
 #pool, .pool-side {
@@ -346,6 +347,14 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #pool .pool-votes li { padding: 10px 0; border-bottom: 1px solid var(--hairline); font-size: 14px; line-height: 22px; overflow-wrap: anywhere; }
 #pool .pool-link { font: inherit; font-weight: 800; color: var(--ink); background: none; border: 0; padding: 0; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 #pool .pool-sum td.c, #pool .pool-sum th.c { text-align: center; font-variant-numeric: tabular-nums; }
+/* The decider's parts: the count of reviewers who have voted, the decision panel and the flag. */
+.pool-flag { font-size: 12px; line-height: 16px; font-weight: 800; color: var(--status-warn); background: var(--status-warn-wash); border: 1px solid var(--status-warn-edge); border-radius: 6px; padding: 2px 8px; display: inline-block; }
+#pool .pool-voted { margin: 6px 0 0; font-size: 14px; line-height: 22px; font-variant-numeric: tabular-nums; }
+#pool .pool-picks { margin: 6px 0 0; font-size: 14px; line-height: 22px; color: var(--muted); }
+#pool .pool-decision-box .pool-flag { margin-top: 6px; }
+#pool .pool-sum .pool-flag { margin-top: 4px; }
+#pool .pool-who { margin-top: 22px; max-width: 360px; }
+#pool .pool-who select { font: inherit; font-size: 14px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; width: 100%; padding: 6px 8px; }
 @media (max-width: 760px) { .pool-list { max-height: 50vh; overflow-y: auto; } }
 
 @media (max-width: 760px) {
@@ -2113,12 +2122,15 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     // saved or signed out. busy: boards with a vote on its way. errors: board id -> the server's
     // sentence for its last refused vote. sess is bumped on sign-out, so an answer that arrives
     // after it changes nothing; view is bumped on every show, so a load for an earlier view is
-    // not drawn; hubGen is the hub's gen when shown.
+    // not drawn; hubGen is the hub's gen when shown. For the decider only: decAud, board id -> the
+    // decision's audience ticks not yet saved; deciding, boards with a decision on its way;
+    // decErrors, the server's sentence for a refused decision; sumWho, the reviewer the Summary shows.
     let content = null, state = null, drafts = {}, errors = {}, current = null;
-    let filters = { area: "", toReview: false }, figOpen = false, focusBoard = false;
+    let filters = { area: "", toReview: false, awaiting: false, changed: false }, figOpen = false, focusBoard = false;
     let sess = 0, view = 0, hubGen = -1, item = "boards", asked = 0, applied = 0;
     let root = null, parts = null, observer = null;
-    const busy = new Set();
+    let decAud = {}, decErrors = {}, sumWho = "";
+    const busy = new Set(), deciding = new Set();
 
     // ---------- reading content and state
     const pool = () => content.pool;
@@ -2140,6 +2152,15 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     const live = () => hubGen === gen && !!me && !!root && root.isConnected;
     const onView = (n) => n === view && live();
     const listAnd = (xs) => xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : (xs[0] || "");
+    // The decider's parts follow pool_state's own flag, never the hub's "me".
+    const isDecider = () => !!(state && state.me && state.me.is_decider === true);
+    const audCodes = () => (Array.isArray(pool().audiences) ? pool().audiences : []).map((a) => a.code);
+    const flagged = (id) => { const d = decisionOf(id); return !!d && L.changedSinceDecided(votes(), d); };
+    const FLAG = "Votes changed since decided";
+    // "N of M reviewers have voted": current reviewers with a vote on the board, Pass included, of
+    // all current reviewers. A count only: who has not voted is never shown.
+    const votedOf = (id) => typeof (state && state.reviewer_count) === "number" ? `${L.votedCount(votes(), id)} of ${state.reviewer_count}` : null;
+    const voterName = (v) => String(v.name || v.email || "") + (isDecider() && v.current === false ? " (former reviewer)" : "");
     function decisionLine(d) {
       if (d.decision !== "keep") return "Decided: dropped";
       const labels = audLabels(), aud = (Array.isArray(d.audiences) ? d.audiences : []).map((a) => labels[a] || a);
@@ -2183,7 +2204,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
         el("h1", {}, "Dashboard ", el("em", { text: "Pool" })),
         el("p", { class: "stand", text: item === "summary" ? "Every board with its Keep, Maybe, Drop and Pass counts and the decision, where one has been made." : OPENING }),
         msg, body);
-      parts = { msg, body, board: null, vote: null, decision: null, votes: null };
+      parts = { msg, body, board: null, vote: null, decision: null, votes: null, decide: null };
       $("main").append(root);
       if (content && state) draw(); else say(msg, "Loading…");
       load(n);
@@ -2236,9 +2257,18 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       const toReview = el("input", { type: "checkbox", id: "poolToReview", "data-pool-focus": "toreview" });
       toReview.checked = filters.toReview;
       toReview.addEventListener("change", () => { filters.toReview = toReview.checked; const k = remember(); drawSide(); restore(k); });
+      // The decider's two filters: boards with no decision yet, and decided boards whose votes changed since.
+      const decider = isDecider();
+      const deciderFilter = (key, id, label) => {
+        const cb = el("input", { type: "checkbox", id, "data-pool-focus": key });
+        cb.checked = filters[key];
+        cb.addEventListener("change", () => { filters[key] = cb.checked; const k = remember(); drawSide(); restore(k); });
+        return el("label", { class: "pool-check" }, cb, label);
+      };
       const all = boards(), ids = new Set(all.map((b) => b.id));
       const reviewed = L.reviewedCount(votes().filter((v) => ids.has(v.board)), myEmail());
-      const shown = L.filterBoards(all, { area: filters.area, toReview: filters.toReview }, { votes: votes(), email: myEmail(), decisions: decisions() });
+      const shown = L.filterBoards(all, { area: filters.area, toReview: filters.toReview, awaiting: decider && filters.awaiting, changed: decider && filters.changed },
+        { votes: votes(), email: myEmail(), decisions: decisions() });
       const list = el("div", { class: "pool-list" });
       const order = areas.map((a) => a.code);
       for (const b of shown) if (!order.includes(b.area)) order.push(b.area);
@@ -2252,6 +2282,8 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       menu.append(el("div", { class: "pool-side" },
         el("div", { class: "field" }, el("label", { for: "poolArea", text: "Area" }), area),
         el("label", { class: "pool-check" }, toReview, "To review"),
+        decider ? deciderFilter("awaiting", "poolAwaiting", "Awaiting decision") : null,
+        decider ? deciderFilter("changed", "poolChanged", FLAG) : null,
         el("p", { class: "pool-count", text: `You've reviewed ${reviewed} of ${all.length}` }),
         list));
     }
@@ -2262,7 +2294,8 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
         el("span", { text: String(b.title ?? "") }),
         el("span", { class: "pool-marks" },
           el("span", { class: "pool-mark " + (mark || "none"), text: mark ? L.VERDICT_LABEL[mark] : "To review" }),
-          d ? el("span", { class: "pool-decided", text: d.decision === "keep" ? "Decided: kept" : "Decided: dropped" }) : null));
+          d ? el("span", { class: "pool-decided", text: d.decision === "keep" ? "Decided: kept" : "Decided: dropped" }) : null,
+          isDecider() && flagged(b.id) ? el("span", { class: "pool-flag", text: FLAG }) : null));
       btn.addEventListener("click", () => openBoard(b.id));
       return btn;
     }
@@ -2323,7 +2356,8 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       parts.vote = el("section", { class: "pool-sec", "aria-labelledby": "poolVoteTitle" });
       parts.decision = el("div", { class: "pool-decision-box" });
       parts.votes = el("section", { class: "pool-sec", "aria-labelledby": "poolVotesTitle" });
-      art.append(parts.vote, parts.decision, parts.votes);
+      parts.decide = el("section", { class: "pool-sec pool-decide", "aria-labelledby": "poolDecideTitle", hidden: true });
+      art.append(parts.vote, parts.decision, parts.votes, parts.decide);
       parts.board = art;
       parts.body.append(art);
       fillState(b);
@@ -2333,8 +2367,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       }
       if (focusBoard) { focusBoard = false; h2.focus(); }
     }
-    // The parts of the open board that follow pool_state: the vote, the decision, everyone's votes.
-    function fillState(b) { drawVote(b); drawDecision(b); drawVotes(b); }
+    // The parts of the open board that follow pool_state: the vote, the decision, everyone's votes,
+    // and for the decider the decision panel.
+    function fillState(b) { drawVote(b); drawDecision(b); drawVotes(b); drawDecide(b); }
 
     function drawVote(b) {
       const box = parts.vote; box.textContent = "";
@@ -2384,16 +2419,90 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       const box = parts.decision, d = decisionOf(b.id);
       box.textContent = ""; box.hidden = !d;
       if (d) box.append(el("p", { class: "pool-decision", text: decisionLine(d) }));
+      if (d && isDecider() && flagged(b.id)) box.append(el("span", { class: "pool-flag", text: FLAG }));
     }
     function drawVotes(b) {
       const box = parts.votes; box.textContent = "";
-      const t = L.tally(votes(), b.id), labels = audLabels();
+      const t = L.tally(votes(), b.id), labels = audLabels(), decider = isDecider();
       box.append(el("h2", { id: "poolVotesTitle", text: "Everyone's votes" }),
         el("p", { class: "pool-counts", text: `Keep ${t.keep} · Maybe ${t.maybe} · Drop ${t.drop} · Pass ${t.pass}` }));
+      if (decider) {
+        const n = votedOf(b.id);
+        if (n) box.append(el("p", { class: "pool-voted", text: `${n} reviewers have voted` }));
+        const counts = L.audienceCounts(votes(), b.id, audCodes());
+        const picked = audCodes().filter((c) => counts[c] > 0).map((c) => `${labels[c] || c} ${counts[c]}`);
+        box.append(el("p", { class: "pool-picks", text: picked.length ? `Audiences picked: ${picked.join(" · ")}` : "No audiences picked yet." }));
+      }
       if (!t.voters.length) { box.append(el("p", { class: "empty", text: "No votes yet." })); return; }
       // Names and notes are text: voteLine gives plain text, and el puts it in with textContent.
       box.append(el("ul", { class: "pool-votes" }, ...t.voters.map((v) =>
-        el("li", {}, el("span", { text: L.voteLine({ ...v, name: v.name || v.email }, labels) }), " ", el("span", { class: "hint", text: when(v.voted_at) })))));
+        el("li", {}, el("span", { text: L.voteLine({ ...v, name: voterName(v) }, labels) }), " ", el("span", { class: "hint", text: when(v.voted_at) })))));
+    }
+
+    // ---------- the decision, for the decider only. The ticks start from the saved decision's
+    // audiences when kept, else from the most-picked audiences, and are saved by Keep this board.
+    // Saving the same decision again is always sent: the new decided_at is what clears the flag.
+    function decTicks(id) {
+      if (decAud[id]) return decAud[id].slice();
+      const d = decisionOf(id);
+      if (d && d.decision === "keep") return Array.isArray(d.audiences) ? d.audiences.slice() : [];
+      return L.suggestedAudiences(L.audienceCounts(votes(), id, audCodes()));
+    }
+    function drawDecide(b) {
+      const box = parts.decide; box.textContent = "";
+      box.hidden = !isDecider();
+      if (box.hidden) return;
+      const d = decisionOf(b.id), off = deciding.has(b.id) ? "true" : null, ticked = decTicks(b.id);
+      box.append(el("h2", { id: "poolDecideTitle", text: "Your decision" }),
+        el("p", { class: "hint", style: "margin:6px 0 0", text: "Only you see this part. Until a board is kept, the ticks show the audiences most picked in the votes." }));
+      const fs = el("fieldset", { class: "pool-aud" }, el("legend", { text: "Who should see it, if kept" }));
+      for (const a of Array.isArray(pool().audiences) ? pool().audiences : []) {
+        const cb = el("input", { type: "checkbox", "aria-disabled": off, "data-pool-focus": "dec:" + a.code });
+        cb.checked = ticked.includes(a.code);
+        cb.addEventListener("click", (e) => { if (deciding.has(b.id)) e.preventDefault(); });
+        cb.addEventListener("change", () => {
+          const cur = decTicks(b.id);
+          decAud[b.id] = cb.checked ? [...new Set([...cur, a.code])] : cur.filter((c) => c !== a.code);
+          drawState();
+        });
+        fs.append(el("label", {}, cb, String(a.label ?? a.code)));
+      }
+      const keep = el("button", { type: "button", class: "btn", "aria-disabled": off, "data-pool-focus": "decide:keep", text: "Keep this board" });
+      const drop = el("button", { type: "button", class: "btn", "aria-disabled": off, "data-pool-focus": "decide:drop", text: "Drop this board" });
+      keep.addEventListener("click", () => decide(b.id, "keep"));
+      drop.addEventListener("click", () => decide(b.id, "drop"));
+      const row = el("div", { class: "pool-verdicts", role: "group", "aria-label": "Your decision" }, keep, drop);
+      if (d) {
+        const clear = el("button", { type: "button", class: "btn ghost", "aria-disabled": off, "data-pool-focus": "decide:clear", text: "Clear decision" });
+        clear.addEventListener("click", () => decide(b.id, null));
+        row.append(clear);
+      }
+      box.append(fs, row);
+      const unsaved = d && d.decision === "keep" && decAud[b.id] && !sameSet(decAud[b.id], Array.isArray(d.audiences) ? d.audiences : []);
+      const said = deciding.has(b.id) ? "Saving…"
+        : d ? `${decisionLine(d)}. Saved ${when(d.decided_at)}.` + (unsaved ? " The ticks are not saved until you press Keep this board." : "")
+        : "Not decided.";
+      box.append(el("p", { class: "hint pool-saved", role: "status", text: said }));
+      if (d && flagged(b.id)) box.append(el("p", { class: "hint", style: "margin:6px 0 0", text: `${FLAG}. Saving the decision again, changed or not, clears this.` }));
+      if (decErrors[b.id]) box.append(el("div", { class: "msg refused", role: "alert", style: "margin-top:10px", text: decErrors[b.id] }));
+    }
+    // decision: "keep" or "drop" saves it (pool_decide); null clears it (pool_clear).
+    async function decide(id, decision) {
+      if (deciding.has(id)) return;
+      const s0 = sess;
+      const args = decision ? { board: id, decision, audiences: decision === "keep" ? decTicks(id) : [] } : { board: id };
+      deciding.add(id); delete decErrors[id]; drawState();
+      try {
+        const [k, s] = await ask(decision ? "pool_decide" : "pool_clear", args);
+        if (s0 !== sess) return;
+        take(k, s);
+        delete decAud[id];
+      } catch (err) {
+        if (s0 !== sess) return;
+        if (!(err && err.signedOut)) decErrors[id] = explain(err);
+      } finally {
+        if (s0 === sess) { deciding.delete(id); drawState(); }
+      }
     }
 
     // ---------- voting. A click saves at once; the typed note goes with it.
@@ -2437,20 +2546,42 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     }
 
     // ---------- the Summary: every board, its counts and the decision
+    // The decider also sees "N of M voted", the flag, and a reviewer filter: with one reviewer
+    // chosen, the counts are that person's votes and their vote is shown beside them.
     function drawSummary() {
+      const decider = isDecider(), labels = audLabels();
+      const voters = [];
+      if (decider) {
+        const seen = new Set(), ids = new Set(boards().map((b) => b.id));
+        for (const v of votes()) if (ids.has(v.board) && !seen.has(v.email)) { seen.add(v.email); voters.push(v); }
+        voters.sort((a, b) => voterName(a).localeCompare(voterName(b), "en-GB"));
+        if (sumWho && !seen.has(sumWho)) sumWho = "";
+        const who = el("select", { id: "poolWho", "data-pool-focus": "sumwho" }, el("option", { value: "", text: "Everyone" }),
+          ...voters.map((v) => el("option", { value: String(v.email), text: voterName(v) })));
+        who.value = sumWho;
+        who.addEventListener("change", () => { sumWho = who.value; const k = remember(); parts.body.textContent = ""; drawSummary(); restore(k); });
+        parts.body.append(el("div", { class: "field pool-who" }, el("label", { for: "poolWho", text: "Reviewer" }), who));
+      }
+      const one = decider && sumWho ? votes().filter((v) => v.email === sumWho) : null;
       const tb = el("tbody");
       for (const b of boards()) {
-        const t = L.tally(votes(), b.id), d = decisionOf(b.id);
+        const t = L.tally(one || votes(), b.id), d = decisionOf(b.id);
         const open = el("button", { type: "button", class: "pool-link", "data-pool-focus": "sum:" + b.id, text: String(b.title ?? "") });
         open.addEventListener("click", () => openBoard(b.id));
+        const mine = one ? t.voters[0] : null;
         tb.append(el("tr", {}, el("td", { class: "c", text: String(b.num) }),
           el("td", {}, open, el("div", { class: "em", text: areaLabel(b.area) })),
           ...L.VERDICTS.map((k) => el("td", { class: "c", text: String(t[k]) })),
-          el("td", { text: d ? decisionLine(d) : "Not decided" })));
+          one ? el("td", { text: mine ? L.voteLine({ ...mine, name: voterName(mine) }, labels) : "No vote" }) : null,
+          decider ? el("td", { class: "c", text: votedOf(b.id) ? `${votedOf(b.id)} voted` : L.DASH }) : null,
+          el("td", {}, d ? decisionLine(d) : "Not decided", decider && flagged(b.id) ? el("div", {}, el("span", { class: "pool-flag", text: FLAG })) : null)));
       }
       parts.body.append(el("div", { class: "grid-wrap" }, el("table", { class: "ticks pool-sum" },
         el("thead", {}, el("tr", {}, el("th", { scope: "col", class: "c", text: "#" }), el("th", { scope: "col", text: "Board" }),
-          ...L.VERDICTS.map((k) => el("th", { scope: "col", class: "c", text: L.VERDICT_LABEL[k] })), el("th", { scope: "col", text: "Decision" }))),
+          ...L.VERDICTS.map((k) => el("th", { scope: "col", class: "c", text: L.VERDICT_LABEL[k] })),
+          one ? el("th", { scope: "col", text: "Their vote" }) : null,
+          decider ? el("th", { scope: "col", class: "c", text: "Reviewers" }) : null,
+          el("th", { scope: "col", text: "Decision" }))),
         tb)));
     }
 
@@ -2458,7 +2589,8 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     // emptied #main and the side menu; answers on their way are dropped. The open board's id stays.
     function reset() {
       sess++; view++; content = null; state = null; drafts = {}; errors = {}; busy.clear(); current = null;
-      filters = { area: "", toReview: false }; figOpen = false; focusBoard = false; applied = asked;
+      decAud = {}; decErrors = {}; deciding.clear(); sumWho = "";
+      filters = { area: "", toReview: false, awaiting: false, changed: false }; figOpen = false; focusBoard = false; applied = asked;
       if (observer) observer.disconnect();
       observer = null; root = null; parts = null;
       if (document.fullscreenElement && document.exitFullscreen) { try { const p = document.exitFullscreen(); if (p && p.catch) p.catch(() => {}); } catch { /* already left */ } }

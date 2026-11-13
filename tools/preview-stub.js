@@ -32,6 +32,10 @@
 // three invented boards (the third on its earlier figures, as a board that could not be
 // refreshed) and invented votes, shaped and checked as hub.pool_web_action gives and checks them,
 // in memory only. With ?poolempty=1, pool_content answers {"pool": null}, as before the load.
+// In ?as=admin the reviewers are Admin Example and Sam Example (Alex Example is a former reviewer),
+// so the decider sees "N of 2 reviewers have voted"; window.__stub.poolVote(email, board, verdict,
+// audiences, note) records a vote by someone else, e.g. Sam voting after a decision, to raise
+// "Votes changed since decided".
 (function () {
   var ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/comms-web";
   var as = (new URLSearchParams(location.search).get("as") || "admin").toLowerCase();
@@ -681,6 +685,12 @@
     endSession: function () { Object.keys(sessions).forEach(function (k) { delete sessions[k]; ended[k] = true; }); },
     untick: function (code) {
       Object.keys(sessions).forEach(function (k) { var p = person(sessions[k]); if (p) p.grants = p.grants.filter(function (c) { return c !== code; }); });
+    },
+    // A vote by someone else, on the server side only, as if they voted from their own browser:
+    // e.g. __stub.poolVote("sam.example@dyce-energy.co.uk", "example_parcels", "maybe", ["app_ops"]).
+    // The page shows it at its next pool_state (show the tool again, e.g. click Boards).
+    poolVote: function (email, board, verdict, audiences, note) {
+      return poolAction(email, "pool_vote", { board: board, verdict: verdict, audiences: audiences || [], note: note || "" });
     }
   };
 })();
