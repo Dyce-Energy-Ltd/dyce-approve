@@ -280,6 +280,74 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #dv .progress .row { grid-template-columns: none; gap: 0; padding: 0; border-bottom: 0; }
 @media (max-width: 760px) { #dv { padding: 14px; margin-top: 22px; } }
 
+/* Dashboard Pool: the board screen exactly as agreed (parts/pool-screen.css, a fixed 1920 x 1080
+   canvas with its own tokens, scaled to fit), then the tool's own pieces on the hub's tokens. The
+   status colours are used only on vote marks, always with the word beside them. The board list
+   sits in the side menu, in .pool-side. */
+{{POOL_SCREEN_CSS}}
+#pool, .pool-side {
+  --status-ok: #187244; --status-ok-wash: #E2F3E9; --status-ok-edge: #A5CCB8;
+  --status-warn: #8A5A00; --status-warn-wash: #FDEFCF; --status-warn-edge: #DAC291;
+  --status-critical: #B5281F; --status-critical-wash: #FBE0DD; --status-critical-edge: #E6A9A4;
+  --status-neutral: #5B6B72; --status-neutral-wash: #ECEFF1; --status-neutral-edge: #C0C7CB;
+}
+.pool-mark { font-size: 10px; line-height: 14px; letter-spacing: 0.12em; font-weight: 800; text-transform: uppercase; border: 1px solid var(--hairline); border-radius: 999px; padding: 2px 8px; white-space: nowrap; color: var(--ink); background: var(--surface); }
+.pool-mark.keep { color: var(--status-ok); background: var(--status-ok-wash); border-color: var(--status-ok-edge); }
+.pool-mark.maybe { color: var(--status-warn); background: var(--status-warn-wash); border-color: var(--status-warn-edge); }
+.pool-mark.drop { color: var(--status-critical); background: var(--status-critical-wash); border-color: var(--status-critical-edge); }
+.pool-mark.pass { color: var(--status-neutral); background: var(--status-neutral-wash); border-color: var(--status-neutral-edge); }
+.pool-side { display: grid; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--hairline); }
+.pool-side select { font: inherit; font-size: 14px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; width: 100%; padding: 6px 8px; }
+.pool-check { display: flex; gap: 8px; align-items: center; font-size: 14px; line-height: 20px; cursor: pointer; }
+.pool-check input { accent-color: var(--brand-magenta); width: 18px; height: 18px; margin: 0; }
+.pool-count { font-size: 14px; line-height: 20px; font-weight: 800; margin: 0; }
+.pool-list { display: grid; gap: 2px; }
+.pool-list .empty { padding: 8px 12px; }
+.pool-board { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 0 6px; font-size: 14px; line-height: 20px; }
+.pool-board[aria-current="true"] { border-left-color: var(--brand-magenta); font-weight: 800; background: var(--surface-raised); }
+.pool-board .pool-num { color: var(--muted); font-variant-numeric: tabular-nums; }
+.pool-board .pool-marks { grid-column: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 4px; }
+.pool-decided { font-size: 12px; line-height: 16px; font-weight: 800; color: var(--muted); }
+#pool .pool-board-head { margin-top: 34px; }
+#pool .pool-board-head h2:focus { outline: none; }
+#pool .pool-board-head .pool-num { color: var(--muted); margin-right: 10px; font-variant-numeric: tabular-nums; }
+#pool .pool-caveat { margin: 14px 0 0; border-left: 3px solid var(--brand-magenta); background: var(--surface-raised); padding: 10px 14px; font-size: 14px; line-height: 22px; font-weight: 800; max-width: 880px; }
+#pool .pool-frame { margin-top: 14px; }
+#pool .pool-under { display: flex; gap: 10px 14px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+#pool details.pool-figs { margin-top: 10px; border: 1px solid var(--hairline); border-radius: 10px; padding: 10px 14px; }
+#pool details.pool-figs summary { cursor: pointer; font-weight: 800; font-size: 14px; line-height: 22px; }
+#pool .figtables { overflow-x: auto; }
+#pool .figtables h4 { font-size: 13px; line-height: 18px; letter-spacing: 0.08em; text-transform: uppercase; margin: 14px 0 4px; }
+#pool .figtables p { margin: 0 0 6px; font-size: 14px; line-height: 22px; }
+#pool .figtables table { border-collapse: collapse; font-size: 13px; line-height: 20px; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+#pool .figtables th, #pool .figtables td { padding: 4px 18px 4px 0; border-bottom: 1px solid var(--hairline); text-align: left; }
+#pool .figtables td.n { text-align: right; }
+#pool .pool-sec { margin-top: 34px; border-top: 1px solid var(--hairline); padding-top: 22px; max-width: 880px; }
+#pool .pool-sec h2 { font-size: 17px; line-height: 23px; margin: 0; }
+#pool .pool-sec > .label { display: block; margin-bottom: 6px; }
+#pool .pool-how ol { margin: 10px 0 0; padding-left: 1.4em; font-size: 15px; line-height: 24px; }
+#pool .pool-how li { margin-bottom: 8px; overflow-wrap: anywhere; }
+#pool .pool-caveats { margin: 10px 0 0; padding-left: 1.4em; color: var(--muted); font-size: 14px; line-height: 22px; }
+#pool .pool-verdicts { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+#pool .pool-verdict { min-width: 104px; }
+#pool .pool-verdict[aria-pressed="false"] { background: transparent; color: var(--ink); border-color: var(--hairline); }
+#pool [aria-disabled="true"] { cursor: progress; opacity: 0.6; }
+#pool .pool-quiet { margin: 8px 0 0; font-size: 13px; line-height: 20px; color: var(--muted); }
+#pool .pool-pass { font: inherit; font-size: 13px; line-height: 20px; color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+#pool .pool-pass[aria-pressed="true"] { font-weight: 800; }
+#pool fieldset.pool-aud { border: 1px solid var(--hairline); border-radius: 10px; padding: 10px 14px 12px; margin: 14px 0 0; display: flex; flex-wrap: wrap; gap: 8px 18px; }
+#pool fieldset.pool-aud label { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; line-height: 20px; cursor: pointer; }
+#pool fieldset.pool-aud input { accent-color: var(--brand-magenta); width: 18px; height: 18px; margin: 0; }
+#pool .pool-note { margin-top: 14px; }
+#pool .pool-saved { margin: 10px 0 0; }
+#pool .pool-decision { margin: 22px 0 0; font-weight: 800; font-size: 15px; line-height: 22px; }
+#pool .pool-counts { margin: 10px 0 0; font-weight: 800; font-size: 14px; line-height: 22px; font-variant-numeric: tabular-nums; }
+#pool .pool-votes { list-style: none; margin: 10px 0 0; padding: 0; border-top: 1px solid var(--hairline); }
+#pool .pool-votes li { padding: 10px 0; border-bottom: 1px solid var(--hairline); font-size: 14px; line-height: 22px; overflow-wrap: anywhere; }
+#pool .pool-link { font: inherit; font-weight: 800; color: var(--ink); background: none; border: 0; padding: 0; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+#pool .pool-sum td.c, #pool .pool-sum th.c { text-align: center; font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) { .pool-list { max-height: 50vh; overflow-y: auto; } }
+
 @media (max-width: 760px) {
   .bar { padding: 10px 16px; }
   .who { margin-left: 0; flex-basis: 100%; justify-content: space-between; }
@@ -481,6 +549,12 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
   <p class="foot">Names and addresses are read from the database after you sign in and are never saved in this page. Data class: Red.</p>
 </div>
 
+<!-- The Dashboard Pool's helpers (window.PoolLib) and board screen (window.DashScreen), inlined by
+     build.py from parts/. The screen reads PoolLib once as it loads, so the helpers come first. -->
+<script>
+{{POOL_LIB_JS}}
+{{POOL_SCREEN_JS}}
+</script>
 <script>
 (() => {
   const ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/comms-web";
@@ -544,6 +618,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
   // tab or an item is tidiness, not the gate.
   const REQUEST = "broker_emails.request", RENEWALS = "broker_emails.renewals";
   const DV_VIEW = "dna_viewer.view", DV_REVIEW = "dna_viewer.review", DV_ORIGINALS = "dna_viewer.originals";
+  const POOL_REVIEW = "dashboard_pool.review";
   const TOOLS = [
     { id: "broker_emails", label: "Broker Emails", allowed: (t) => t.some((c) => c.startsWith("broker_emails.")),
       items: [{ id: "new", label: "New email", group: "Price emails", need: REQUEST },
@@ -557,6 +632,10 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       items: [{ id: "search", label: "Search", need: DV_VIEW }, { id: "reporting", label: "Reporting", need: DV_VIEW },
               { id: "queue", label: "Review queue", need: DV_REVIEW }],
       render: renderDnaViewer },
+    // The decider sees the tab with or without the Review tick (learnDecider below).
+    { id: "dashboard_pool", label: "Dashboard Pool", allowed: (t) => t.includes(POOL_REVIEW) || !!(me && me.is_decider),
+      items: [{ id: "boards", label: "Boards" }, { id: "summary", label: "Summary" }],
+      render: renderPool },
     { id: "dna_admin", label: "DNA Admin", allowed: (t) => t.includes("dna_admin.admin"),
       items: [{ id: "people", label: "People and access" }, { id: "signins", label: "Who may sign in" },
               { id: "history", label: "Sign-in history" }, { id: "changes", label: "Changes made here" }], render: renderAdmin },
@@ -2013,6 +2092,375 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     return { show, reset };
   })();
 
+  // ---------- Dashboard Pool. Reviewers vote Keep, Maybe or Drop (or the quiet Pass) on each
+  // candidate board, with audiences on Keep and Maybe and an optional note; Phil Brook decides.
+  // The registry and figures (pool_content) and the votes and decisions (pool_state) are read
+  // after sign-in and held in this module's memory only; sign-out (reset) drops them, and typed
+  // notes not yet saved with them. localStorage keeps only the open board's id (hub.pool.board).
+  function renderPool(item, g) { POOL.show(item, g); }
+
+  const POOL = (() => {
+    const L = window.PoolLib, Screen = window.DashScreen;
+    const BOARD_KEY = "hub.pool.board";
+    const OPENING = "Vote on as many boards as you feel necessary, including ones outside your own area.";
+    const FALLBACK = "These figures are as at 30/09/2026. This board could not be refreshed after the database changes of late October.";
+    const NOT_LOADED = "The Dashboard Pool has not been loaded yet.";
+    const MAIN = ["keep", "maybe", "drop"];
+    const takesAudiences = (v) => v === "keep" || v === "maybe";
+    // content: {pool, snapshot} once loaded, else null. state: the newest pool_state answer
+    // (asked/applied number the calls, so an older answer never replaces a newer one). drafts:
+    // board id -> {verdict, audiences, note} not yet saved, kept across boards and tools until
+    // saved or signed out. busy: boards with a vote on its way. errors: board id -> the server's
+    // sentence for its last refused vote. sess is bumped on sign-out, so an answer that arrives
+    // after it changes nothing; view is bumped on every show, so a load for an earlier view is
+    // not drawn; hubGen is the hub's gen when shown.
+    let content = null, state = null, drafts = {}, errors = {}, current = null;
+    let filters = { area: "", toReview: false }, figOpen = false, focusBoard = false;
+    let sess = 0, view = 0, hubGen = -1, item = "boards", asked = 0, applied = 0;
+    let root = null, parts = null, observer = null;
+    const busy = new Set();
+
+    // ---------- reading content and state
+    const pool = () => content.pool;
+    const boards = () => (Array.isArray(pool().boards) ? pool().boards : []).filter((b) => b && typeof b.id === "string").slice().sort((a, b) => a.num - b.num);
+    const byId = (id) => boards().find((b) => b.id === id) || null;
+    const audLabels = () => Object.fromEntries((Array.isArray(pool().audiences) ? pool().audiences : []).map((a) => [a.code, String(a.label ?? a.code)]));
+    const areaLabel = (code) => String(((Array.isArray(pool().areas) ? pool().areas : []).find((a) => a.code === code) || {}).label ?? code ?? "");
+    const votes = () => (state && Array.isArray(state.votes) ? state.votes : []);
+    const decisions = () => (state && Array.isArray(state.decisions) ? state.decisions : []);
+    const myEmail = () => (state && state.me ? state.me.email : "");
+    const myVote = (id) => votes().find((v) => v.board === id && v.email === myEmail()) || null;
+    const decisionOf = (id) => decisions().find((d) => d.board === id) || null;
+    const draftOf = (id) => L.draftFor(drafts, myVote(id), id);
+    const sameSet = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
+    const sameDraft = (a, b) => a.verdict === b.verdict && a.note === b.note && sameSet(a.audiences, b.audiences);
+    // A draft that matches the saved vote is no longer a draft.
+    function tidy(id) { if (drafts[id] && sameDraft(drafts[id], L.draftFor({}, myVote(id), id))) delete drafts[id]; }
+    const usable = (c) => !!(c && c.pool && typeof c.pool === "object" && Array.isArray(c.pool.boards) && c.pool.boards.length);
+    const live = () => hubGen === gen && !!me && !!root && root.isConnected;
+    const onView = (n) => n === view && live();
+    const listAnd = (xs) => xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : (xs[0] || "");
+    function decisionLine(d) {
+      if (d.decision !== "keep") return "Decided: dropped";
+      const labels = audLabels(), aud = (Array.isArray(d.audiences) ? d.audiences : []).map((a) => labels[a] || a);
+      return "Decided: kept" + (aud.length ? `, for ${listAnd(aud)}` : "");
+    }
+    // Takes a pool_state answer, unless a newer one has already been taken. The decider's tab shows
+    // without the Review tick, so the hub's "me" learns is_decider here too.
+    function take(k, s) {
+      if (k < applied || !s || typeof s !== "object") return;
+      applied = k; state = s;
+      if (me && s.me && s.me.is_decider === true) me.is_decider = true;
+    }
+    async function ask(action, args) { const k = ++asked; const s = await api(action, args); return [k, s]; }
+
+    // ---------- focus survives a redraw: the element with the same data-pool-focus gets it back
+    function remember() {
+      const a = document.activeElement;
+      if (!a || !a.dataset || !a.dataset.poolFocus) return null;
+      let start = null, end = null;
+      try { start = a.selectionStart; end = a.selectionEnd; } catch { /* not a text box */ }
+      return { key: a.dataset.poolFocus, start, end };
+    }
+    function restore(k) {
+      if (!k) return;
+      const a = document.activeElement;
+      if (a && a.isConnected && a.dataset && a.dataset.poolFocus === k.key) return;
+      const n = [...document.querySelectorAll("[data-pool-focus]")].find((x) => x.dataset.poolFocus === k.key);
+      if (!n) return;
+      n.focus({ preventScroll: true });
+      if (typeof k.start === "number") { try { n.setSelectionRange(k.start, k.end); } catch { /* not a text box */ } }
+    }
+
+    // ---------- the tool: heading, opening line, a message line and the body
+    function show(it, g) {
+      hubGen = g; item = it === "summary" ? "summary" : "boards";
+      const n = ++view;
+      if (observer) observer.disconnect();
+      const msg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true, style: "margin-top:14px" });
+      const body = el("div");
+      root = el("div", { id: "pool" },
+        el("h1", {}, "Dashboard ", el("em", { text: "Pool" })),
+        el("p", { class: "stand", text: item === "summary" ? "Every board with its Keep, Maybe, Drop and Pass counts and the decision, where one has been made." : OPENING }),
+        msg, body);
+      parts = { msg, body, board: null, vote: null, decision: null, votes: null };
+      $("main").append(root);
+      if (content && state) draw(); else say(msg, "Loading…");
+      load(n);
+    }
+
+    // The registry and figures once a session; the votes and decisions every time the tool is shown.
+    async function load(n) {
+      const s0 = sess, had = !!(content && state);
+      try {
+        const [c, [k, s]] = await Promise.all([content ? null : api("pool_content"), ask("pool_state")]);
+        if (s0 !== sess) return;
+        if (c) content = usable(c) ? { pool: c.pool, snapshot: (c.snapshot && typeof c.snapshot === "object") ? c.snapshot : {} } : null;
+        take(k, s);
+        if (!onView(n)) return;
+        say(parts.msg, "");
+        if (!content) { parts.body.textContent = ""; parts.body.append(el("p", { class: "stand", style: "margin-top:22px", text: NOT_LOADED })); return; }
+        if (had) drawState(); else draw();
+      } catch (err) {
+        if (s0 !== sess || !onView(n) || (err && err.signedOut)) return;
+        say(parts.msg, explain(err), true);
+      }
+    }
+
+    function draw() {
+      if (!current || !byId(current)) current = (byId(getStored(BOARD_KEY)) || boards()[0] || {}).id || null;
+      drawSide();
+      parts.body.textContent = "";
+      if (item === "summary") drawSummary(); else drawBoard();
+    }
+    // Everything that follows pool_state, drawn again after every answer.
+    function drawState() {
+      if (!live() || !content) return;
+      const k = remember();
+      drawSide();
+      if (item === "summary") { parts.body.textContent = ""; drawSummary(); }
+      else { const b = byId(current); if (b && parts.board) fillState(b); }
+      restore(k);
+    }
+
+    // ---------- the side menu under Boards: area, To review, the count and the boards by area
+    function drawSide() {
+      const menu = $("sidemenu");
+      for (const n of [...menu.querySelectorAll(".pool-side")]) n.remove();
+      if (item !== "boards" || !content) return;
+      const areas = Array.isArray(pool().areas) ? pool().areas : [];
+      const area = el("select", { id: "poolArea", "data-pool-focus": "area" }, el("option", { value: "", text: "All areas" }),
+        ...areas.map((a) => el("option", { value: String(a.code), text: String(a.label ?? a.code) })));
+      area.value = filters.area;
+      area.addEventListener("change", () => { filters.area = area.value; const k = remember(); drawSide(); restore(k); });
+      const toReview = el("input", { type: "checkbox", id: "poolToReview", "data-pool-focus": "toreview" });
+      toReview.checked = filters.toReview;
+      toReview.addEventListener("change", () => { filters.toReview = toReview.checked; const k = remember(); drawSide(); restore(k); });
+      const all = boards(), ids = new Set(all.map((b) => b.id));
+      const reviewed = L.reviewedCount(votes().filter((v) => ids.has(v.board)), myEmail());
+      const shown = L.filterBoards(all, { area: filters.area, toReview: filters.toReview }, { votes: votes(), email: myEmail(), decisions: decisions() });
+      const list = el("div", { class: "pool-list" });
+      const order = areas.map((a) => a.code);
+      for (const b of shown) if (!order.includes(b.area)) order.push(b.area);
+      for (const code of order) {
+        const inArea = shown.filter((b) => b.area === code);
+        if (!inArea.length) continue;
+        list.append(el("div", { class: "menu-group", text: areaLabel(code) }));
+        for (const b of inArea) list.append(boardButton(b));
+      }
+      if (!shown.length) list.append(el("div", { class: "empty", text: filters.toReview ? "Nothing left to review here." : "No boards here." }));
+      menu.append(el("div", { class: "pool-side" },
+        el("div", { class: "field" }, el("label", { for: "poolArea", text: "Area" }), area),
+        el("label", { class: "pool-check" }, toReview, "To review"),
+        el("p", { class: "pool-count", text: `You've reviewed ${reviewed} of ${all.length}` }),
+        list));
+    }
+    function boardButton(b) {
+      const mark = L.myMark(votes(), myEmail(), b.id), d = decisionOf(b.id);
+      const btn = el("button", { type: "button", class: "menu-item pool-board", "data-board": b.id, "data-pool-focus": "board:" + b.id, "aria-current": b.id === current ? "true" : null },
+        el("span", { class: "pool-num", text: String(b.num) }),
+        el("span", { text: String(b.title ?? "") }),
+        el("span", { class: "pool-marks" },
+          el("span", { class: "pool-mark " + (mark || "none"), text: mark ? L.VERDICT_LABEL[mark] : "To review" }),
+          d ? el("span", { class: "pool-decided", text: d.decision === "keep" ? "Decided: kept" : "Decided: dropped" }) : null));
+      btn.addEventListener("click", () => openBoard(b.id));
+      return btn;
+    }
+    // Opens a board: in place on Boards, or by moving to Boards from the Summary.
+    function openBoard(id) {
+      if (!byId(id)) return;
+      current = id; putStored(BOARD_KEY, id);
+      if (item !== "boards") { focusBoard = true; showTool("dashboard_pool", "boards"); return; }
+      for (const b of $("sidemenu").querySelectorAll("button[data-board]")) { if (b.dataset.board === id) b.setAttribute("aria-current", "true"); else b.removeAttribute("aria-current"); }
+      parts.body.textContent = "";
+      drawBoard();
+      if (parts.board.getBoundingClientRect().top < 0) parts.board.scrollIntoView();
+    }
+
+    // ---------- one board: the screen, how each question is answered, then what follows pool_state
+    function sourcesLine(b) {
+      const src = pool().sources || {}, st = content.snapshot.sources || {};
+      return (Array.isArray(b.sources) ? b.sources : []).map((key) => {
+        const s = st[key] || {}, def = src[key] || {}, label = String(def.label ?? key);
+        if (!s.as_at) return `${label}: load time not recorded`;
+        return `${label}: ` + (def.kind === "month" ? "latest month " + L.fmt(s.as_at, "month") : "as at " + L.ukDateTime(s.as_at)) + (s.stale ? " (older than 36 hours)" : "");
+      }).join(" · ");
+    }
+    function drawBoard() {
+      if (observer) observer.disconnect();
+      const b = byId(current);
+      if (!b) { parts.body.append(el("p", { class: "empty", text: "No boards." })); return; }
+      const snap = content.snapshot, row = (snap.boards && snap.boards[b.id]) || {};
+      const fb = snap.fallback && snap.fallback[b.id];
+      const asAt = fb && fb.as_at ? fb.as_at : snap.as_at;
+      const h2 = el("h2", { tabindex: "-1" }, el("span", { class: "pool-num", text: String(b.num) }), String(b.title ?? ""));
+      const art = el("article", { class: "pool-board-head" }, h2,
+        el("p", { class: "hint", style: "margin:4px 0 0", text: `${areaLabel(b.area)} · Figures as at ${asAt ? L.fmt(asAt, "date") : L.DASH}` }));
+      if (fb) art.append(el("p", { class: "pool-caveat", role: "note", text: FALLBACK }));
+      let wrap = null;
+      try {
+        const logo = document.querySelector("#topbar .logo");
+        wrap = Screen.render(b, row, { logo: logo ? logo.src : "", time: asAt ? L.fmt(asAt, "date") : L.DASH, date: "Figures as at",
+          asat: sourcesLine(b), area: areaLabel(b.area), rotation: false });
+      } catch { wrap = null; }
+      if (wrap) {
+        art.append(el("div", { class: "pool-frame" }, wrap));
+        const full = el("button", { type: "button", class: "btn ghost small", text: "Full screen" });
+        full.addEventListener("click", () => { try { const p = wrap.requestFullscreen(); if (p && p.catch) p.catch(() => {}); } catch { /* full screen not offered */ } });
+        const figs = el("details", { class: "pool-figs" }, el("summary", { text: "Show the figures as a table" }));
+        try { figs.append(Screen.figuresTable(b, row)); } catch { figs.append(el("p", { class: "empty", text: "The figures could not be shown." })); }
+        figs.open = figOpen;
+        figs.addEventListener("toggle", () => { figOpen = figs.open; });
+        art.append(el("div", { class: "pool-under" }, full), figs);
+      } else art.append(el("p", { class: "empty", text: "This board's screen could not be drawn." }));
+      const qs = Array.isArray(b.questions) ? b.questions : [], cav = Array.isArray(b.caveats) ? b.caveats : [];
+      art.append(el("section", { class: "pool-sec pool-how", "aria-labelledby": "poolHow" },
+        el("span", { class: "label", text: "Not part of the board" }),
+        el("h2", { id: "poolHow", text: "How each question is answered" }),
+        el("ol", {}, ...qs.map((q) => el("li", {}, el("b", { text: String(q.q ?? "") }), " ", L.plainTables(q.definition)))),
+        cav.length ? el("ul", { class: "pool-caveats" }, ...cav.map((c) => el("li", { text: String(c) }))) : null,
+        el("p", { class: "hint", style: "margin:10px 0 0", text: `Source: ${sourcesLine(b)}. Snapshot, not live.` })));
+      parts.vote = el("section", { class: "pool-sec", "aria-labelledby": "poolVoteTitle" });
+      parts.decision = el("div", { class: "pool-decision-box" });
+      parts.votes = el("section", { class: "pool-sec", "aria-labelledby": "poolVotesTitle" });
+      art.append(parts.vote, parts.decision, parts.votes);
+      parts.board = art;
+      parts.body.append(art);
+      fillState(b);
+      if (wrap) {
+        Screen.fit(wrap);
+        if (window.ResizeObserver) { observer = new ResizeObserver(() => { if (wrap.isConnected) Screen.fit(wrap); }); observer.observe(wrap); }
+      }
+      if (focusBoard) { focusBoard = false; h2.focus(); }
+    }
+    // The parts of the open board that follow pool_state: the vote, the decision, everyone's votes.
+    function fillState(b) { drawVote(b); drawDecision(b); drawVotes(b); }
+
+    function drawVote(b) {
+      const box = parts.vote; box.textContent = "";
+      box.append(el("h2", { id: "poolVoteTitle", text: "Your vote" }));
+      if (!state || !state.me) return;
+      if (!state.me.can_vote) { box.append(el("p", { class: "hint", style: "margin:10px 0 0", text: "Voting needs the Review tick in DNA Admin." })); return; }
+      const mine = myVote(b.id), d = draftOf(b.id), off = busy.has(b.id) ? "true" : null;
+      const row = el("div", { class: "pool-verdicts", role: "group", "aria-label": "Your vote" });
+      for (const v of MAIN) {
+        const btn = el("button", { type: "button", class: "btn pool-verdict", "aria-pressed": String(d.verdict === v), "aria-disabled": off, "data-pool-focus": "verdict:" + v, text: L.VERDICT_LABEL[v] });
+        btn.addEventListener("click", () => pick(b.id, v));
+        row.append(btn);
+      }
+      const pass = el("button", { type: "button", class: "pool-pass", "aria-pressed": String(d.verdict === "pass"), "aria-disabled": off, "data-pool-focus": "verdict:pass", text: "Pass" });
+      pass.addEventListener("click", () => pick(b.id, "pass"));
+      box.append(row, el("p", { class: "pool-quiet" }, pass, " if you would rather not judge this board."));
+      if (takesAudiences(d.verdict)) {
+        const fs = el("fieldset", { class: "pool-aud" }, el("legend", { text: "Who should see it" }));
+        for (const a of Array.isArray(pool().audiences) ? pool().audiences : []) {
+          const cb = el("input", { type: "checkbox", "aria-disabled": off, "data-pool-focus": "aud:" + a.code });
+          cb.checked = d.audiences.includes(a.code);
+          cb.addEventListener("click", (e) => { if (busy.has(b.id)) e.preventDefault(); });
+          cb.addEventListener("change", () => tick(b.id, a.code, cb.checked));
+          fs.append(el("label", {}, cb, String(a.label ?? a.code)));
+        }
+        box.append(fs);
+      }
+      const ta = el("textarea", { id: "poolNote", rows: "3", maxlength: "1000", "data-pool-focus": "note" });
+      ta.value = d.note;
+      const save = el("button", { type: "button", class: "btn ghost small", "data-pool-focus": "save", text: "Save note" });
+      const left = el("span", { class: "hint" });
+      const sync = () => {
+        const cur = draftOf(b.id), saved = myVote(b.id);
+        save.hidden = !cur.verdict || (!!saved && cur.note === String(saved.note ?? ""));
+        left.textContent = `${(1000 - ta.value.length).toLocaleString("en-GB")} characters left. Please do not name customers or colleagues.`;
+      };
+      ta.addEventListener("input", () => { drafts[b.id] = { ...draftOf(b.id), note: ta.value }; tidy(b.id); sync(); });
+      save.addEventListener("click", () => { const cur = draftOf(b.id); if (cur.verdict && !busy.has(b.id)) send(b.id, cur); });
+      box.append(el("div", { class: "field pool-note" }, el("label", { for: "poolNote", text: "Note (optional)" }), ta,
+        el("div", { class: "actions" }, save, left)));
+      sync();
+      const said = busy.has(b.id) ? "Saving…" : mine ? `Saved ${when(mine.voted_at)}.` : d.verdict ? "" : "Pick Keep, Maybe or Drop, or Pass, to save your vote and note.";
+      if (said) box.append(el("p", { class: "hint pool-saved", role: "status", text: said }));
+      if (errors[b.id]) box.append(el("div", { class: "msg refused", role: "alert", style: "margin-top:10px", text: errors[b.id] }));
+    }
+    function drawDecision(b) {
+      const box = parts.decision, d = decisionOf(b.id);
+      box.textContent = ""; box.hidden = !d;
+      if (d) box.append(el("p", { class: "pool-decision", text: decisionLine(d) }));
+    }
+    function drawVotes(b) {
+      const box = parts.votes; box.textContent = "";
+      const t = L.tally(votes(), b.id), labels = audLabels();
+      box.append(el("h2", { id: "poolVotesTitle", text: "Everyone's votes" }),
+        el("p", { class: "pool-counts", text: `Keep ${t.keep} · Maybe ${t.maybe} · Drop ${t.drop} · Pass ${t.pass}` }));
+      if (!t.voters.length) { box.append(el("p", { class: "empty", text: "No votes yet." })); return; }
+      // Names and notes are text: voteLine gives plain text, and el puts it in with textContent.
+      box.append(el("ul", { class: "pool-votes" }, ...t.voters.map((v) =>
+        el("li", {}, el("span", { text: L.voteLine({ ...v, name: v.name || v.email }, labels) }), " ", el("span", { class: "hint", text: when(v.voted_at) })))));
+    }
+
+    // ---------- voting. A click saves at once; the typed note goes with it.
+    function pick(id, v) {
+      if (busy.has(id)) return;
+      const d = draftOf(id);
+      // Drop and Pass carry no audiences; Keep and Maybe keep the ticks already chosen for either.
+      send(id, { verdict: v, audiences: takesAudiences(v) && takesAudiences(d.verdict) ? d.audiences.slice() : [], note: d.note });
+    }
+    function tick(id, code, on) {
+      if (busy.has(id)) return;
+      const d = draftOf(id);
+      if (!takesAudiences(d.verdict)) return;
+      send(id, { ...d, audiences: on ? [...new Set([...d.audiences, code])] : d.audiences.filter((c) => c !== code) });
+    }
+    async function send(id, next) {
+      const s0 = sess, before = drafts[id];
+      drafts[id] = next; busy.add(id); delete errors[id]; drawState();
+      try {
+        const [k, s] = await ask("pool_vote", { board: id, verdict: next.verdict, audiences: next.audiences, note: next.note });
+        if (s0 !== sess) return;
+        take(k, s);
+        // A note typed while the vote was on its way stays a draft.
+        if (drafts[id] && sameDraft(drafts[id], next)) delete drafts[id];
+        tidy(id);
+      } catch (err) {
+        if (s0 !== sess) return;
+        // The verdict and ticks go back to what they were; the typed note stays.
+        const typed = drafts[id] ? drafts[id].note : next.note;
+        drafts[id] = { ...(before || L.draftFor({}, myVote(id), id)), note: typed };
+        tidy(id);
+        if (!(err && err.signedOut)) errors[id] = explain(err);
+      } finally {
+        if (s0 === sess) { busy.delete(id); drawState(); }
+      }
+    }
+
+    // ---------- the Summary: every board, its counts and the decision
+    function drawSummary() {
+      const tb = el("tbody");
+      for (const b of boards()) {
+        const t = L.tally(votes(), b.id), d = decisionOf(b.id);
+        const open = el("button", { type: "button", class: "pool-link", "data-pool-focus": "sum:" + b.id, text: String(b.title ?? "") });
+        open.addEventListener("click", () => openBoard(b.id));
+        tb.append(el("tr", {}, el("td", { class: "c", text: String(b.num) }),
+          el("td", {}, open, el("div", { class: "em", text: areaLabel(b.area) })),
+          ...L.VERDICTS.map((k) => el("td", { class: "c", text: String(t[k]) })),
+          el("td", { text: d ? decisionLine(d) : "Not decided" })));
+      }
+      parts.body.append(el("div", { class: "grid-wrap" }, el("table", { class: "ticks pool-sum" },
+        el("thead", {}, el("tr", {}, el("th", { scope: "col", class: "c", text: "#" }), el("th", { scope: "col", text: "Board" }),
+          ...L.VERDICTS.map((k) => el("th", { scope: "col", class: "c", text: L.VERDICT_LABEL[k] })), el("th", { scope: "col", text: "Decision" }))),
+        tb)));
+    }
+
+    // On sign-out nothing read from the database or typed here stays in the page: showSignIn has
+    // emptied #main and the side menu; answers on their way are dropped. The open board's id stays.
+    function reset() {
+      sess++; view++; content = null; state = null; drafts = {}; errors = {}; busy.clear(); current = null;
+      filters = { area: "", toReview: false }; figOpen = false; focusBoard = false; applied = asked;
+      if (observer) observer.disconnect();
+      observer = null; root = null; parts = null;
+      if (document.fullscreenElement && document.exitFullscreen) { try { const p = document.exitFullscreen(); if (p && p.catch) p.catch(() => {}); } catch { /* already left */ } }
+    }
+    return { show, reset };
+  })();
+
   // ---------- DNA Admin
   const live = (g) => g === gen && me;
   function panelHead(title, accent, stand) {
@@ -2033,13 +2481,28 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     return adminChanges(g);
   }
 
+  // The Dashboard Pool tab shows for the Review tick or for the decider, whose address is held
+  // only in the database. "me" does not say who decides, so someone without the tick asks
+  // pool_state once: only the decider gets an answer, and anyone else's refusal is dropped. Once
+  // known for this address it is carried over when "me" is asked again; with the tick, the tool
+  // learns it from its own pool_state.
+  async function learnDecider(m, prev) {
+    if (!m || typeof m !== "object") return;
+    if (prev && prev.email === m.email && prev.is_decider) { m.is_decider = true; return; }
+    if (!Array.isArray(m.ticks) || m.ticks.includes(POOL_REVIEW)) return;
+    try { const s = await api("pool_state"); if (s && s.me && s.me.is_decider === true) m.is_decider = true; }
+    catch { /* not the decider, or no answer: the tab follows the tick */ }
+  }
+
   // After a change to the signed-in person's own ticks or switch, their tabs follow at once.
   async function refreshMe() {
     // The session token, not gen: a move between tools must not drop this answer, but one that
     // arrives after sign-out (token null) or a new sign-in (a new token) must change nothing.
     const t = token;
     try {
-      const m = await api("me"); if (!me || !t || token !== t) return;
+      const m = await api("me");
+      await learnDecider(m, me);
+      if (!me || !t || token !== t) return;
       me = m; $("conn").textContent = me.email;
       if (!visibleTools().some((t) => t.id === where.tool)) showTool(where.tool); else renderTabs();
     } catch { /* a signedOut answer has already shown the sign-in; anything else waits for the next load */ }
@@ -2216,14 +2679,18 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
   // holds only a tool and menu name, and anyone without that tool starts at their first.
   function showSignIn(message) {
     gen++; token = null; me = null; dropStored(TOKEN_KEY);
-    $("tabs").textContent = ""; $("sidemenu").textContent = ""; clearMain(); BE.reset(); DV.reset();
+    $("tabs").textContent = ""; $("sidemenu").textContent = ""; clearMain(); BE.reset(); DV.reset(); POOL.reset();
     $("app").hidden = true; $("signin").hidden = false; $("who").hidden = true; $("conn").textContent = "";
     $("emailStep").hidden = false; $("codeStep").hidden = true; $("retryStep").hidden = true; $("siCode").value = "";
     setMsg(message || "");
   }
   async function boot() {
+    const t = token;
     try {
       const m = await api("me");
+      await learnDecider(m, null);
+      // The session ended while the decider check was on its way: the sign-in is already shown.
+      if (token !== t) return;
       me = m; $("conn").textContent = me.email;
       $("signin").hidden = true; $("app").hidden = false; $("who").hidden = false;
       BE.start(me);

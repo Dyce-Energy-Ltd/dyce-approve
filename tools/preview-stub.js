@@ -6,7 +6,10 @@
 // ?as=requester (Pat Example, Broker Emails Request and Renewals), ?as=requestonly (Kim Example,
 // Request only), ?as=renewalsonly (Lee Example, Renewals only), ?as=approveonly (Max Example,
 // Approve only), ?as=adminonly (Jo Example, DNA Admin only), ?as=viewer (Vic Example, DNA Viewer
-// View only), ?as=none (an address with no access: "start" answers as for anyone, "finish" refuses).
+// View only), ?as=reviewer (Rae Example, Dashboard Pool Review only), ?as=decider (Admin Example
+// without the Dashboard Pool Review tick, so the tab shows only as the decider's), ?as=none (an address with no
+// access: "start" answers as for anyone, "finish" refuses). Admin Example is the Dashboard Pool's
+// decider, as Phil Brook is in the database.
 // Any 8-digit code signs in, except 00000000, which gets the wrong-code sentence.
 // window.__stub.calls lists every request; window.__stub.endSession() ends the session on the
 // server side, so the next call answers signedOut; window.__stub.untick(code) removes a tick from
@@ -25,18 +28,24 @@
 // copied in by tools/dv-preview-pages.py; a page the goldens do not hold answers "Not in the
 // preview". Signed links point at the project's storage address with a made-up token, so an
 // opened file shows the store's refusal; the upload PUT is answered here.
+// The Dashboard Pool's answers (pool_content, pool_state, pool_vote, pool_decide, pool_clear) hold
+// three invented boards (the third on its earlier figures, as a board that could not be
+// refreshed) and invented votes, shaped and checked as hub.pool_web_action gives and checks them,
+// in memory only. With ?poolempty=1, pool_content answers {"pool": null}, as before the load.
 (function () {
   var ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/comms-web";
   var as = (new URLSearchParams(location.search).get("as") || "admin").toLowerCase();
   var ADMIN = "admin.example@dyce-energy.co.uk";
   var PERSONA = {
     admin: ADMIN,
+    decider: ADMIN,
     requester: "pat.example@dyce-energy.co.uk",
     adminonly: "jo.example@dyce-energy.co.uk",
     requestonly: "kim.example@dyce-energy.co.uk",
     renewalsonly: "lee.example@dyce-energy.co.uk",
     approveonly: "max.example@dyce-energy.co.uk",
     viewer: "vic.example@dyce-energy.co.uk",
+    reviewer: "rae.example@dyce-energy.co.uk",
     none: null
   };
   var DOMAIN = /^[a-z0-9._%-]+@dyce-energy\.co\.uk$/;
@@ -51,12 +60,13 @@
     { code: "dna_viewer.view", tool: "DNA Viewer", label: "View" },
     { code: "dna_viewer.review", tool: "DNA Viewer", label: "Review queue" },
     { code: "dna_viewer.originals", tool: "DNA Viewer", label: "Originals" },
+    { code: "dashboard_pool.review", tool: "Dashboard Pool", label: "Review" },
     { code: "dna_admin.admin", tool: "DNA Admin", label: "DNA Admin" }
   ];
   var people = [
-    { email: ADMIN, display_name: "Admin Example", active: true, grants: permissions.map(function (p) { return p.code; }), added_at: "2026-11-06T09:00:00+00:00", added_by: "migration" },
+    { email: ADMIN, display_name: "Admin Example", active: true, grants: permissions.map(function (p) { return p.code; }).filter(function (c) { return as !== "decider" || c !== "dashboard_pool.review"; }), added_at: "2026-11-06T09:00:00+00:00", added_by: "migration" },
     { email: "pat.example@dyce-energy.co.uk", display_name: "Pat Example", active: true, grants: ["broker_emails.request", "broker_emails.renewals"], added_at: "2026-11-06T10:12:00+00:00", added_by: ADMIN },
-    { email: "sam.example@dyce-energy.co.uk", display_name: "Sam Example", active: true, grants: ["broker_emails.request", "broker_emails.approve"], added_at: "2026-11-06T10:15:00+00:00", added_by: ADMIN },
+    { email: "sam.example@dyce-energy.co.uk", display_name: "Sam Example", active: true, grants: ["broker_emails.request", "broker_emails.approve", "dashboard_pool.review"], added_at: "2026-11-06T10:15:00+00:00", added_by: ADMIN },
     { email: "alex.example@dyce-energy.co.uk", display_name: "Alex Example", active: false, grants: [], added_at: "2026-11-06T10:20:00+00:00", added_by: ADMIN }
   ];
   // Jo is listed only in the adminonly preview, so in ?as=admin Admin Example is the only DNA Admin.
@@ -75,6 +85,10 @@
   // The View-only DNA Viewer person is listed only in their own preview.
   if (as === "viewer") {
     people.push({ email: PERSONA.viewer, display_name: "Vic Example", active: true, grants: ["dna_viewer.view"], added_at: "2026-11-09T10:30:00+00:00", added_by: ADMIN });
+  }
+  // The Review-only Dashboard Pool person is listed only in their own preview.
+  if (as === "reviewer") {
+    people.push({ email: PERSONA.reviewer, display_name: "Rae Example", active: true, grants: ["dashboard_pool.review"], added_at: "2026-11-11T10:30:00+00:00", added_by: ADMIN });
   }
   var changes = people.map(function (p) {
     return { at: p.added_at, by: p.added_by, for: p.email, what: p.email === ADMIN ? "Added as Admin Example, with every tick" : "Added as " + p.display_name };
@@ -358,6 +372,157 @@
     refuse("Unknown action.");
   }
 
+
+  // ---------- Dashboard Pool: hub.pool_web_action's answers and checks, on invented boards and
+  // votes. The decider is Admin Example (the real decider's address is written into the database
+  // function, never into this repository).
+  var POOL_REVIEW = "dashboard_pool.review";
+  var POOL_DECIDER = ADMIN;
+  var POOL_NO_ACCESS = "You do not have access to this. Ask Phil Brook to add it in DNA Admin.";
+  var POOL_FALLBACK = "These figures are as at 30/09/2026. This board could not be refreshed after the database changes of late October.";
+  var POOL_CODES = ["wall", "app_all", "app_sales", "app_ops", "app_cs", "app_finance", "app_mgmt"];
+  var poolEmpty = new URLSearchParams(location.search).get("poolempty") === "1";
+  var poolContent = {
+    pool: {
+      version: 1,
+      title: "Example pool",
+      audiences: [
+        { code: "wall", label: "Wallboard" }, { code: "app_all", label: "App: everyone" },
+        { code: "app_sales", label: "App: Sales" }, { code: "app_ops", label: "App: Operations" },
+        { code: "app_cs", label: "App: Customer service" }, { code: "app_finance", label: "App: Finance" },
+        { code: "app_mgmt", label: "App: Management only" }
+      ],
+      areas: [{ code: "make", label: "Example making" }, { code: "send", label: "Example sending" }],
+      sources: {
+        widgets: { label: "Example widget load", kind: "load", sql: "select 1" },
+        parcels: { label: "Example parcel record", kind: "record", sql: "select 1" },
+        plan: { label: "Example plan", kind: "month", sql: "select 1" }
+      },
+      boards: [
+        { num: 1, id: "example_widgets", title: "Widgets made", area: "make", sql: "select 1", sources: ["widgets"],
+          questions: [
+            { q: "How many widgets were made today?", definition: "Count of example widget rows dated today.", answer: { field: "made_today", format: "int" } },
+            { q: "What were they worth?", definition: "Sum of the example value column for today's widgets.", answer: { field: "value_today", format: "gbp" } }
+          ],
+          caveats: ["Invented figures for the preview."],
+          screen: { rows: [[
+            { type: "hero", span: 4, title: "Made today", field: "made_today", format: "int", tone: "ink", note: "Last one at {last_at:datetime}" },
+            { type: "columns", span: 8, title: "Widgets by month", field: "by_month", format: "int", series: [{ key: "made", label: "Made", tone: "ink" }] }
+          ]] } },
+        { num: 2, id: "example_parcels", title: "Parcels waiting", area: "send", sql: "select 1", sources: ["parcels"],
+          questions: [
+            { q: "How many parcels are waiting?", definition: "Example parcel rows with no sent date.", answer: { field: "waiting", format: "int" } },
+            { q: "How long has the oldest waited?", definition: "Days since the oldest waiting parcel was packed.", answer: { field: "oldest_days", format: "days" } },
+            { q: "Which depot has most?", definition: "The depot with the most waiting parcels.", answer: { field: "top_depot", format: "text" } }
+          ],
+          caveats: [],
+          screen: { rows: [
+            [{ type: "figures", span: 6, title: "Waiting now", items: [{ field: "waiting", format: "int", label: "Parcels", tone: "ink" }, { field: "oldest_days", format: "days", label: "Oldest", tone: "warn" }] },
+             { type: "bars", span: 6, title: "Waiting by depot", field: "by_depot", format: "int", tone: "info" }],
+            [{ type: "table", span: 12, title: "Oldest parcels", field: "oldest", columns: [{ key: "label", label: "Parcel", format: "text" }, { key: "days", label: "Days", format: "int" }] }]
+          ] } },
+        { num: 3, id: "example_plan", title: "Plan against actual", area: "make", sql: "select 1", sources: ["plan"],
+          questions: [
+            { q: "How far through the plan are we?", definition: "Widgets made this year as a share of the example plan.", answer: { field: "plan_pct", format: "pct" } },
+            { q: "What is the mix?", definition: "Widgets made this year by colour.", answer: { field: "top_colour", format: "text" } }
+          ],
+          caveats: ["The example plan is set once a year."],
+          screen: { rows: [[
+            { type: "meter", span: 5, title: "Through the plan", field: "plan_pct", format: "pct", tone: "ok", note: "Plan of {plan_total:int} widgets" },
+            { type: "stack", span: 7, title: "Made by colour", field: "by_colour", format: "int", tones: { Blue: "info", Green: "ok", Grey: "neutral" } }
+          ]] } }
+      ]
+    },
+    snapshot: {
+      generated_at: "2026-11-11T14:00:00Z",
+      as_at: "2026-10-31",
+      sources: {
+        widgets: { as_at: "2026-11-11T09:30:00", kind: "load", stale: false },
+        parcels: { as_at: "2026-11-10T00:00:00", kind: "record", stale: false },
+        plan: { as_at: "2026-09-01T00:00:00", kind: "month", stale: false, fallback: true }
+      },
+      boards: {
+        example_widgets: { made_today: 12, value_today: 840.5, last_at: "2026-10-31T16:20:00",
+          by_month: [{ label: "2026-08", made: 210 }, { label: "2026-09", made: 260 }, { label: "2026-10", made: 245 }] },
+        example_parcels: { waiting: 7, oldest_days: 3, top_depot: "Depot B",
+          by_depot: [{ label: "Depot A", value: 2 }, { label: "Depot B", value: 4 }, { label: "Depot C", value: 1 }],
+          oldest: [{ label: "P-0001", days: 3 }, { label: "P-0002", days: 2 }] },
+        example_plan: { plan_pct: 61.5, plan_total: 3000, top_colour: "Blue, Green, Grey",
+          by_colour: [{ label: "Blue", value: 900 }, { label: "Green", value: 600 }, { label: "Grey", value: 345 }] }
+      },
+      fallback: { example_plan: { as_at: "2026-09-30", reason: POOL_FALLBACK } }
+    },
+    loaded_at: "2026-11-11T15:00:00+00:00"
+  };
+  // Sam votes Keep on board 1 after Admin Example decided it (votes changed since decided); Alex,
+  // turned off, is a former reviewer whose vote still shows. Alex's note holds markup, to show
+  // that the page puts notes in as text.
+  var poolVotes = [
+    { email: "sam.example@dyce-energy.co.uk", board: "example_widgets", verdict: "keep", audiences: ["wall", "app_sales"], note: "Useful on the wall by the line.", voted_at: "2026-11-10T11:00:00.123456+00:00" },
+    { email: "alex.example@dyce-energy.co.uk", board: "example_parcels", verdict: "drop", audiences: [], note: "<i>Not</i> needed: the depots have their own list.", voted_at: "2026-11-06T10:05:00+00:00" },
+    { email: "sam.example@dyce-energy.co.uk", board: "example_plan", verdict: "pass", audiences: [], note: "", voted_at: "2026-11-10T11:05:00+00:00" }
+  ];
+  var poolDecisions = [
+    { board: "example_widgets", decision: "keep", audiences: ["wall"], decided_by: ADMIN, decided_at: "2026-11-10T10:00:00.5+00:00" }
+  ];
+  var poolBoard = function (id) {
+    return poolContent.pool.boards.some(function (b) { return b.id === id; }) ? id : null;
+  };
+  // Audiences as hub.pool_web_action checks them: missing or null is none, anything but a list is
+  // refused, every code sent is checked, and those kept are stored once each in the fixed order.
+  function poolAudiences(a, keep) {
+    if (a == null) a = [];
+    if (!Array.isArray(a)) refuse("The audiences must be a list.");
+    a.forEach(function (c) { if (POOL_CODES.indexOf(c) < 0) refuse("Unknown audience: " + (typeof c === "string" ? c : JSON.stringify(c)) + "."); });
+    return keep ? POOL_CODES.filter(function (c) { return a.indexOf(c) >= 0; }) : [];
+  }
+  var poolNow = function () { return new Date().toISOString().replace("Z", "+00:00"); };
+  // Ordered as the function orders them: votes by board, time and email; decisions by board.
+  function poolState(me) {
+    var decider = me === POOL_DECIDER;
+    var votes = poolVotes.slice().sort(function (a, b) {
+      return a.board < b.board ? -1 : a.board > b.board ? 1 : a.voted_at < b.voted_at ? -1 : a.voted_at > b.voted_at ? 1 : a.email < b.email ? -1 : 1;
+    }).map(function (v) {
+      var o = { email: v.email, name: (person(v.email) || {}).display_name || v.email, board: v.board, verdict: v.verdict, audiences: copy(v.audiences), note: v.note, voted_at: v.voted_at };
+      if (decider) o.current = has(v.email, POOL_REVIEW);
+      return o;
+    });
+    var out = {
+      me: { email: me, is_decider: decider, can_vote: has(me, POOL_REVIEW) },
+      votes: votes,
+      decisions: copy(poolDecisions.slice().sort(function (a, b) { return a.board < b.board ? -1 : 1; }))
+    };
+    if (decider) out.reviewer_count = people.filter(function (p) { return p.active && p.grants.indexOf(POOL_REVIEW) >= 0; }).length;
+    return out;
+  }
+  function poolAction(me, action, args) {
+    var decider = me === POOL_DECIDER;
+    if (!(decider || has(me, POOL_REVIEW))) refuse(POOL_NO_ACCESS);
+    if ((action === "pool_decide" || action === "pool_clear") && !decider) refuse("Only Phil Brook makes the final decision.");
+    if (action === "pool_vote" && !has(me, POOL_REVIEW)) refuse(POOL_NO_ACCESS);
+    if (action === "pool_content") return poolEmpty ? { pool: null } : copy(poolContent);
+    if (action === "pool_state") return poolState(me);
+    if (action !== "pool_vote" && action !== "pool_decide" && action !== "pool_clear") refuse("Unknown action.");
+    var board = poolEmpty ? null : poolBoard(args.board);
+    if (!board) refuse("That board is not in the Dashboard Pool.");
+    if (action === "pool_vote") {
+      if (["keep", "maybe", "drop", "pass"].indexOf(args.verdict) < 0) refuse("A vote is Keep, Maybe, Drop or Pass.");
+      var aud = poolAudiences(args.audiences, args.verdict === "keep" || args.verdict === "maybe");
+      var note = args.note == null ? "" : String(args.note);
+      if (note.length > 1000) refuse("A note can be at most 1,000 characters.");
+      poolVotes = poolVotes.filter(function (v) { return !(v.email === me && v.board === board); });
+      poolVotes.push({ email: me, board: board, verdict: args.verdict, audiences: aud, note: note, voted_at: poolNow() });
+    } else if (action === "pool_decide") {
+      if (["keep", "drop"].indexOf(args.decision) < 0) refuse("A decision is Keep or Drop.");
+      var kept = poolAudiences(args.audiences, args.decision === "keep");
+      poolDecisions = poolDecisions.filter(function (d) { return d.board !== board; });
+      poolDecisions.push({ board: board, decision: args.decision, audiences: kept, decided_by: me, decided_at: poolNow() });
+    } else {
+      poolDecisions = poolDecisions.filter(function (d) { return d.board !== board; });
+    }
+    return poolState(me);
+  }
+
   function answer(body) {
     var op = body && body.op;
     if (op === "start") return [200, { ok: true }];
@@ -387,6 +552,7 @@
           return [200, { ok: true, result: { email: me, display_name: p2.display_name, testing: true, approvers: approvers, ticks: p2.active ? sorted(p2.grants) : [] } }];
         }
         if (/^admin_/.test(action)) return [200, { ok: true, result: adminAction(me, action, args) }];
+        if (/^pool_/.test(action)) return [200, { ok: true, result: poolAction(me, action, args) }];
         if (/^renewals_/.test(action) ? !has(me, "broker_emails.renewals") : !has(me, "broker_emails.request")) refuse(NO_ACCESS);
         return [200, { ok: true, result: brokerEmailsAction(me, action, args) }];
       } catch (e) {

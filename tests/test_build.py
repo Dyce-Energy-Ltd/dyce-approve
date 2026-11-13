@@ -130,6 +130,7 @@ class CommittedPagesTests(unittest.TestCase):
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         shutil.copytree(ASSETS, tmp / "assets")
+        shutil.copytree(ROOT / "parts", tmp / "parts")
         shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
         r = run_build(tmp)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -144,6 +145,7 @@ class CommittedPagesTests(unittest.TestCase):
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         shutil.copytree(ASSETS, tmp / "assets")
+        shutil.copytree(ROOT / "parts", tmp / "parts")
         shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
         (tmp / "tools").mkdir()
         shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
@@ -202,6 +204,87 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertEqual(result["fired"], 0, "an alert() in the input ran")
         failed = [c for c in result["results"] if c["problems"]]
         self.assertEqual(failed, [], json.dumps(failed, indent=1, ensure_ascii=False))
+
+    def test_pool_tab_and_its_parts(self):
+        page = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        # The tab sits after DNA Viewer and before DNA Admin, for the tick or the decider.
+        i_dv, i_pool, i_admin = (page.index('{ id: "%s"' % t) for t in ("dna_viewer", "dashboard_pool", "dna_admin"))
+        self.assertLess(i_dv, i_pool)
+        self.assertLess(i_pool, i_admin)
+        self.assertIn('{ id: "dashboard_pool", label: "Dashboard Pool", allowed: (t) => t.includes(POOL_REVIEW) || !!(me && me.is_decider),', page)
+        self.assertIn('items: [{ id: "boards", label: "Boards" }, { id: "summary", label: "Summary" }],', page)
+        # The screen reads PoolLib as it loads, so the helpers are inlined first; the CSS is in the style.
+        self.assertLess(page.index("{{POOL_LIB_JS}}"), page.index("{{POOL_SCREEN_JS}}"))
+        self.assertLess(page.index("{{POOL_SCREEN_CSS}}"), page.index("</style>"))
+        # Sign-out clears the tool beside the other two.
+        self.assertIn("BE.reset(); DV.reset(); POOL.reset();", page)
+
+    def test_pool_fixed_copy(self):
+        page = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        for copy in (
+            "Vote on as many boards as you feel necessary, including ones outside your own area.",
+            "These figures are as at 30/09/2026. This board could not be refreshed after the database changes of late October.",
+            "The Dashboard Pool has not been loaded yet.",
+            "You've reviewed ${reviewed} of ${all.length}",
+            '"Decided: kept"', '"Decided: dropped"', 'text: "Pass"',
+            "Show the figures as a table", "Full screen",
+        ):
+            self.assertIn(copy, page)
+
+    def test_pool_keeps_only_the_board_id(self):
+        # The Dashboard Pool module stores nothing but the open board's id.
+        page = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        module = page[page.index("  const POOL = (() => {"):page.index("  // ---------- DNA Admin")]
+        self.assertEqual(re.findall(r"putStored\(([^,]+),", module), ["BOARD_KEY"])
+        self.assertIn('const BOARD_KEY = "hub.pool.board";', module)
+        for word in ("localStorage", "sessionStorage", "indexedDB", "innerHTML", "insertAdjacentHTML"):
+            self.assertNotIn(word, module)
+
+    def test_no_em_dash_in_the_hub_or_its_stub(self):
+        for path in (ROOT / "hub.src.html", ROOT / "tools" / "preview-stub.js", ROOT / "tools" / "pool-preview-check.js"):
+            self.assertEqual(path.read_text(encoding="utf-8").count(chr(0x2014)), 0, path.name)
+
+    def test_pool_preview_in_a_browser(self):
+        # The preview hub, signed in through the stub, driven by tools/pool-preview-check.js in a
+        # headless Chromium: voting, Pass, drafts, the fallback caveat, storage, sign-out, and the
+        # tab for the decider without the tick.
+        browser = next((b for b in BROWSERS if b and Path(b).is_file()), None)
+        if browser is None:
+            self.skipTest("no Chromium browser found (set DV_BROWSER to one)")
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        shutil.copytree(ASSETS, tmp / "assets")
+        shutil.copytree(ROOT / "parts", tmp / "parts")
+        shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
+        (tmp / "tools").mkdir()
+        shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
+        r = run_build(tmp, "--preview")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        preview = (tmp / "preview" / "hub.html").read_text(encoding="utf-8")
+        signed_in = ("<script>localStorage.clear(); localStorage.setItem('dyce.hub.token', 'stubcheck');"
+                     " localStorage.setItem('dyce.hub.where', JSON.stringify({tool: 'dashboard_pool', item: 'boards'}));"
+                     " localStorage.setItem('hub.pool.board', 'example_widgets');</script>")
+        check = (ROOT / "tools" / "pool-preview-check.js").read_text(encoding="utf-8").replace("</", "<\\/")
+        i = preview.index("<script")
+        page = preview[:i] + signed_in + preview[i:]
+        j = page.rindex("</body>")  # the stub's made-up emails hold "</body>" too
+        page = page[:j] + "<script>" + check + "</script>" + page[j:]
+        (tmp / "check.html").write_text(page, encoding="utf-8")
+        for query in ("as=reviewer", "as=decider", "as=viewer", "as=reviewer&poolempty=1"):
+            with self.subTest(query=query):
+                r = subprocess.run(
+                    [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+                     "--user-data-dir=" + str(tmp / ("profile-" + re.sub(r"\W", "-", query))),
+                     "--virtual-time-budget=20000", "--dump-dom", (tmp / "check.html").as_uri() + "?" + query],
+                    capture_output=True, text=True, encoding="utf-8", timeout=120)
+                found = re.findall(r'<pre id="result">(.*?)</pre>', r.stdout, re.S)
+                self.assertTrue(found and found[-1], "the check wrote no result: %s" % r.stderr[-500:])
+                result = json.loads(html.unescape(found[-1]))
+                if os.environ.get("POOL_CHECK_REPORT"):
+                    print(json.dumps(result, indent=1, ensure_ascii=False))
+                self.assertTrue(result["results"], "no checks ran")
+                failed = [c for c in result["results"] if not c["ok"]]
+                self.assertEqual(failed, [], json.dumps(failed, indent=1, ensure_ascii=False))
 
     def test_send_html_only_forwards_to_the_hub(self):
         page = (ROOT / "send.html").read_text(encoding="utf-8")
