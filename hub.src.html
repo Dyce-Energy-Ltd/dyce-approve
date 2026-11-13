@@ -2409,7 +2409,12 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       if (!takesAudiences(d.verdict)) return;
       send(id, { ...d, audiences: on ? [...new Set([...d.audiences, code])] : d.audiences.filter((c) => c !== code) });
     }
+    // Every vote (a verdict, a tick, Save note) goes through here. A vote the same as the one saved
+    // is not sent: the server would make it newer than a decision, and "Votes changed since
+    // decided" would show with nothing changed.
     async function send(id, next) {
+      const saved = myVote(id);
+      if (saved && sameDraft(next, L.draftFor({}, saved, id))) { tidy(id); return; }
       const s0 = sess, before = drafts[id];
       drafts[id] = next; busy.add(id); delete errors[id]; drawState();
       try {

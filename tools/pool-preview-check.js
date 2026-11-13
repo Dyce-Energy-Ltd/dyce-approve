@@ -51,6 +51,12 @@
     check("board 1 marked Keep", /Keep/.test(boardButton("example_widgets").textContent));
     check("Keep is pressed", button("Keep", $("#pool")).getAttribute("aria-pressed") === "true");
 
+    // Clicking the chosen verdict again, with nothing else changed, sends nothing.
+    const before = calls("pool_vote").length;
+    button("Keep", $("#pool")).click();
+    await sleep(400);
+    check("re-clicking the chosen verdict sends no vote", calls("pool_vote").length === before, calls("pool_vote").length - before);
+
     // Tick an audience.
     const sales = $$("#pool fieldset.pool-aud label").find((l) => l.textContent.trim() === "App: Sales");
     check("audience ticks on Keep", !!sales);
