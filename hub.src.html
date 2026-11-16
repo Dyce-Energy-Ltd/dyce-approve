@@ -2644,8 +2644,8 @@ const PR_GRID = {{PRICING_GRID}};
     const bandText = (b) => comma(b.eacMinKwh) + " to " + comma(b.eacMaxKwh) + " kWh";
     const marginText = (m) => m == null ? "–" : (m / 1000).toFixed(3);
     const sameList = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
-    // What a person has edited: a new set, or margins or shares that differ from what was saved. A set
-    // saved against an older ladder is also saved again (G.changedNames) but is not an edit of theirs.
+    // What a person has edited: a new set, or a cost, margins or shares that differ from what was saved.
+    // A set saved against an older ladder is not changed until it is edited (G.changedNames agrees).
     const editedNames = (g) => g.columns.filter((c) => c.isNew || c.costPerMeterPence !== c.saved.costPerMeterPence || !sameList(c.margins, c.saved.margins) || !sameList(c.shares, c.saved.shares)).map((c) => c.name);
     // Columns in the order the grid shows them: each bundle's members together, then the rest.
     function orderColumns(grid, bundles) {

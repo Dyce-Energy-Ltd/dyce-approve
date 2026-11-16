@@ -8,7 +8,8 @@
 // Margins are whole milli-pence per kWh (1.234p is 1234). Shares are percentages, at most 2 decimals.
 // `saved` is what the database held when the grid was made; a column is changed when it differs.
 // A column saved against an older ladder is `stale`: its margins are carried to the current ladder
-// (carryToLadder) and it counts as changed until it is saved again.
+// (carryToLadder), blanks where bands were split or merged, and stays marked stale. It counts as
+// changed only once a person edits one of its cells or its cost per meter; then problems() applies.
 
 const MARGIN_MIN = 10; // 0.01p, the smallest margin a drag or a shift will give.
 
@@ -264,7 +265,7 @@ function same(a, b) {
 }
 
 function isChanged(c) {
-  return c.isNew || c.stale || c.costPerMeterPence !== c.saved.costPerMeterPence || !same(c.margins, c.saved.margins) || !same(c.shares, c.saved.shares);
+  return c.isNew || c.costPerMeterPence !== c.saved.costPerMeterPence || !same(c.margins, c.saved.margins) || !same(c.shares, c.saved.shares);
 }
 
 export function changedNames(grid) {

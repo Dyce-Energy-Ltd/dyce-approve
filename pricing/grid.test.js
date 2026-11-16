@@ -65,7 +65,8 @@ test('makeGrid keys columns by name and carries a stale ladder', () => {
   ];
   const g2 = makeGrid(newLadder, [set('Gold', 'Gold', 1000, 40, { ladderCurrent: false })]);
   assert.deepEqual(g2.columns[0].margins, [1000, null, 1200]);
-  assert.deepEqual(changedNames(g2), ['Gold']);
+  assert.equal(g2.columns[0].stale, true);
+  assert.deepEqual(changedNames(g2), [], 'a stale set is changed only once edited');
 });
 
 test('addColumn blank and copied; changedNames', () => {
@@ -213,4 +214,33 @@ test('cost per meter is an edit: changed, not mutating, sent on save', () => {
   assert.throws(() => setCostPerMeter(g, 'Gold', 1.5));
   assert.throws(() => setCostPerMeter(g, 'Gold', -1));
   assert.throws(() => setCostPerMeter(g, 'Nope', 5));
+});
+
+const NEW_LADDER = [
+  { bandIndex: 0, eacMinKwh: 0, eacMaxKwh: 1499 },
+  { bandIndex: 1, eacMinKwh: 1500, eacMaxKwh: 1999 },
+  { bandIndex: 2, eacMinKwh: 2000, eacMaxKwh: 2999 },
+];
+const staleGrid = () => makeGrid(NEW_LADDER, [
+  set('Old', 'Gold', 1000, 40, { ladderCurrent: false }),
+  Object.assign(set('Fresh', 'Silver', 800, 30), { bands: NEW_LADDER.map((b, i) => ({ ...b, marginMilliPencePerKwh: 800 + i * 100, standingSharePct: 30 })) }),
+], 'electricity');
+
+test('a stale set does not block saving another set', () => {
+  let g = staleGrid();
+  assert.deepEqual(changedNames(g), []);
+  g = setCells(g, [at('Fresh', 1)], 'margin', 950);
+  assert.deepEqual(changedNames(g), ['Fresh']);
+  assert.deepEqual(problems(g).filter(p => p.name === 'Fresh'), []);
+  const payload = toSavePayload(g, changedNames(g), 'why');
+  assert.deepEqual(payload.sets.map(s => s.name), ['Fresh']);
+});
+
+test('editing a stale set makes it changed and its blank bands are problems', () => {
+  let g = setCells(staleGrid(), [at('Old', 0)], 'margin', 1100);
+  assert.deepEqual(changedNames(g), ['Old']);
+  const blanks = problems(g).filter(p => p.name === 'Old');
+  assert.deepEqual(blanks.map(p => p.bandIndex + ':' + p.message), ['1:This band has no margin.', '1:This band has no standing charge share.']);
+  g = setCostPerMeter(staleGrid(), 'Old', 99);
+  assert.deepEqual(changedNames(g), ['Old']);
 });
