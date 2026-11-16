@@ -692,9 +692,10 @@
   var PR_TICK = {
     "overview": "pricing.view", "band_set_get": "pricing.view", "split_list": "pricing.view", "run_set": "pricing.view",
     "preview": "pricing.view", "book_live": "pricing.view", "book_rows": "pricing.view",
+    "band_sets": "pricing.view", "band_set_history": "pricing.view",
     "file_start": "pricing.load", "file_rows": "pricing.load", "file_finish": "pricing.load", "file_reject": "pricing.load",
     "band_set_new": "pricing.set", "band_set_copy": "pricing.set", "band_set_save": "pricing.set", "band_set_approve": "pricing.set",
-    "band_set_retire": "pricing.set", "split_save": "pricing.set", "split_publish": "pricing.set", "run_set_prepare": "pricing.set",
+    "band_set_retire": "pricing.set", "band_sets_save": "pricing.set", "bundle_save": "pricing.set", "bundle_retire": "pricing.set", "ladder_save": "pricing.set", "split_save": "pricing.set", "split_publish": "pricing.set", "run_set_prepare": "pricing.set",
     "publish": "pricing.publish", "publish_abandon": "pricing.publish", "output_upload_url": "pricing.publish", "output_record": "pricing.publish", "output_link": "pricing.view"
   };
   var pid = function (n) { return "00000000-0000-4000-8000-" + String(1000000000 + n).slice(1).padStart(12, "0"); };
@@ -779,6 +780,35 @@
     return rows;
   };
 
+  // Pricing v2: the band ladder, band sets (with versions) and bundles of each fuel. Invented figures,
+  // none of them a price. The "Gold renewal" set was saved against version 2 of the electricity
+  // ladder, so the page shows it carried to the current ladder.
+  var band2 = function (ladder, i, margin, share) { return { bandIndex: ladder[i].bandIndex, eacMinKwh: ladder[i].eacMinKwh, eacMaxKwh: ladder[i].eacMaxKwh, marginMilliPencePerKwh: margin, standingSharePct: share }; };
+  var mkLadder = function (id, version, ranges) { return { ladderId: id, version: version, bands: ranges.map(function (r, i) { return { bandIndex: i + 1, eacMinKwh: r[0], eacMaxKwh: r[1] }; }) }; };
+  var prLadder = {
+    electricity: mkLadder(pid(801), 3, [[1000, 3000], [3001, 12500], [12501, 25000], [25001, 50000], [50001, 100000], [100001, 200000]]),
+    gas: mkLadder(pid(802), 2, [[1000, 5000], [5001, 15000], [15001, 40000], [40001, 100000], [100001, 250000]])
+  };
+  var prLadderOld = mkLadder(pid(803), 2, [[1000, 3000], [3001, 12500], [12501, 30000], [30001, 100000], [100001, 200000]]);
+  var prNamed = [], prBundles = [], prSeq = 0;
+  var addNamed = function (fuel, name, product, cost, margins, shares, ladder, ladderVersion) {
+    var make = function (version, delta, reason, when) {
+      return { priceConfigId: pid(900 + (prSeq++)), version: version, status: "approved", savedBy: "pricing.person", savedAt: when, reason: reason, costPerMeterPence: cost, ladderVersion: ladderVersion,
+        bands: margins.map(function (m, i) { return band2(ladder, i, m + delta, shares[i]); }) };
+    };
+    prNamed.push({ fuel: fuel, name: name, product: product, versions: [make(1, -60, "First margins (invented).", "2026-10-14T09:00:00+00:00"), make(2, -20, "Trimmed the larger bands (invented).", "2026-11-02T11:30:00+00:00"), make(3, 0, "Margins for the November files (invented).", "2026-11-12T10:00:00+00:00")] });
+  };
+  addNamed("electricity", "Standard", "Standard", 1500, [620, 540, 470, 420, 360, 300], [22, 20, 18, 16, 14, 12], prLadder.electricity.bands, 3);
+  addNamed("electricity", "Gold", "Gold", 1500, [700, 620, 540, 480, 420, 350], [25, 22, 20, 18, 15, 12], prLadder.electricity.bands, 3);
+  addNamed("electricity", "Silver", "Silver", 1400, [660, 580, 500, 450, 390, 330], [24, 21, 19, 17, 14, 12], prLadder.electricity.bands, 3);
+  addNamed("electricity", "Advanced Saver", "Advanced Saver", 1600, [760, 680, 600, 540, 470, 400], [20, 18, 16, 14, 12, 10], prLadder.electricity.bands, 3);
+  addNamed("electricity", "Gold renewal", "Gold", 1500, [640, 560, 480, 420, 330], [25, 22, 20, 15, 12], prLadderOld.bands, 2);
+  addNamed("gas", "Gas Standard", "Standard", 800, [300, 260, 230, 200, 170], [0, 0, 0, 0, 0], prLadder.gas.bands, 2);
+  addNamed("gas", "Gas Gold", "Gold", 800, [340, 300, 260, 230, 200], [0, 0, 0, 0, 0], prLadder.gas.bands, 2);
+  prBundles.push({ bundleId: pid(851), fuel: "electricity", name: "Core range", members: ["Standard", "Gold", "Silver"] });
+  prBundles.push({ bundleId: pid(852), fuel: "electricity", name: "Advanced range", members: ["Advanced Saver"] });
+  prBundles.push({ bundleId: pid(853), fuel: "gas", name: "Gas range", members: ["Gas Standard", "Gas Gold"] });
+
   function prAnswer(body) {
     var me = sessions[body.token];
     if (!me && body.token && /^stub/.test(body.token) && !ended[body.token] && PERSONA[as]) { me = PERSONA[as]; sessions[body.token] = me; }
@@ -804,6 +834,87 @@
       if (prProblems.length) sets.push({ supplier_file_id: F3, supplier_id: "gamma", fuel: "gas", source_filename: prFiles[2].source_filename, file_status: "loaded", draft: 0, approved: 0, publishing: 2, published: 0 });
       return ok({ suppliers: prSuppliers, files: prFiles, bandSets: prBandSets.map(function (b) { var o = copy(b); o.band_count = (prBands[b.price_config_id] || []).length; return o; }), splits: prSplits.map(function (x) { var o = copy(x); delete o.split; delete o.supplier_said; return o; }), runSets: sets, products: prProducts });
     }
+    if (op === "band_sets" || op === "band_set_history" || op === "band_sets_save" || op === "band_set_retire" || op === "bundle_save" || op === "bundle_retire" || op === "ladder_save") {
+      // band_sets_save names the fuel on each set, not on the request.
+      var fuel = op === "band_sets_save" ? (Array.isArray(body.sets) && body.sets[0] ? body.sets[0].fuel : null) : body.fuel;
+      if (op !== "bundle_retire" && fuel !== "electricity" && fuel !== "gas") return bad("The fuel must be electricity or gas.");
+      var nameTaken = function (n) { return prNamed.some(function (x) { return x.name === n; }) || prBundles.some(function (x) { return x.name === n; }); };
+      var current = function (x) { return x.versions[x.versions.length - 1]; };
+      var live = function () { return prNamed.filter(function (x) { return x.fuel === fuel && !x.retired; }); };
+      var ladder = prLadder[fuel];
+      if (op === "band_sets") {
+        return ok({ ladder: ladder, bandSets: live().map(function (x) { var c = current(x); return { name: x.name, priceConfigId: c.priceConfigId, version: c.version, product: x.product, costPerMeterPence: c.costPerMeterPence, ladderCurrent: c.ladderVersion === ladder.version, savedBy: c.savedBy, savedAt: c.savedAt, bands: c.bands }; }),
+          bundles: prBundles.filter(function (b) { return b.fuel === fuel && !b.retired; }).map(function (b) { return { bundleId: b.bundleId, name: b.name, members: b.members.filter(function (m) { return live().some(function (x) { return x.name === m; }); }) }; }) });
+      }
+      if (op === "band_set_history") {
+        var h = live().filter(function (x) { return x.name === body.name; })[0];
+        if (!h) return [404, { ok: false, error: "That band set was not found." }];
+        return ok({ versions: h.versions.slice().reverse().map(function (v) { return { priceConfigId: v.priceConfigId, version: v.version, status: v.status, savedBy: v.savedBy, savedAt: v.savedAt, reason: v.reason, costPerMeterPence: v.costPerMeterPence, bands: v.bands }; }) });
+      }
+      if (op === "band_sets_save") {
+        if (!body.reason || !String(body.reason).trim()) return bad("The reason is needed.");
+        if (!Array.isArray(body.sets) || body.sets.length < 1 || body.sets.length > 40) return bad("Give between 1 and 40 band sets.");
+        for (var i = 0; i < body.sets.length; i++) {
+          var st = body.sets[i], label = (st && st.name) || "A band set";
+          if (!st || typeof st.name !== "string" || st.name.trim().length < 1 || st.name.length > 60) return bad("A band set name must be 1 to 60 characters.");
+          if (st.fuel !== fuel) return bad(label + ": the fuel does not match.");
+          if (st.isNew ? nameTaken(st.name) : !live().some(function (x) { return x.name === st.name; })) return bad(st.isNew ? "There is already a band set or bundle with that name." : label + " was not found.");
+          if (!Array.isArray(st.bands) || st.bands.length !== ladder.bands.length) return bad(label + ": give a margin and share for each of the " + ladder.bands.length + " bands.");
+          for (var j = 0; j < st.bands.length; j++) {
+            var bb = st.bands[j];
+            if (!Number.isInteger(bb.marginMilliPencePerKwh) || bb.marginMilliPencePerKwh <= 0) return bad(label + ": every margin must be a whole number above zero.");
+            if (typeof bb.standingSharePct !== "number" || bb.standingSharePct < 0 || bb.standingSharePct > 100 || Math.round(bb.standingSharePct * 100) / 100 !== bb.standingSharePct) return bad(label + ": every share must be between 0 and 100 with at most 2 decimals.");
+          }
+        }
+        var savedList = body.sets.map(function (st) {
+          var x = prNamed.filter(function (y) { return y.name === st.name; })[0];
+          if (!x) { x = { fuel: fuel, name: st.name, product: st.product, versions: [] }; prNamed.push(x); }
+          var v = { priceConfigId: pid(900 + (prSeq++)), version: x.versions.length + 1, status: "approved", savedBy: person(me).email, savedAt: now(), reason: String(body.reason).trim(), costPerMeterPence: st.costPerMeterPence, ladderVersion: ladder.version,
+            bands: st.bands.map(function (b, k) { return band2(ladder.bands, k, b.marginMilliPencePerKwh, b.standingSharePct); }) };
+          x.versions.push(v); x.product = st.product;
+          return { name: st.name, priceConfigId: v.priceConfigId, version: v.version };
+        });
+        return ok({ saved: savedList });
+      }
+      if (op === "band_set_retire") {
+        if (!body.reason) return bad("The reason is needed.");
+        var r = live().filter(function (x) { return x.name === body.name; })[0];
+        if (!r) return [404, { ok: false, error: "That band set was not found." }];
+        r.retired = true;
+        return ok({});
+      }
+      if (op === "bundle_save") {
+        if (typeof body.name !== "string" || body.name.trim().length < 1 || body.name.length > 60) return bad("A bundle name must be 1 to 60 characters.");
+        if (!Array.isArray(body.members) || body.members.length < 1 || body.members.length > 10) return bad("A bundle needs between 1 and 10 band sets.");
+        var known = live().map(function (x) { return x.name; });
+        if (body.members.some(function (m) { return known.indexOf(m) < 0; })) return bad("Every member must be a saved band set of that fuel.");
+        var existing = body.bundleId ? prBundles.filter(function (b) { return b.bundleId === body.bundleId; })[0] : null;
+        if (body.bundleId && !existing) return [404, { ok: false, error: "That bundle was not found." }];
+        if ((!existing || existing.name !== body.name) && nameTaken(body.name)) return bad("There is already a band set or bundle with that name.");
+        if (existing) { existing.name = body.name; existing.members = body.members.slice(); return ok({ bundleId: existing.bundleId }); }
+        var nb2 = { bundleId: pid(860 + prBundles.length), fuel: fuel, name: body.name, members: body.members.slice() };
+        prBundles.push(nb2);
+        return ok({ bundleId: nb2.bundleId });
+      }
+      if (op === "bundle_retire") {
+        if (!body.reason) return bad("The reason is needed.");
+        var rb = prBundles.filter(function (b) { return b.bundleId === body.bundleId && !b.retired; })[0];
+        if (!rb) return [404, { ok: false, error: "That bundle was not found." }];
+        rb.retired = true;
+        return ok({});
+      }
+      // ladder_save
+      if (!body.reason) return bad("The reason is needed.");
+      if (!Array.isArray(body.bands) || body.bands.length < 1 || body.bands.length > 20) return bad("A ladder needs between 1 and 20 bands.");
+      for (var q = 0; q < body.bands.length; q++) {
+        var lb = body.bands[q];
+        if (!Number.isInteger(lb.eacMinKwh) || !Number.isInteger(lb.eacMaxKwh) || lb.eacMinKwh < 0 || lb.eacMaxKwh <= lb.eacMinKwh) return bad("Band " + (q + 1) + ": the maximum must be above the minimum.");
+        if (q && lb.eacMinKwh <= body.bands[q - 1].eacMaxKwh) return bad("Band " + (q + 1) + " must start above the end of band " + q + ".");
+      }
+      prLadder[fuel] = mkLadder(pid(810 + prLadder[fuel].version), prLadder[fuel].version + 1, body.bands.map(function (b) { return [b.eacMinKwh, b.eacMaxKwh]; }));
+      return ok({ ladderId: prLadder[fuel].ladderId });
+    }
+
     if (op === "band_set_get") {
       var b = find(prBandSets, "price_config_id", body.priceConfigId);
       if (!b) return [404, { ok: false, error: "That band set was not found." }];
@@ -881,13 +992,6 @@
       a.status = "approved"; a.approved_by = person(me).email; a.approved_at = now();
       return ok({ runsPrepared: 3 });
     }
-    if (op === "band_set_retire") {
-      var r = find(prBandSets, "price_config_id", body.priceConfigId);
-      if (!r) return [404, { ok: false, error: "That band set was not found." }];
-      if (!body.reason) return bad("The reason is needed.");
-      r.status = "retired";
-      return ok({});
-    }
     if (op === "split_save") {
       var keys = { day_night: ["day", "night"], hh: ["day", "night"], evening_weekend: ["day", "ew"], evening_weekend_night: ["day", "ew", "night"] }[body.rateStructure];
       if (!keys || Object.keys(body.split || {}).sort().join() !== keys.slice().sort().join()) return bad("The split does not have the keys its rate structure needs.");
@@ -902,8 +1006,7 @@
       if (!sp) return [404, { ok: false, error: "That split was not found." }];
       prSplits.forEach(function (x) { if (x.supplier_id === sp.supplier_id && x.rate_structure === sp.rate_structure && x.status === "published") x.status = "retired"; });
       sp.status = "published"; sp.published_by = person(me).email; sp.published_at = now();
-      if (sp.supplier_id === "gamma") return ok({ runsPrepared: 0, prepareProblem: "The split is published, but the new runs could not be prepared for all fuels. Approve a band set or load a file again to prepare them." });
-      return ok({ runsPrepared: 3 });
+      return ok({});
     }
     if (op === "publish") {
       if (body.fileId !== F1) return bad("There is nothing in that file to publish.");

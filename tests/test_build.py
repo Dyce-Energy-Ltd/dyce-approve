@@ -414,8 +414,11 @@ class CommittedPagesTests(unittest.TestCase):
         src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
         self.assertIn('id: "pricing", label: "Pricing"', page)
         self.assertIn('allowed: (t) => t.some((c) => c.startsWith("pricing."))', page)
-        for item in ("files", "bands", "splits", "runs", "book"):
+        for item in ("files", "bands", "runs", "book"):
             self.assertIn('{ id: "%s"' % item, page)
+        # Band sets and splits is one screen: the separate Splits item is gone.
+        self.assertIn('{ id: "bands", label: "Band sets and splits", need: PR_VIEW }', page)
+        self.assertNotIn('{ id: "splits"', page)
         self.assertIn("/functions/v1/dna-pricing", page)
         # The three inlined modules: the spreadsheet library, the adapters and the exports.
         self.assertIn("SheetJS", page)
@@ -450,12 +453,25 @@ class CommittedPagesTests(unittest.TestCase):
         ops = ("overview band_set_get split_list run_set preview book_live book_rows file_start file_rows "
                "file_finish file_reject band_set_new band_set_copy band_set_save band_set_approve band_set_retire "
                "split_save split_publish run_set_prepare publish publish_abandon output_upload_url output_record "
-               "output_link").split()
+               "output_link band_sets band_set_history band_sets_save bundle_save bundle_retire ladder_save").split()
         for op in ops:
             self.assertIn('"%s"' % op, stub, op)
         for tick in ("pricing.view", "pricing.load", "pricing.set", "pricing.publish"):
             self.assertIn('"%s"' % tick, stub, tick)
         self.assertIn("pricing:", stub)
+
+    def test_band_sets_and_splits_screen_calls_the_v2_ops(self):
+        src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
+        for op in ("band_sets", "band_set_history", "band_sets_save", "band_set_retire", "bundle_save",
+                   "bundle_retire", "ladder_save", "split_list", "split_save", "split_publish"):
+            self.assertIn('"%s"' % op, mine, op)
+        for gone in ("band_set_new", "band_set_copy", "band_set_save", "band_set_approve", "function drawEditor", "async function splits("):
+            self.assertNotIn(gone, mine, gone)
+        # Publishing a split no longer reprices anything, so the page does not say it did.
+        self.assertNotIn("r.runsPrepared", mine[mine.index("// Band sets and splits (spec 4.4)"): mine.index("// Runs and publishing")])
+        self.assertIn("G.toSavePayload(", mine)
+        self.assertIn("return { show, reset, drawGrid };", mine)
 
     def test_pricing_page_shows_the_database_figures(self):
         # R31: the preview shows the figures pricing.preview_run works out at the usage typed (I1),
