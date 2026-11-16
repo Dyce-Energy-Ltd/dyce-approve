@@ -23,6 +23,9 @@ BROWSERS = [
     r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
     shutil.which("google-chrome") or "", shutil.which("chromium") or "", shutil.which("chrome") or "",
 ]
+# The Commission Engine tab's own files.
+COMMISSION_FILES = (ROOT / "parts" / "commission.js", ROOT / "parts" / "commission.css",
+                    ROOT / "tools" / "ce-preview-pages.mjs", ROOT / "tools" / "ce-preview-check.js")
 FIXTURE = (
     "<html><body><img src=\"{{LOGO_ORIG}}\"><img src=\"{{LOGO_INV}}\">"
     "<script>var page = 1;</script></body></html>"
@@ -220,10 +223,13 @@ class CommittedPagesTests(unittest.TestCase):
         preview = (tmp / "preview" / "hub.html").read_text(encoding="utf-8")
         self.assertIn("var DV_PAGES = [", preview)
         self.assertLess(preview.index("var DV_PAGES = ["), preview.index('const DV_ENDPOINT = "'))
+        # The Commission Engine's preview pages, made by tools/ce-preview-pages.mjs.
+        self.assertIn("var CE_PAGES = [", preview)
+        self.assertLess(preview.index("var CE_PAGES = ["), preview.index('const CE_ENDPOINT = "'))
 
     def test_no_personal_address_in_the_hub_or_its_stub(self):
         # Made-up people only: the preview stub and the built page name nobody by address.
-        for path in (ROOT / "hub.html", ROOT / "hub.src.html", ROOT / "tools" / "preview-stub.js"):
+        for path in (ROOT / "hub.html", ROOT / "hub.src.html", ROOT / "tools" / "preview-stub.js", *COMMISSION_FILES):
             self.assertNotIn("philip.brook", path.read_text(encoding="utf-8").lower(), path.name)
 
     def test_hub_csp_is_unchanged(self):
@@ -266,7 +272,9 @@ class CommittedPagesTests(unittest.TestCase):
         result = json.loads(html.unescape(m.group(1)))
         if os.environ.get("DV_SANITISE_REPORT"):
             print(json.dumps(result, indent=1, ensure_ascii=False))
-        self.assertEqual(result["cases"], 18)
+        # 18 for the DNA Viewer, then 4 for the Commission Engine's filter box (checkbox, checked,
+        # label and br; a checkbox's handler; a password type).
+        self.assertEqual(result["cases"], 22)
         self.assertEqual(result["fired"], 0, "an alert() in the input ran")
         failed = [c for c in result["results"] if c["problems"]]
         self.assertEqual(failed, [], json.dumps(failed, indent=1, ensure_ascii=False))
@@ -282,8 +290,8 @@ class CommittedPagesTests(unittest.TestCase):
         # The screen reads PoolLib as it loads, so the helpers are inlined first; the CSS is in the style.
         self.assertLess(page.index("{{POOL_LIB_JS}}"), page.index("{{POOL_SCREEN_JS}}"))
         self.assertLess(page.index("{{POOL_SCREEN_CSS}}"), page.index("</style>"))
-        # Sign-out clears the tool beside the other two.
-        self.assertIn("BE.reset(); DV.reset(); POOL.reset();", page)
+        # Sign-out clears every tool.
+        self.assertIn("clearMain(); BE.reset(); DV.reset(); POOL.reset(); PR.reset(); CE.reset();", page)
 
     def test_pool_fixed_copy(self):
         page = (ROOT / "hub.src.html").read_text(encoding="utf-8")
@@ -310,7 +318,8 @@ class CommittedPagesTests(unittest.TestCase):
             self.assertNotIn(word, module)
 
     def test_no_em_dash_in_the_hub_or_its_stub(self):
-        for path in (ROOT / "hub.src.html", ROOT / "tools" / "preview-stub.js", ROOT / "tools" / "pool-preview-check.js"):
+        for path in (ROOT / "hub.src.html", ROOT / "tools" / "preview-stub.js", ROOT / "tools" / "pool-preview-check.js",
+                     *COMMISSION_FILES):
             self.assertEqual(path.read_text(encoding="utf-8").count(chr(0x2014)), 0, path.name)
 
     def test_pool_preview_in_a_browser(self):
@@ -466,6 +475,105 @@ class CommittedPagesTests(unittest.TestCase):
     def test_this_file_holds_no_em_dash(self):
         # M6: the em dashes this file tests for are written as escapes.
         self.assertNotIn("\u2014", Path(__file__).read_text(encoding="utf-8"))
+
+    def test_commission_tab_and_its_parts(self):
+        page = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        # The tab sits after Dashboard Pool and before DNA Admin, for any commission tick.
+        i_pool, i_ce, i_admin = (page.index('{ id: "%s"' % t) for t in ("dashboard_pool", "commission", "dna_admin"))
+        self.assertLess(i_pool, i_ce)
+        self.assertLess(i_ce, i_admin)
+        self.assertIn('const CE_VIEW = "commission.view";', page)
+        self.assertIn('{ id: "commission", label: "Commission Engine", allowed: (t) => t.some((c) => c.startsWith("commission.")),', page)
+        self.assertIn('items: [{ id: "lines", label: "Lines", group: "Monthly run", need: CE_VIEW },', page)
+        self.assertIn('{ id: "exceptions", label: "Exceptions", group: "Monthly run", need: CE_VIEW },', page)
+        self.assertIn('{ id: "decisions", label: "Decisions", group: "Monthly run", need: CE_VIEW },', page)
+        self.assertIn('{ id: "runs", label: "Runs", group: "Monthly run", need: CE_VIEW }],', page)
+        self.assertIn("render: renderCommission },", page)
+        # The module uses the hub's session, helpers and sanitiser, so it is inlined inside the
+        # hub's script after the sanitiser; its styles are in the style element.
+        self.assertLess(page.index("  // END DV SANITISER"), page.index("{{COMMISSION_JS}}"))
+        self.assertLess(page.index("{{COMMISSION_JS}}"), page.index("  // ---------- Dashboard Pool"))
+        self.assertLess(page.index("{{COMMISSION_CSS}}"), page.index("</style>"))
+        # Sign-out clears every tool, the Commission Engine last.
+        self.assertIn("clearMain(); BE.reset(); DV.reset(); POOL.reset(); PR.reset(); CE.reset();", page)
+
+    def test_commission_module_talks_only_to_its_function_and_keeps_nothing(self):
+        js = (ROOT / "parts" / "commission.js").read_text(encoding="utf-8")
+        self.assertIn('const CE_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/commission-engine";', js)
+        # Its own allowlist of the function's seven pages (ruling R6); DNA Viewer's pagePath is not widened.
+        self.assertIn('const PAGES = new Set(["/runs", "/run", "/lines", "/line", "/exceptions", "/decisions", "/decision"]);', js)
+        self.assertIn("body.append(dvSanitise(", js)
+        self.assertIn("signal: AbortSignal.timeout(30000)", js)
+        self.assertIn('showSignIn("Your session has ended. Sign in again.")', js)
+        self.assertIn("return { show, reset };", js)
+        self.assertEqual(js.count("fetch("), 1, "one fetch, to CE_ENDPOINT")
+        # Nothing stored: dyce.hub.where (the hub's own) is all that is kept, and the page's HTML
+        # goes in only through the sanitiser.
+        for word in ("localStorage", "sessionStorage", "indexedDB", "putStored", "getStored", "document.cookie",
+                     "innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "location.hash", "history."):
+            self.assertNotIn(word, js)
+
+    def test_dv_page_paths_unchanged(self):
+        page = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        self.assertIn(r'const pagePath = (v) => !/[\x00-\x1f\\]/.test(v) && /^\/(?!\/)/.test(v);', page)
+        self.assertIn('const PATHS = { search: "/", reporting: "/reporting", queue: "/queue" };', page)
+        # The sanitiser's lists: label and br added, checkbox and checked for the filter box.
+        self.assertIn('const HTML_TAGS = new Set(["a", "b", "br", "button", "div", "form", "h2", "h3", "i", "input", "label", '
+                      '"option", "p", "section", "select", "span", "table", "tbody", "thead", "td", "th", "tr"]);', page)
+        self.assertIn('input: ["type", "name", "value", "placeholder", "required", "accept", "checked"],', page)
+        self.assertIn('/^(hidden|text|search|file|checkbox)$/i', page)
+
+    def test_commission_preview_pages_in_the_stub(self):
+        # The stub holds the four pages and their details, rendered by the function's own code.
+        stub = (ROOT / "tools" / "preview-stub.js").read_text(encoding="utf-8")
+        start = stub.index("  // BEGIN COMMISSION ENGINE PAGES")
+        block = stub[start:stub.index("  // END COMMISSION ENGINE PAGES")]
+        self.assertNotIn("</", block)
+        self.assertNotIn("<!", block)
+        paths = set(re.findall(r'"path":"(/[a-z]+)"', block))
+        self.assertTrue({"/runs", "/lines", "/exceptions", "/decisions", "/run", "/line", "/decision"} <= paths, paths)
+        self.assertIn('{ code: "commission.view", tool: "Commission Engine", label: "View" }', stub)
+
+    def test_commission_preview_in_a_browser(self):
+        # The preview hub, signed in through the stub, driven by tools/ce-preview-check.js in a
+        # headless Chromium: the tab and its side menu, the four pages, links and the filter form
+        # (repeated parameters kept), the broker search, a refusal, storage and sign-out.
+        browser = next((b for b in BROWSERS if b and Path(b).is_file()), None)
+        if browser is None:
+            self.skipTest("no Chromium browser found (set DV_BROWSER to one)")
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        shutil.copytree(ASSETS, tmp / "assets")
+        shutil.copytree(ROOT / "parts", tmp / "parts")
+        shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
+        (tmp / "tools").mkdir()
+        shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
+        r = run_build(tmp, "--preview")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        preview = (tmp / "preview" / "hub.html").read_text(encoding="utf-8")
+        signed_in = ("<script>localStorage.clear(); localStorage.setItem('dyce.hub.token', 'stubcheck');"
+                     " localStorage.setItem('dyce.hub.where', JSON.stringify({tool: 'commission', item: 'runs'}));</script>")
+        check = (ROOT / "tools" / "ce-preview-check.js").read_text(encoding="utf-8").replace("</", "<\\/")
+        i = preview.index("<script")
+        page = preview[:i] + signed_in + preview[i:]
+        j = page.rindex("</body>")
+        page = page[:j] + "<script>" + check + "</script>" + page[j:]
+        (tmp / "check.html").write_text(page, encoding="utf-8")
+        for query in ("as=admin", "as=viewer"):
+            with self.subTest(query=query):
+                r = subprocess.run(
+                    [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+                     "--user-data-dir=" + str(tmp / ("profile-" + re.sub(r"\W", "-", query))),
+                     "--virtual-time-budget=20000", "--dump-dom", (tmp / "check.html").as_uri() + "?" + query],
+                    capture_output=True, text=True, encoding="utf-8", timeout=120)
+                found = re.findall(r'<pre id="result">(.*?)</pre>', r.stdout, re.S)
+                self.assertTrue(found and found[-1], "the check wrote no result: %s" % r.stderr[-500:])
+                result = json.loads(html.unescape(found[-1]))
+                if os.environ.get("CE_CHECK_REPORT"):
+                    print(json.dumps(result, indent=1, ensure_ascii=False))
+                self.assertTrue(result["results"], "no checks ran")
+                failed = [c for c in result["results"] if not c["ok"]]
+                self.assertEqual(failed, [], json.dumps(failed, indent=1, ensure_ascii=False))
 
     def test_send_html_only_forwards_to_the_hub(self):
         page = (ROOT / "send.html").read_text(encoding="utf-8")

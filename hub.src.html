@@ -438,6 +438,10 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #pr .inline { display: inline-flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 #pr .foot { margin-top: 34px; }
 
+/* Commission Engine: the commission-engine function's pages (ce- classes), on the hub's tokens.
+   The status tokens are used only on state badges, each with its word (parts/commission.css). */
+{{COMMISSION_CSS}}
+
 @media (max-width: 760px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .rail { position: static; height: auto; overflow: visible; }
@@ -719,6 +723,7 @@ const PR_EXPORTS = {{PRICING_EXPORTS}};
   const DV_VIEW = "dna_viewer.view", DV_REVIEW = "dna_viewer.review", DV_ORIGINALS = "dna_viewer.originals";
   const POOL_REVIEW = "dashboard_pool.review";
   const PR_VIEW = "pricing.view";
+  const CE_VIEW = "commission.view";
   const TOOLS = [
     { id: "broker_emails", label: "Broker Emails", allowed: (t) => t.some((c) => c.startsWith("broker_emails.")),
       items: [{ id: "new", label: "New email", group: "Price emails", need: REQUEST },
@@ -742,6 +747,14 @@ const PR_EXPORTS = {{PRICING_EXPORTS}};
               { id: "splits", label: "Splits", need: PR_VIEW }, { id: "runs", label: "Runs and publishing", need: PR_VIEW },
               { id: "book", label: "Live price book", need: PR_VIEW }],
       render: renderPricing },
+    // Piece 1 of the Commission Engine is read-only: every page needs View. Later pieces add ticks
+    // (commission.*), so the tab shows for any of them.
+    { id: "commission", label: "Commission Engine", allowed: (t) => t.some((c) => c.startsWith("commission.")),
+      items: [{ id: "lines", label: "Lines", group: "Monthly run", need: CE_VIEW },
+              { id: "exceptions", label: "Exceptions", group: "Monthly run", need: CE_VIEW },
+              { id: "decisions", label: "Decisions", group: "Monthly run", need: CE_VIEW },
+              { id: "runs", label: "Runs", group: "Monthly run", need: CE_VIEW }],
+      render: renderCommission },
     { id: "dna_admin", label: "DNA Admin", allowed: (t) => t.includes("dna_admin.admin"),
       items: [{ id: "people", label: "People and access" }, { id: "signins", label: "Who may sign in" },
               { id: "history", label: "Sign-in history" }, { id: "changes", label: "Changes made here" }], render: renderAdmin },
@@ -1951,14 +1964,14 @@ const PR_EXPORTS = {{PRICING_EXPORTS}};
     // data-dv-href and its href becomes "#" (ruling R18): open in a new tab, copy link address and
     // drag then carry no crn, invoice key or folder id into a github.io address or the history.
     const HTML_NS = "http://www.w3.org/1999/xhtml", SVG_NS = "http://www.w3.org/2000/svg";
-    const HTML_TAGS = new Set(["a", "b", "button", "div", "form", "h2", "h3", "i", "input", "option", "p", "section", "select", "span", "table", "tbody", "thead", "td", "th", "tr"]);
+    const HTML_TAGS = new Set(["a", "b", "br", "button", "div", "form", "h2", "h3", "i", "input", "label", "option", "p", "section", "select", "span", "table", "tbody", "thead", "td", "th", "tr"]);
     const SVG_TAGS = new Set(["svg", "circle", "line", "polyline", "rect", "text", "title"]);
     const SVG_ATTRS = new Set(["viewBox", "width", "height", "x", "y", "x1", "x2", "y1", "y2", "cx", "cy", "r", "rx", "ry", "points",
       "fill", "fill-opacity", "stroke", "stroke-width", "stroke-dasharray", "stroke-dashoffset", "stroke-linejoin", "stroke-linecap", "stroke-opacity",
       "opacity", "transform", "font-size", "font-weight", "text-anchor"]);
     const TAG_ATTRS = {
       td: ["colspan"], th: ["colspan"], form: ["action", "method"],
-      input: ["type", "name", "value", "placeholder", "required", "accept"], button: ["type", "name", "value"],
+      input: ["type", "name", "value", "placeholder", "required", "accept", "checked"], button: ["type", "name", "value"],
       select: ["name"], option: ["value", "selected"],
     };
     // Inline styles the pages use: progress bars, legend dots, a few margins and the broker picker.
@@ -1991,7 +2004,7 @@ const PR_EXPORTS = {{PRICING_EXPORTS}};
       if (name === "action") return pagePath(v) ? v : null;
       if (name === "method") return /^(get|post)$/i.test(v) ? v.toLowerCase() : null;
       if (name === "colspan") return /^\d{1,3}$/.test(v) ? v : null;
-      if (name === "type") return (tag === "button" ? /^(button|submit)$/i : /^(hidden|text|search|file)$/i).test(v) ? v.toLowerCase() : null;
+      if (name === "type") return (tag === "button" ? /^(button|submit)$/i : /^(hidden|text|search|file|checkbox)$/i).test(v) ? v.toLowerCase() : null;
       return v;
     }
     function copyNode(n) {
@@ -2406,8 +2419,7 @@ const PR_EXPORTS = {{PRICING_EXPORTS}};
       ({ files, bands, splits, runs, book }[item] || files)(n);
     }
 
-    // =====================================================================================
-    // Supplier files
+    // ==============================================================================    // Supplier files
     // =====================================================================================
     async function files(n) {
       const msg = head("Supplier ", "files", "Load a supplier's price file. The file is read here, in your browser, and only its rows are sent. Loading a file publishes nothing: you publish from Runs and publishing.");
@@ -3147,6 +3159,17 @@ const PR_EXPORTS = {{PRICING_EXPORTS}};
     return { show, reset };
   })();
   // END PRICING
+=======
+  // ---------- Commission Engine: the laptop's commission app (Django) in the hub, one piece at a
+  // time. Piece 1 is read-only: Runs, Lines, Exceptions and Decisions, drawn by the
+  // commission-engine function and shown after dvSanitise (parts/commission.js, inlined by build.py).
+  function renderCommission(item, g) {
+    if (item) { CE.show(item, g); return; }
+    $("main").append(el("h1", {}, "Commission ", el("em", { text: "Engine" })),
+      el("p", { class: "stand", text: "To see the commission runs, lines, exceptions and decisions, ask Phil Brook to add View in DNA Admin." }));
+  }
+
+{{COMMISSION_JS}}
 
   // ---------- Dashboard Pool. Reviewers vote Keep, Maybe or Drop (or the quiet Pass) on each
   // candidate board, with audiences on Keep and Maybe and an optional note; Phil Brook decides.
@@ -3853,7 +3876,7 @@ const PR_EXPORTS = {{PRICING_EXPORTS}};
     gen++; token = null; me = null; dropStored(TOKEN_KEY);
     // The side menu lives inside the rail's tool list, so it is emptied and kept, not cleared away.
     const side = $("sidemenu"); side.textContent = ""; side.hidden = true; $("tabs").replaceChildren(side); setCrumb(null);
-    clearMain(); BE.reset(); DV.reset(); POOL.reset(); PR.reset();
+    clearMain(); BE.reset(); DV.reset(); POOL.reset(); PR.reset(); CE.reset();
     $("app").hidden = true; $("signin").hidden = false; $("who").hidden = true; $("conn").textContent = "";
     $("emailStep").hidden = false; $("codeStep").hidden = true; $("retryStep").hidden = true; $("siCode").value = "";
     setMsg(message || "");
