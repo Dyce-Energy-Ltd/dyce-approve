@@ -3898,7 +3898,8 @@ function workbookFor(XLSX, layout, rows) {
       ({ files, bands, splits, runs, book }[item] || files)(n);
     }
 
-    // ==============================================================================    // Supplier files
+    // =====================================================================================
+    // Supplier files
     // =====================================================================================
     async function files(n) {
       const msg = head("Supplier ", "files", "Load a supplier's price file. The file is read here, in your browser, and only its rows are sent. Loading a file publishes nothing: you publish from Runs and publishing.");
@@ -4638,7 +4639,7 @@ function workbookFor(XLSX, layout, rows) {
     return { show, reset };
   })();
   // END PRICING
-=======
+
   // ---------- Commission Engine: the laptop's commission app (Django) in the hub, one piece at a
   // time. Piece 1 is read-only: Runs, Lines, Exceptions and Decisions, drawn by the
   // commission-engine function and shown after dvSanitise (parts/commission.js, inlined by build.py).
