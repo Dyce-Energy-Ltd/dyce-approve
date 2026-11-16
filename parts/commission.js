@@ -10,7 +10,7 @@
   // sign-out (reset) and on every move inside the tab, so an answer that arrives after either is
   // dropped rather than drawn; g, the hub's gen, drops one after a move to another tool or item.
   // Inlined into hub.html's script by build.py (the COMMISSION_JS include), so it uses the hub's token, me,
-  // gen, el, $, say, explain, showSignIn and dvSanitise.
+  // gen, where, TOOLS, el, $, say, explain, showSignIn, setCrumb, keepWhere and dvSanitise.
   const CE = (() => {
     const CE_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/commission-engine";
     // The function's pages (core.ts PAGE_PIECE). A link or form to any other address is not followed.
@@ -100,6 +100,13 @@
       for (const t of [...body.querySelectorAll("table")]) { const w = el("div", { class: "ce-scroll" }); t.replaceWith(w); w.append(t); }
       const cur = ITEM[t.path];
       for (const b of $("sidemenu").querySelectorAll("button[data-item]")) { if (b.dataset.item === cur) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
+      // A link or form that moved the page under another menu item (a line's run, a decision's
+      // line): the line above the content and the last place follow it, as showTool would set them.
+      if (cur !== where.item) {
+        const tool = TOOLS.find((x) => x.id === "commission");
+        const it = tool && tool.items.find((x) => x.id === cur);
+        if (it) { keepWhere(tool, it); setCrumb(tool, it); }
+      }
     }
 
     // ---------- links, forms and the Broker list's search

@@ -44,7 +44,7 @@ const RUNS = [
     status: 'draft', built_at: '2026-07-02T09:30:00.000Z',
     source_files: [{ name: 'ID625 June 2026 example.xlsx', size: 48211, sha256: '5f0c0a7e1c9b4d2a8e6f3b1d0c9a8e7f6d5c4b3a2918f7e6d5c4b3a291807f6e' }] }),
   run({ run_id: '11111111-1111-4111-8111-111111111110', month_token: 'June26', revision: 1, consumption_month: 'June 2026',
-    id625_source_month: '2026-06-15', status: 'superseded', built_at: '2026-07-01T16:05:00.000Z' }),
+    id625_source_month: '2026-06-15', status: 'in_review', built_at: '2026-07-01T16:05:00.000Z' }),
   run({ run_id: '22222222-2222-4222-8222-222222222222', month_token: 'May26', revision: 1, consumption_month: 'May 2026',
     id625_source_month: '2026-05-15', status: 'approved', built_at: '2026-06-02T10:00:00.000Z',
     approved_by: 'ana@example.test', approved_at: '2026-06-05T14:10:00.000Z' }),

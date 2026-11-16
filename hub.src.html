@@ -830,6 +830,13 @@ const PR_EXPORTS = {{PRICING_EXPORTS}};
     c.hidden = false;
   }
 
+  // The last place (dyce.hub.where): the tool and menu item only. showTool keeps it, and so does a
+  // tool whose own link moves its page under another menu item (the Commission Engine).
+  function keepWhere(t, it) {
+    where = { tool: t.id, item: it ? it.id : "" };
+    putStored(WHERE_KEY, JSON.stringify(where));
+  }
+
   // Empties the content area for the next panel. Broker Emails' static markup (#be) stays in the
   // page, hidden, so its form and lists keep their state; everything else drawn there goes.
   function clearMain() {
@@ -857,8 +864,7 @@ const PR_EXPORTS = {{PRICING_EXPORTS}};
     const it = items.find((x) => x.id === item) || items[0] || null;
     // Moving to another tool opens its menu; staying in the same tool keeps it as folded or open.
     if (t.id !== where.tool) menuOpen = true;
-    where = { tool: t.id, item: it ? it.id : "" };
-    putStored(WHERE_KEY, JSON.stringify(where));
+    keepWhere(t, it);
     renderTabs(); setCrumb(t, it);
     menu.hidden = !items.length || !menuOpen;
     let group = null;
