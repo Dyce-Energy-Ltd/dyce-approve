@@ -4327,8 +4327,7 @@ function dragValue(scale, y) {
     const MAX_PICKS = 8;
     const STALE_TEXT = (name) => name + " was saved against an older band ladder. Open it on the margins screen and save it again.";
     const pence2 = (v, unit) => (v == null || v === "" || !Number.isFinite(Number(v))) ? "–" : Number(v).toFixed(2) + unit;
-    const either = (a, snake, camel) => (a[snake] != null ? a[snake] : a[camel]);
-    function workspace(n, msg, body, file, names, back) {
+        function workspace(n, msg, body, file, names, back) {
       const my = epoch, alive = () => my === epoch && !!me;
       const fuelWord = (FUEL[file.fuel] || file.fuel).toLowerCase();
       // What the person has chosen lives here, so a redraw after a partial save keeps it.
@@ -4472,6 +4471,11 @@ function dragValue(scale, y) {
           say(probMsg, lines.join(" "), true);
           syncGrid(); schedule();
         }
+        // While the apply runs, the choice cannot change under it.
+        function busy(on) {
+          for (const b of [gridHost, chooserBox]) { lock(b, on); b.style.pointerEvents = on ? "none" : ""; }
+          for (const c of [sameBox, region, usagesIn]) c.disabled = on;
+        }
         function note() {
           const ed = unsavedHere();
           editedLine.textContent = ed.length ? "Edited here and not yet saved: " + ed.join(", ") + ". Apply saves them. Edits to band sets you have not chosen are not saved." : "";
@@ -4549,9 +4553,9 @@ function dragValue(scale, y) {
             const finalName = (nm) => rename.has(nm) ? rename.get(nm) : nm;
             const ps2 = ps.map((p) => ({ name: finalName(p.name), saleType: p.saleType }));
             const ids = new Map(g.columns.map((c) => [c.name, c.priceConfigId]));
-            lock(card, true); say(dmsg, ""); prog.textContent = "";
+            lock(card, true); busy(true); say(dmsg, ""); prog.textContent = "";
             const line = steps(prog);
-            let cur = null, curText = "", savedAny = false, savedNote = "";
+            let cur = null, curText = "", savedAny = false, savedSomething = false, savedNote = "";
             const go2 = (text) => { curText = text; cur = line(text, "working"); };
             const ok = (text) => cur(text || curText, "done");
             try {
@@ -4559,7 +4563,7 @@ function dragValue(scale, y) {
                 go2("Saving " + saveNames.length + (saveNames.length === 1 ? " edited band set" : " edited band sets"));
                 const r = await call("band_sets_save", G.toSavePayload(g2, saveNames, reason.value.trim()));
                 if (!alive()) return;
-                savedAny = true; ok();
+                savedAny = savedSomething = true; ok();
                 for (const x of r.saved) ids.set(x.name, x.priceConfigId);
                 savedNote = "Your edits were saved as " + r.saved.map((x) => x.name + " version " + x.version).join(", ") + ". ";
                 // From here the chosen names are the saved ones, and the grid is read again from the database.
@@ -4569,7 +4573,7 @@ function dragValue(scale, y) {
                 go2("Saving the bundle " + bName);
                 await call("bundle_save", { fuel: file.fuel, name: bName, members: ps2.map((p) => p.name) });
                 if (!alive()) return;
-                ok(); savedNote += "The bundle " + bName + " was saved. ";
+                ok(); savedSomething = true; savedNote += "The bundle " + bName + " was saved. ";
               }
               go2("Checking the preview again with the saved margins");
               const usages = lastPv.usages;
@@ -4577,7 +4581,7 @@ function dragValue(scale, y) {
               if (!alive()) return;
               ok();
               if (Number(p2.attentionCount) !== seen) {
-                throw { message: "The list of items needing attention is not the one you read: it now has " + (Number(p2.attentionCount) || 0) + ". Read the preview again, then apply.", afterSave: true };
+                throw { message: "The list of items needing attention is not the one you read: it now has " + (Number(p2.attentionCount) || 0) + ". Read the preview again, then apply.", stale: true };
               }
               go2("Applying to the live price book");
               const before = await call("book_live");
@@ -4591,10 +4595,13 @@ function dragValue(scale, y) {
               if (err && err.signedOut) return;
               if (cur) cur(curText, "failed");
               const sentence = explain(err);
-              if (savedAny || (err && err.afterSave)) {
+              if (savedSomething) {
                 // Part of it is saved: read the band sets again so a second try does not save them twice.
                 await load(savedNote + "Not applied: " + sentence + " Nothing was published.", true);
-              } else { say(dmsg, sentence + " Nothing was saved or published. Your edits are kept here.", true); lock(card, false); }
+              } else {
+                say(dmsg, sentence + " Nothing was saved or published. Your edits are kept here.", true); lock(card, false); busy(false);
+                if (err && err.stale) schedule(true);
+              }
             }
           }
         }
@@ -4641,11 +4648,12 @@ function dragValue(scale, y) {
         if (!N) { box.append(el("p", { class: "hint", text: "Nothing needs attention for this choice." })); return; }
         box.append(el("p", { class: "hint", text: N + (N === 1 ? " item needs" : " items need") + " attention. These prices are not applied as they are, or are left out. Read them before applying." }));
         const groups = new Map();
-        for (const a of r.attention) { const l = a.label || "This choice"; if (!groups.has(l)) groups.set(l, []); groups.get(l).push(a); }
+        const saleWord = (t) => t === "all" ? "acquisition and renewal" : (SALE[t] || t || "").toLowerCase();
+        for (const a of r.attention) { const l = a.product + ", " + saleWord(a.saleType); if (!groups.has(l)) groups.set(l, []); groups.get(l).push(a); }
         for (const [l, items] of groups) {
           box.append(el("div", { class: "attn" }, el("div", { class: "t", text: l + ": " + items.length + (items.length === 1 ? " item" : " items") }),
             el("ul", { class: "plain" }, ...items.map((a) => {
-              const lo = either(a, "range_min_kwh", "rangeMinKwh"), hi = either(a, "range_max_kwh", "rangeMaxKwh"), rc = either(a, "rate_count", "rateCount");
+              const lo = a.rangeMinKwh, hi = a.rangeMaxKwh, rc = a.rateCount;
               return el("li", { text: words(a.issue) + (lo != null || hi != null ? ", " + comma(lo) + " to " + comma(hi) + " kWh" : "") + (rc != null ? ", " + comma(rc) + (Number(rc) === 1 ? " rate" : " rates") : "") + (a.detail ? ". " + a.detail : "") });
             }))));
         }

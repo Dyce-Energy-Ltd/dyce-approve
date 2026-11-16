@@ -734,8 +734,8 @@
           });
         });
       });
-      if (n === 0) attention.push({ label: it.label, issue: "range_not_covered", range_min_kwh: 200000, range_max_kwh: 300000, rate_count: 12, detail: null });
-      if (it.bands.some(function (b) { return b.marginMilliPencePerKwh < 250; })) attention.push({ label: it.label, issue: "margin_below_floor", range_min_kwh: null, range_max_kwh: null, rate_count: null, detail: "A band has a margin under 0.25p/kWh (invented rule)." });
+      if (n === 0) attention.push({ product: it.product, saleType: it.saleType, issue: "range_not_covered", rangeMinKwh: 200000, rangeMaxKwh: 300000, rateCount: 12, detail: null });
+      if (it.bands.some(function (b) { return b.marginMilliPencePerKwh < 250; })) attention.push({ product: it.product, saleType: it.saleType, issue: "margin_below_floor", rangeMinKwh: null, rangeMaxKwh: null, rateCount: null, detail: "A band has a margin under 0.25p/kWh (invented rule)." });
     });
     var fp = 0, s = JSON.stringify(body.items.map(function (i) { return [i.label, i.saleType]; }));
     for (var i = 0; i < s.length; i++) fp = (fp * 31 + s.charCodeAt(i)) >>> 0;

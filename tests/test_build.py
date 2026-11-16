@@ -513,6 +513,17 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("Also save this choice as a bundle", mine)
         self.assertIn("G.selectionProblem(", mine)
         self.assertIn("G.toPreviewItems(", mine)
+        # Attention items are keyed by product and sale type (ruling P8), in camelCase, in the page and the stub.
+        stub = (ROOT / "tools" / "preview-stub.js").read_text(encoding="utf-8")
+        self.assertIn("attention.push({ product: it.product, saleType: it.saleType, issue:", stub)
+        self.assertIn("rangeMinKwh:", stub)
+        self.assertIn("rateCount:", stub)
+        self.assertNotIn("range_min_kwh", mine)
+        self.assertNotIn("a.label ||", mine)
+        self.assertIn("a.rangeMinKwh", mine)
+        # Edits are kept unless something was actually saved before a refusal.
+        self.assertIn("if (savedSomething) {", mine)
+        self.assertNotIn("afterSave", mine)
         self.assertIn("afterPublish(", mine)
         self.assertIn("makeFiles(", mine)
         # afterPublish and makeFiles are not inside a removed screen.
