@@ -4,7 +4,7 @@
 // place set to the tab's Runs) and reads the answer this writes into a pre element with the id
 // "result". It is not part of any page the hub serves.
 //
-// ?as=admin: the tab sits after Dashboard Pool and Pricing, just before DNA Admin; the side menu is Monthly run with
+// ?as=admin: the tab sits after Dashboard Pool and Pricing, just before the Spine Dictionary and DNA Admin; the side menu is Monthly run with
 // Lines, Exceptions, Decisions and Runs; Runs draws its table and the wrong usage month's warning;
 // a link opens a run and marks Runs in the menu; Lines draws its totals and filter box; the Broker
 // search hides names that do not match and never a ticked one, asking nothing of the function;
@@ -44,7 +44,7 @@
     if (!(await until(() => heading() === "Runs"))) { check("Runs is drawn", false, (text("#main") || document.body.textContent).slice(0, 300)); return; }
     // The tab and the side menu.
     const tabs = $$("#tabs button[data-tool]").map((b) => b.dataset.tool);
-    check("the tab sits after Dashboard Pool and Pricing, just before DNA Admin", tabs.indexOf("dashboard_pool") >= 0 && tabs.indexOf("dashboard_pool") < tabs.indexOf("pricing") && tabs.indexOf("pricing") + 1 === tabs.indexOf("commission") && tabs.indexOf("commission") + 1 === tabs.indexOf("dna_admin"), tabs.join(","));
+    check("the tab sits after Dashboard Pool and Pricing, just before the Spine Dictionary and DNA Admin", tabs.indexOf("dashboard_pool") >= 0 && tabs.indexOf("dashboard_pool") < tabs.indexOf("pricing") && tabs.indexOf("pricing") + 1 === tabs.indexOf("commission") && tabs.indexOf("commission") + 1 === tabs.indexOf("spine_dictionary") && tabs.indexOf("spine_dictionary") + 1 === tabs.indexOf("dna_admin"), tabs.join(","));
     check("the tab is labelled and selected", text('#tabs button[data-tool="commission"]') === "Commission Engine" && $('#tabs button[data-tool="commission"]').getAttribute("aria-current") === "true");
     const side = $$("#sidemenu > *").map((n) => n.textContent.trim());
     check("the side menu is Monthly run: Lines, Exceptions, Decisions, Runs", JSON.stringify(side) === JSON.stringify(["Monthly run", "Lines", "Exceptions", "Decisions", "Runs"]), JSON.stringify(side));

@@ -1,0 +1,19 @@
+/* The Spine Dictionary tab, scoped to #sd: the hub's own pieces (the h1 with its magenta word,
+   .stand, .field, .list rows with .t and .d, the .ticks table in a .grid-wrap, .empty, .foot) with
+   a few settings of their own. No colour of its own: "No description yet" is the hub's muted text
+   (--muted, #5B6B72, 5.5:1 on white), and magenta stays on the 32px heading and the focus ring. */
+#sd h1:focus { outline: none; }
+#sd > .msg { margin: 6px 0 0; }
+#sd .sd-search { max-width: 640px; margin: 22px 0 0; }
+#sd .sd-views { margin-top: 22px; }
+#sd .sd-first { margin: 0 0 4px; }
+/* A search match: the view's name (a button that opens it), its first line, its matching columns. */
+#sd .sd-match { margin-top: 34px; }
+#sd .sd-match .stand { margin-top: 4px; }
+#sd .sd-link { font: inherit; font-weight: 800; color: var(--ink); background: none; border: 0; padding: 0; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; overflow-wrap: anywhere; }
+#sd .sd-link:hover { text-decoration-thickness: 2px; }
+/* Column and What it means: the name as it appears in the data, then its explanation. */
+#sd .sd-table td { vertical-align: top; }
+#sd .sd-col { font-weight: 800; width: 30%; min-width: 160px; overflow-wrap: anywhere; }
+#sd .sd-what { white-space: pre-line; overflow-wrap: anywhere; }
+#sd .sd-none { color: var(--muted); }

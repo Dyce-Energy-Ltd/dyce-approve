@@ -26,6 +26,10 @@ BROWSERS = [
 # The Commission Engine tab's own files.
 COMMISSION_FILES = (ROOT / "parts" / "commission.js", ROOT / "parts" / "commission.css",
                     ROOT / "tools" / "ce-preview-pages.mjs", ROOT / "tools" / "ce-preview-check.js")
+# The Spine Dictionary tab's own files.
+SPINE_DICTIONARY_FILES = (ROOT / "parts" / "spine-dictionary.js", ROOT / "parts" / "spine-dictionary-lib.js",
+                          ROOT / "parts" / "spine-dictionary.css", ROOT / "tools" / "sd-preview-check.js",
+                          ROOT / "tests" / "spine_dictionary_lib.test.js")
 FIXTURE = (
     "<html><body><img src=\"{{LOGO_ORIG}}\"><img src=\"{{LOGO_INV}}\">"
     "<script>var page = 1;</script></body></html>"
@@ -229,7 +233,8 @@ class CommittedPagesTests(unittest.TestCase):
 
     def test_no_personal_address_in_the_hub_or_its_stub(self):
         # Made-up people only: the preview stub and the built page name nobody by address.
-        for path in (ROOT / "hub.html", ROOT / "hub.src.html", ROOT / "tools" / "preview-stub.js", *COMMISSION_FILES):
+        for path in (ROOT / "hub.html", ROOT / "hub.src.html", ROOT / "tools" / "preview-stub.js", *COMMISSION_FILES,
+                     *SPINE_DICTIONARY_FILES):
             self.assertNotIn("philip.brook", path.read_text(encoding="utf-8").lower(), path.name)
 
     def test_hub_csp_is_unchanged(self):
@@ -319,7 +324,7 @@ class CommittedPagesTests(unittest.TestCase):
 
     def test_no_em_dash_in_the_hub_or_its_stub(self):
         for path in (ROOT / "hub.src.html", ROOT / "tools" / "preview-stub.js", ROOT / "tools" / "pool-preview-check.js",
-                     *COMMISSION_FILES):
+                     *COMMISSION_FILES, *SPINE_DICTIONARY_FILES):
             self.assertEqual(path.read_text(encoding="utf-8").count(chr(0x2014)), 0, path.name)
 
     def test_pool_preview_in_a_browser(self):
@@ -575,6 +580,111 @@ class CommittedPagesTests(unittest.TestCase):
                 self.assertTrue(found and found[-1], "the check wrote no result: %s" % r.stderr[-500:])
                 result = json.loads(html.unescape(found[-1]))
                 if os.environ.get("CE_CHECK_REPORT"):
+                    print(json.dumps(result, indent=1, ensure_ascii=False))
+                self.assertTrue(result["results"], "no checks ran")
+                failed = [c for c in result["results"] if not c["ok"]]
+                self.assertEqual(failed, [], json.dumps(failed, indent=1, ensure_ascii=False))
+
+    def test_spine_dictionary_tab_and_its_parts(self):
+        page = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        # The tab sits after the Commission Engine and before DNA Admin, for the one tick.
+        i_ce, i_sd, i_admin = (page.index('{ id: "%s"' % t) for t in ("commission", "spine_dictionary", "dna_admin"))
+        self.assertLess(i_ce, i_sd)
+        self.assertLess(i_sd, i_admin)
+        self.assertIn('const SD_VIEW = "spine_dictionary.view";', page)
+        self.assertIn('{ id: "spine_dictionary", label: "Spine Dictionary", allowed: (t) => t.includes(SD_VIEW),\n'
+                      '      items: [{ id: "all", label: "All views", need: SD_VIEW }], render: renderSpineDictionary },', page)
+        self.assertIn("function renderSpineDictionary(item, g) {", page)
+        # The helpers, then the module, inside the hub's script after the Commission Engine and
+        # before the Dashboard Pool; the styles in the style element.
+        self.assertLess(page.index("{{COMMISSION_JS}}"), page.index("{{SPINE_DICTIONARY_LIB_JS}}"))
+        self.assertLess(page.index("{{SPINE_DICTIONARY_LIB_JS}}"), page.index("{{SPINE_DICTIONARY_JS}}"))
+        self.assertLess(page.index("{{SPINE_DICTIONARY_JS}}"), page.index("  // ---------- Dashboard Pool"))
+        self.assertLess(page.index("{{SPINE_DICTIONARY_CSS}}"), page.index("</style>"))
+        # Sign-out clears every tool, the Spine Dictionary last.
+        self.assertIn("clearMain(); BE.reset(); DV.reset(); POOL.reset(); PR.reset(); CE.reset(); SD.reset();", page)
+        # The built page holds the three parts, not their placeholders.
+        built = (ROOT / "hub.html").read_text(encoding="utf-8")
+        for part in ("spine-dictionary-lib.js", "spine-dictionary.js", "spine-dictionary.css"):
+            self.assertIn((ROOT / "parts" / part).read_text(encoding="utf-8"), built, part)
+        self.assertNotIn("{{", built)
+
+    def test_spine_dictionary_talks_only_to_its_function_and_keeps_nothing(self):
+        js = (ROOT / "parts" / "spine-dictionary.js").read_text(encoding="utf-8")
+        lib = (ROOT / "parts" / "spine-dictionary-lib.js").read_text(encoding="utf-8")
+        endpoint = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/spine-dictionary"
+        self.assertIn('const SD_ENDPOINT = "%s";' % endpoint, js)
+        self.assertEqual(js.count("fetch("), 1, "one fetch, to SD_ENDPOINT")
+        self.assertIn("await fetch(SD_ENDPOINT, ", js)
+        self.assertEqual(re.findall(r"https?://[^\s\"']+", js), [endpoint])
+        self.assertNotIn("fetch(", lib)
+        self.assertNotRegex(lib, r"https?://")
+        self.assertIn("signal: AbortSignal.timeout(30000)", js)
+        self.assertIn('showSignIn("Your session has ended. Sign in again.")', js)
+        self.assertIn("return { show, reset };", js)
+        # The page's fixed words.
+        for copy in ('"Column"', '"What it means"', '"No description yet"', '"Views"',
+                     '"The dictionary could not be loaded. Try again shortly."',
+                     '"Data class: Amber. The descriptions come from Phil Brook\'s spine files."'):
+            self.assertIn(copy, js)
+        # Nothing stored, nothing from the function as HTML: every value goes in as text.
+        for word in ("localStorage", "sessionStorage", "indexedDB", "putStored", "getStored", "keepWhere",
+                     "document.cookie", "innerHTML", "outerHTML", "insertAdjacentHTML", "document.write",
+                     "dvSanitise", "location.hash", "history."):
+            self.assertNotIn(word, js, word)
+            self.assertNotIn(word, lib, word)
+
+    def test_spine_dictionary_helpers(self):
+        # friendly, firstLine and search, in parts/spine-dictionary-lib.js, run by Node over
+        # tests/spine_dictionary_lib.test.js.
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("Node is not installed")
+        r = subprocess.run([node, "--test", "--test-reporter=tap", str(ROOT / "tests" / "spine_dictionary_lib.test.js")],
+                           capture_output=True, text=True, encoding="utf-8", cwd=str(ROOT))
+        self.assertEqual(r.returncode, 0, r.stdout[-3000:] + r.stderr[-1000:])
+        passed = re.search(r"^# pass (\d+)$", r.stdout, re.M)
+        self.assertTrue(passed and int(passed.group(1)) >= 3, r.stdout[-1000:])
+        self.assertRegex(r.stdout, r"(?m)^# fail 0$")
+
+    def test_spine_dictionary_preview_in_a_browser(self):
+        # The preview hub, signed in through the stub, driven by tools/sd-preview-check.js in a
+        # headless Chromium: the tab and its menu, All views, the search, a view and its table, text
+        # that looks like HTML, storage, the session ending, a refusal, and no tab without the tick.
+        browser = next((b for b in BROWSERS if b and Path(b).is_file()), None)
+        if browser is None:
+            self.skipTest("no Chromium browser found (set DV_BROWSER to one)")
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        shutil.copytree(ASSETS, tmp / "assets")
+        shutil.copytree(ROOT / "parts", tmp / "parts")
+        shutil.copytree(ROOT / "vendor", tmp / "vendor")
+        shutil.copytree(ROOT / "pricing", tmp / "pricing")
+        shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
+        (tmp / "tools").mkdir()
+        shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
+        r = run_build(tmp, "--preview")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        preview = (tmp / "preview" / "hub.html").read_text(encoding="utf-8")
+        signed_in = ("<script>localStorage.clear(); localStorage.setItem('dyce.hub.token', 'stubcheck');"
+                     " localStorage.setItem('dyce.hub.where', JSON.stringify({tool: 'spine_dictionary', item: 'all'}));</script>")
+        check = (ROOT / "tools" / "sd-preview-check.js").read_text(encoding="utf-8").replace("</", "<\\/")
+        i = preview.index("<script")
+        page = preview[:i] + signed_in + preview[i:]
+        j = page.rindex("</body>")
+        page = page[:j] + "<script>" + check + "</script>" + page[j:]
+        (tmp / "check.html").write_text(page, encoding="utf-8")
+        for query in ("as=admin", "as=dictionary", "as=viewer"):
+            with self.subTest(query=query):
+                r = subprocess.run(
+                    [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+                     "--user-data-dir=" + str(tmp / ("profile-" + re.sub(r"\W", "-", query))),
+                     "--virtual-time-budget=20000", "--dump-dom", (tmp / "check.html").as_uri() + "?" + query],
+                    capture_output=True, text=True, encoding="utf-8", timeout=120)
+                found = re.findall(r'<pre id="result">(.*?)</pre>', r.stdout, re.S)
+                self.assertTrue(found and found[-1], "the check wrote no result: %s" % r.stderr[-500:])
+                result = json.loads(html.unescape(found[-1]))
+                if os.environ.get("SD_CHECK_REPORT"):
                     print(json.dumps(result, indent=1, ensure_ascii=False))
                 self.assertTrue(result["results"], "no checks ran")
                 failed = [c for c in result["results"] if not c["ok"]]

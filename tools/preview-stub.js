@@ -8,8 +8,9 @@
 // Approve only), ?as=adminonly (Jo Example, DNA Admin only), ?as=viewer (Vic Example, DNA Viewer
 // View only), ?as=reviewer (Rae Example, Dashboard Pool Review only), ?as=decider (Admin Example
 // without the Dashboard Pool Review tick, so the tab shows only as the decider's), ?as=pricing (Quinn Example,
-// all four Pricing ticks), ?as=pricingview (Tara Example, Pricing View only), ?as=none (an address with no
-// access: "start" answers as for anyone, "finish" refuses). Admin Example is the Dashboard Pool's
+// all four Pricing ticks), ?as=pricingview (Tara Example, Pricing View only), ?as=dictionary (Dee Example,
+// Spine Dictionary View only), ?as=none (an address with no access: "start" answers as for anyone,
+// "finish" refuses). Admin Example is the Dashboard Pool's
 // decider, as Phil Brook is in the database.
 // Any 8-digit code signs in, except 00000000, which gets the wrong-code sentence.
 // window.__stub.calls lists every request; window.__stub.endSession() ends the session on the
@@ -47,6 +48,12 @@
 // gated as its core.ts gates them (commission.view, then one of its seven paths, else the refusal;
 // Admin Example passes as Phil Brook does before sign-off). A page they do not hold answers "Not in
 // the preview". ?as=viewer has no commission tick, so no Commission Engine tab.
+// The Spine Dictionary's answer (the spine-dictionary function's one op, dictionary) holds three
+// invented views in name order, each with its comment (header lines joined with a line break) and
+// its columns in table order: one column has no explanation (null) and one explanation looks like
+// HTML, so the page must show it as text. Gated as hub.spine_dictionary gates it: signedOut (401)
+// for an ended session, the refusal (403) without spine_dictionary.view. Admin Example and Dee
+// Example hold the tick; ?as=viewer does not, so no Spine Dictionary tab.
 (function () {
   var ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/comms-web";
   var as = (new URLSearchParams(location.search).get("as") || "admin").toLowerCase();
@@ -63,6 +70,7 @@
     reviewer: "rae.example@dyce-energy.co.uk",
     pricing: "quinn.example@dyce-energy.co.uk",
     pricingview: "tara.example@dyce-energy.co.uk",
+    dictionary: "dee.example@dyce-energy.co.uk",
     none: null
   };
   var DOMAIN = /^[a-z0-9._%-]+@dyce-energy\.co\.uk$/;
@@ -83,6 +91,7 @@
     { code: "pricing.set", tool: "Pricing", label: "Set margins and splits" },
     { code: "pricing.publish", tool: "Pricing", label: "Publish" },
     { code: "commission.view", tool: "Commission Engine", label: "View" },
+    { code: "spine_dictionary.view", tool: "Spine Dictionary", label: "View" },
     { code: "dna_admin.admin", tool: "DNA Admin", label: "DNA Admin" }
   ];
   var people = [
@@ -118,6 +127,10 @@
   }
   if (as === "pricingview") {
     people.push({ email: PERSONA.pricingview, display_name: "Tara Example", active: true, grants: ["pricing.view"], added_at: "2026-11-13T10:35:00+00:00", added_by: ADMIN });
+  }
+  // The Spine Dictionary person is listed only in their own preview.
+  if (as === "dictionary") {
+    people.push({ email: PERSONA.dictionary, display_name: "Dee Example", active: true, grants: ["spine_dictionary.view"], added_at: "2026-11-16T10:30:00+00:00", added_by: ADMIN });
   }
   var changes = people.map(function (p) {
     return { at: p.added_at, by: p.added_by, for: p.email, what: p.email === ADMIN ? "Added as Admin Example, with every tick" : "Added as " + p.display_name };
@@ -991,6 +1004,33 @@
     return [200, { ok: true, page: page }];
   }
 
+  // ---------- Spine Dictionary: the spine-dictionary function's one op, gated as hub.spine_dictionary gates it.
+  var SD_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/spine-dictionary";
+  var SD_REFUSAL = "You do not have access to this. Ask Phil Brook to add it in DNA Admin.";
+  var SD_VIEWS = [
+    { name: "example_broker", description: "One row per example broker, with its trading name.\nInvented for the preview; the page shows only the first line.", columns: [
+      { name: "broker_id", description: "The broker's number in the example list." },
+      { name: "broker_name", description: "Holds <b>bold<\/b> text" },
+      { name: "added_on", description: null }] },
+    { name: "example_contract", description: "One row per example contract, from the deal it belongs to.\nA second line the page does not show.", columns: [
+      { name: "contract_id", description: "The contract's number." },
+      { name: "broker_id", description: "The broker who placed the contract." },
+      { name: "start_date", description: "The day supply starts." },
+      { name: "end_date", description: "The day supply ends." }] },
+    { name: "example_postcode_ldz", description: "One row per example postcode, with its gas zone.\nA second line the page does not show.", columns: [
+      { name: "postcode", description: "The postcode, with its space." },
+      { name: "ldz", description: "The gas local distribution zone the postcode sits in." }] }
+  ];
+
+  function sdAnswer(body) {
+    var me = sessions[body.token];
+    if (!me && body.token && /^stub/.test(body.token) && !ended[body.token] && PERSONA[as]) { me = PERSONA[as]; sessions[body.token] = me; }
+    if (body.op !== "dictionary" || typeof body.token !== "string" || !body.token) return [400, { ok: false, error: "The request was not valid." }];
+    if (!me || !person(me) || !person(me).active) return [401, { ok: false, signedOut: true }];
+    if (!has(me, "spine_dictionary.view")) return [403, { ok: false, error: SD_REFUSAL }];
+    return [200, { ok: true, views: copy(SD_VIEWS) }];
+  }
+
   var realFetch = window.fetch ? window.fetch.bind(window) : null;
   window.fetch = function (url, init) {
     var u = String(url);
@@ -1003,13 +1043,14 @@
       calls.push({ op: "put", action: null, args: { path: u.slice(DV_UPLOAD.length).split("?")[0], contentType: (init.headers || {})["Content-Type"] || null, upsert: (init.headers || {})["x-upsert"] || null }, status: 200, answer: {} });
       return new Promise(function (resolve) { setTimeout(function () { resolve(new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } })); }, delay.put || 120); });
     }
-    if (u !== ENDPOINT && u !== DV_ENDPOINT && u !== PR_ENDPOINT && u !== CE_ENDPOINT) return realFetch ? realFetch(url, init) : Promise.reject(new Error("no fetch"));
+    if (u !== ENDPOINT && u !== DV_ENDPOINT && u !== PR_ENDPOINT && u !== CE_ENDPOINT && u !== SD_ENDPOINT) return realFetch ? realFetch(url, init) : Promise.reject(new Error("no fetch"));
     var body = {};
     try { body = JSON.parse((init && init.body) || "{}"); } catch (e) { body = {}; }
-    var res = u === DV_ENDPOINT ? dvAnswer(body) : u === PR_ENDPOINT ? prAnswer(body) : u === CE_ENDPOINT ? ceAnswer(body) : answer(body);
-    // A dna-viewer, dna-pricing or commission-engine call has no args: its fields (all but the token) are listed in their place.
+    var res = u === DV_ENDPOINT ? dvAnswer(body) : u === PR_ENDPOINT ? prAnswer(body) : u === CE_ENDPOINT ? ceAnswer(body)
+      : u === SD_ENDPOINT ? sdAnswer(body) : answer(body);
+    // A dna-viewer, dna-pricing, commission-engine or spine-dictionary call has no args: its fields (all but the token) are listed in their place.
     var dvArgs = function () { var o = copy(body); delete o.token; delete o.op; delete o.action; return o; };
-    calls.push({ op: body.op, action: body.action || null, args: body.args ? copy(body.args) : (u === DV_ENDPOINT || u === PR_ENDPOINT || u === CE_ENDPOINT ? dvArgs() : null), status: res[0], answer: copy(res[1]) });
+    calls.push({ op: body.op, action: body.action || null, args: body.args ? copy(body.args) : (u === DV_ENDPOINT || u === PR_ENDPOINT || u === CE_ENDPOINT || u === SD_ENDPOINT ? dvArgs() : null), status: res[0], answer: copy(res[1]) });
     return new Promise(function (resolve) {
       setTimeout(function () {
         resolve(new Response(JSON.stringify(res[1]), { status: res[0], headers: { "Content-Type": "application/json" } }));

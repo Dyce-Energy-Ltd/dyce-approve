@@ -660,6 +660,28 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 }
 
 
+/* Spine Dictionary: the views and what their columns mean, on the hub's own classes (parts/spine-dictionary.css). */
+/* The Spine Dictionary tab, scoped to #sd: the hub's own pieces (the h1 with its magenta word,
+   .stand, .field, .list rows with .t and .d, the .ticks table in a .grid-wrap, .empty, .foot) with
+   a few settings of their own. No colour of its own: "No description yet" is the hub's muted text
+   (--muted, #5B6B72, 5.5:1 on white), and magenta stays on the 32px heading and the focus ring. */
+#sd h1:focus { outline: none; }
+#sd > .msg { margin: 6px 0 0; }
+#sd .sd-search { max-width: 640px; margin: 22px 0 0; }
+#sd .sd-views { margin-top: 22px; }
+#sd .sd-first { margin: 0 0 4px; }
+/* A search match: the view's name (a button that opens it), its first line, its matching columns. */
+#sd .sd-match { margin-top: 34px; }
+#sd .sd-match .stand { margin-top: 4px; }
+#sd .sd-link { font: inherit; font-weight: 800; color: var(--ink); background: none; border: 0; padding: 0; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; overflow-wrap: anywhere; }
+#sd .sd-link:hover { text-decoration-thickness: 2px; }
+/* Column and What it means: the name as it appears in the data, then its explanation. */
+#sd .sd-table td { vertical-align: top; }
+#sd .sd-col { font-weight: 800; width: 30%; min-width: 160px; overflow-wrap: anywhere; }
+#sd .sd-what { white-space: pre-line; overflow-wrap: anywhere; }
+#sd .sd-none { color: var(--muted); }
+
+
 @media (max-width: 760px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .rail { position: static; height: auto; overflow: visible; }
@@ -2197,6 +2219,7 @@ function workbookFor(XLSX, layout, rows) {
   const POOL_REVIEW = "dashboard_pool.review";
   const PR_VIEW = "pricing.view";
   const CE_VIEW = "commission.view";
+  const SD_VIEW = "spine_dictionary.view";
   const TOOLS = [
     { id: "broker_emails", label: "Broker Emails", allowed: (t) => t.some((c) => c.startsWith("broker_emails.")),
       items: [{ id: "new", label: "New email", group: "Price emails", need: REQUEST },
@@ -2228,6 +2251,8 @@ function workbookFor(XLSX, layout, rows) {
               { id: "decisions", label: "Decisions", group: "Monthly run", need: CE_VIEW },
               { id: "runs", label: "Runs", group: "Monthly run", need: CE_VIEW }],
       render: renderCommission },
+    { id: "spine_dictionary", label: "Spine Dictionary", allowed: (t) => t.includes(SD_VIEW),
+      items: [{ id: "all", label: "All views", need: SD_VIEW }], render: renderSpineDictionary },
     { id: "dna_admin", label: "DNA Admin", allowed: (t) => t.includes("dna_admin.admin"),
       items: [{ id: "people", label: "People and access" }, { id: "signins", label: "Who may sign in" },
               { id: "history", label: "Sign-in history" }, { id: "changes", label: "Changes made here" }], render: renderAdmin },
@@ -4800,6 +4825,207 @@ function workbookFor(XLSX, layout, rows) {
   })();
 
 
+  // ---------- Spine Dictionary: every spine view and what its columns mean, read from the
+  // spine-dictionary function each time the tab opens. The helpers (friendly, firstLine, search)
+  // and the module are parts/spine-dictionary-lib.js and parts/spine-dictionary.js, inlined by build.py.
+  function renderSpineDictionary(item, g) { SD.show(item, g); }
+
+  // The Spine Dictionary tab's pure helpers: no DOM, no network. Inlined into hub.html's script by
+  // build.py (the SPINE_DICTIONARY_LIB_JS include), just before the tab's module, which reads them
+  // as SpineDictLib; required by Node in tests/spine_dictionary_lib.test.js (ruling R2).
+  const SpineDictLib = (() => {
+    "use strict";
+    // A view's name for a reader: underscores as spaces and a capital first letter
+    // ("broker_comms" gives "Broker comms").
+    function friendly(name) {
+      const s = String(name ?? "").replace(/_+/g, " ").trim();
+      return s ? s[0].toUpperCase() + s.slice(1) : "";
+    }
+    // A view comment's first line (the "One row per..." sentence), or "" when there is none.
+    function firstLine(description) {
+      if (typeof description !== "string") return "";
+      return description.split("\n", 1)[0].trim();
+    }
+    // Every view whose friendly name, or any of whose columns' names or explanations, holds the
+    // query, ignoring case, as [{view, columns}]: the views in their order, and in each only the
+    // columns that hold it, in table order (none when only the view's name matches). The query is
+    // plain text, not a pattern. An empty query gives nothing.
+    function search(views, query) {
+      const q = String(query ?? "").trim().toLowerCase();
+      if (!q || !Array.isArray(views)) return [];
+      const holds = (s) => typeof s === "string" && s.toLowerCase().includes(q);
+      const out = [];
+      for (const view of views) {
+        if (!view || typeof view !== "object") continue;
+        const columns = (Array.isArray(view.columns) ? view.columns : [])
+          .filter((c) => c && typeof c === "object" && (holds(c.name) || holds(c.description)));
+        if (columns.length || holds(friendly(view.name))) out.push({ view, columns });
+      }
+      return out;
+    }
+    const api = { friendly, firstLine, search };
+    if (typeof module !== "undefined" && module.exports) module.exports = api;
+    return api;
+  })();
+
+  // The Spine Dictionary: every spine view and what each of its columns means, from the comments
+  // Phil Brook's spine files put on the views, read from the spine-dictionary function every time
+  // the tab opens (no copy is kept between opens). The function answers {ok, views: [{name,
+  // description, columns: [{name, description}]}]}, views by name and columns in table order. The
+  // views go in the side menu under "Views" after it answers, as DNA Viewer adds an account's
+  // sections; picking one draws it from this module's memory without asking again. Every value
+  // from the function goes into the page as text (el's text, textContent), never as HTML. Nothing
+  // goes into storage or the address bar: the hub keeps only the tool and menu item
+  // (dyce.hub.where). sdGen is bumped on sign-out (reset) and on every opening, so an answer that
+  // arrives after either is dropped rather than drawn; g, the hub's gen, drops one after a move to
+  // another tool or menu item.
+  // Inlined into hub.html's script by build.py (the SPINE_DICTIONARY_JS include), after the
+  // helpers (SpineDictLib), so it uses the hub's token, me, gen, TOOLS, el, $, say, showSignIn and
+  // setCrumb.
+  const SD = (() => {
+    const SD_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/spine-dictionary";
+    const FAILED = "The dictionary could not be loaded. Try again shortly.";
+    const { friendly, firstLine, search } = SpineDictLib;
+    let sdGen = 0, hubGen = -1, root = null, parts = null, views = null;
+
+    // ---------- the function. A signedOut answer ends the session as api() does. A refusal (403)
+    // shows the function's own sentence; anything else is the one load failure sentence.
+    async function call() {
+      const t = token;
+      let res, j;
+      try {
+        res = await fetch(SD_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ op: "dictionary", token: t }), signal: AbortSignal.timeout(30000) });
+        j = await res.json();
+      } catch { throw { message: FAILED }; }
+      if (!j || typeof j !== "object") throw { message: FAILED };
+      if (res.status === 401 && j.signedOut) { if (t && token === t) showSignIn("Your session has ended. Sign in again."); throw { signedOut: true, message: "Your session has ended. Sign in again." }; }
+      if (res.status === 403 && typeof j.error === "string" && j.error) throw { message: j.error };
+      if (!res.ok || j.ok !== true) throw { message: FAILED };
+      return j;
+    }
+    const still = (n) => n === sdGen && hubGen === gen && !!me && !!root && root.isConnected;
+    // The views as the page uses them: a name each, a comment or null, and named columns with an
+    // explanation or null. null when the answer holds no list of views.
+    function clean(list) {
+      if (!Array.isArray(list)) return null;
+      const text = (v) => (typeof v === "string" && v.trim() ? v : null);
+      return list.filter((v) => v && typeof v === "object" && typeof v.name === "string" && v.name)
+        .map((v) => ({ name: v.name, description: text(v.description),
+          columns: (Array.isArray(v.columns) ? v.columns : []).filter((c) => c && typeof c === "object" && typeof c.name === "string" && c.name)
+            .map((c) => ({ name: c.name, description: text(c.description) })) }));
+    }
+
+    // ---------- the tab: the heading, a message line, the page, the footer
+    function build() {
+      const h1 = el("h1", { tabindex: "-1" }, "Spine ", el("em", { text: "Dictionary" }));
+      const msg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
+      const body = el("section", { class: "sd-body" });
+      const r = el("div", { id: "sd" }, h1, msg, body,
+        el("footer", { class: "foot", text: "Data class: Amber. The descriptions come from Phil Brook's spine files." }));
+      parts = { h1, msg, body };
+      return r;
+    }
+
+    async function show(item, g) {
+      hubGen = g; views = null;
+      const n = ++sdGen;
+      root = build(); $("main").append(root);
+      say(parts.msg, "Loading…"); root.setAttribute("aria-busy", "true");
+      try {
+        const r = await call();
+        if (!still(n)) return;
+        const v = clean(r.views);
+        if (!v) throw { message: FAILED };
+        views = v;
+        say(parts.msg, "");
+        drawMenu();
+        drawAll();
+      } catch (err) {
+        if (still(n) && !(err && err.signedOut)) say(parts.msg, (err && err.message) || FAILED, true);
+      } finally { if (still(n)) root.removeAttribute("aria-busy"); }
+    }
+
+    // The views in the side menu, under the hub's own All views item.
+    function drawMenu() {
+      const menu = $("sidemenu");
+      for (const x of [...menu.querySelectorAll("[data-sd]")]) x.remove();
+      menu.append(el("div", { class: "menu-group", "data-sd": "", text: "Views" }));
+      for (const v of views) {
+        const b = el("button", { type: "button", class: "menu-item", "data-sd": "", "data-sd-view": v.name, text: friendly(v.name) });
+        b.addEventListener("click", () => pick(v.name, false));
+        menu.append(b);
+      }
+    }
+    // Marks the menu item for a view, and no other (the hub marked All views when the tab opened).
+    function mark(name) {
+      for (const b of $("sidemenu").querySelectorAll("button[data-item], button[data-sd-view]")) {
+        if (b.dataset.sdView === name) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+      }
+    }
+    const nameButton = (v, cls) => {
+      const b = el("button", { type: "button", class: cls, text: friendly(v.name) });
+      b.addEventListener("click", () => pick(v.name, true));
+      return b;
+    };
+
+    // ---------- All views: the search box, then each view's name and first line; while the box
+    // holds a search, the matches grouped under their view instead.
+    function drawAll() {
+      const { body } = parts;
+      body.textContent = "";
+      const box = el("input", { type: "search", id: "sdSearch", autocomplete: "off", spellcheck: "false" });
+      const results = el("div", { class: "sd-results" });
+      box.addEventListener("input", () => drawResults(results, box.value));
+      body.append(el("div", { class: "field sd-search" }, el("label", { for: "sdSearch", text: "Search all columns" }), box), results);
+      drawResults(results, "");
+    }
+    function drawResults(results, query) {
+      results.textContent = "";
+      if (!query.trim()) {
+        if (!views.length) { results.append(el("p", { class: "empty", text: "There are no views yet." })); return; }
+        results.append(el("div", { class: "list sd-views" }, ...views.map((v) =>
+          el("div", { class: "row" }, el("div", {}, nameButton(v, "t"), el("div", { class: "d", text: firstLine(v.description) }))))));
+        return;
+      }
+      const found = search(views, query);
+      if (!found.length) { results.append(el("p", { class: "empty", text: "Nothing matches that search." })); return; }
+      for (const { view, columns } of found) {
+        results.append(el("section", { class: "sd-match" },
+          el("h2", {}, nameButton(view, "sd-link")),
+          firstLine(view.description) ? el("p", { class: "stand", text: firstLine(view.description) }) : null,
+          columns.length ? table(columns) : null));
+      }
+    }
+
+    // ---------- a view: its name, its first line, then each column and what it means
+    function pick(name, byLink) {
+      const v = views && views.find((x) => x.name === name);
+      if (!v || !root || !root.isConnected) return;
+      const { body, h1 } = parts;
+      h1.textContent = friendly(v.name);
+      body.textContent = "";
+      const first = firstLine(v.description);
+      if (first) body.append(el("p", { class: "stand sd-first", text: first }));
+      body.append(v.columns.length ? table(v.columns) : el("p", { class: "empty", text: "This view has no columns." }));
+      mark(v.name);
+      setCrumb(TOOLS.find((x) => x.id === "spine_dictionary"), { label: friendly(v.name), group: "Views" });
+      if (byLink) { h1.focus({ preventScroll: true }); if (root.getBoundingClientRect().top < 0) root.scrollIntoView(); }
+    }
+    function table(columns) {
+      return el("div", { class: "grid-wrap" }, el("table", { class: "ticks sd-table" },
+        el("thead", {}, el("tr", {}, el("th", { scope: "col", text: "Column" }), el("th", { scope: "col", text: "What it means" }))),
+        el("tbody", {}, ...columns.map((c) => el("tr", {},
+          el("td", { class: "sd-col", text: c.name }),
+          el("td", { class: "sd-what" }, c.description == null ? el("span", { class: "sd-none", text: "No description yet" }) : c.description))))));
+    }
+
+    // On sign-out nothing from the function stays: showSignIn has emptied #main and the side menu,
+    // and answers on their way are dropped.
+    function reset() { sdGen++; root = null; parts = null; views = null; }
+    return { show, reset };
+  })();
+
+
   // ---------- Dashboard Pool. Reviewers vote Keep, Maybe or Drop (or the quiet Pass) on each
   // candidate board, with audiences on Keep and Maybe and an optional note; Phil Brook decides.
   // The registry and figures (pool_content) and the votes and decisions (pool_state) are read
@@ -5505,7 +5731,7 @@ function workbookFor(XLSX, layout, rows) {
     gen++; token = null; me = null; dropStored(TOKEN_KEY);
     // The side menu lives inside the rail's tool list, so it is emptied and kept, not cleared away.
     const side = $("sidemenu"); side.textContent = ""; side.hidden = true; $("tabs").replaceChildren(side); setCrumb(null);
-    clearMain(); BE.reset(); DV.reset(); POOL.reset(); PR.reset(); CE.reset();
+    clearMain(); BE.reset(); DV.reset(); POOL.reset(); PR.reset(); CE.reset(); SD.reset();
     $("app").hidden = true; $("signin").hidden = false; $("who").hidden = true; $("conn").textContent = "";
     $("emailStep").hidden = false; $("codeStep").hidden = true; $("retryStep").hidden = true; $("siCode").value = "";
     setMsg(message || "");
