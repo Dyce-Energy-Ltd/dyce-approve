@@ -63,6 +63,24 @@ export function midpointAnnualPounds(milli, eacMinKwh, eacMaxKwh) {
   return Math.round(milli / 1000 * ((eacMinKwh + eacMaxKwh) / 2) / 100);
 }
 
+// The pricing database's annual figures use a 365 day year, so the p/day share is over 365 days.
+export const DAYS_PER_YEAR = 365;
+
+// How the annual margin at a band's midpoint splits between the standing charge (p/day) and the unit
+// rate (p/kWh), from the margin (milli-pence per kWh) and the standing share (percent). Display
+// arithmetic, not a price. Figures are not rounded; the caller formats them.
+export function marginSplit(milli, eacMinKwh, eacMaxKwh, sharePct) {
+  if (milli == null || sharePct == null || eacMinKwh == null || eacMaxKwh == null) return null;
+  const mid = (eacMinKwh + eacMaxKwh) / 2;
+  const annualPence = milli * mid / 1000;
+  const standingPence = annualPence * sharePct / 100;
+  const unitPence = annualPence - standingPence;
+  return {
+    midpointKwh: mid, annualPounds: annualPence / 100, standingPounds: standingPence / 100, unitPounds: unitPence / 100,
+    standingPencePerDay: standingPence / DAYS_PER_YEAR, unitPencePerKwh: unitPence / mid,
+  };
+}
+
 function blank(n) { return new Array(n).fill(null); }
 
 function sortedBands(bands) {
@@ -100,7 +118,7 @@ function columnFromSet(set, ladderBands) {
     priceConfigId: set.priceConfigId == null ? null : set.priceConfigId,
     isNew: false, stale,
     margins, shares,
-    saved: { margins: margins.slice(), shares: shares.slice() },
+    saved: { margins: margins.slice(), shares: shares.slice(), costPerMeterPence: set.costPerMeterPence },
   };
 }
 
@@ -145,9 +163,18 @@ export function addColumn(grid, spec) {
   const col = {
     name: spec.name, product: spec.product, costPerMeterPence: spec.costPerMeterPence,
     priceConfigId: null, isNew: true, stale: false, margins, shares,
-    saved: { margins: blank(n), shares: blank(n) },
+    saved: { margins: blank(n), shares: blank(n), costPerMeterPence: null },
   };
   return withColumns(grid, grid.columns.concat([col]));
+}
+
+// Cost per meter in whole pence. It is saved with the band set's margins as an unsaved change like any edit.
+export function setCostPerMeter(grid, name, pence) {
+  if (!Number.isSafeInteger(pence) || pence < 0) throw new Error('The cost per meter must be a whole number of pence, zero or more.');
+  const columns = grid.columns.slice();
+  const i = colIndex(grid, name);
+  columns[i] = Object.assign({}, columns[i], { costPerMeterPence: pence });
+  return withColumns(grid, columns);
 }
 
 function layerKey(layer) {
@@ -237,7 +264,7 @@ function same(a, b) {
 }
 
 function isChanged(c) {
-  return c.isNew || c.stale || !same(c.margins, c.saved.margins) || !same(c.shares, c.saved.shares);
+  return c.isNew || c.stale || c.costPerMeterPence !== c.saved.costPerMeterPence || !same(c.margins, c.saved.margins) || !same(c.shares, c.saved.shares);
 }
 
 export function changedNames(grid) {

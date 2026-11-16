@@ -2227,6 +2227,24 @@ function midpointAnnualPounds(milli, eacMinKwh, eacMaxKwh) {
   return Math.round(milli / 1000 * ((eacMinKwh + eacMaxKwh) / 2) / 100);
 }
 
+// The pricing database's annual figures use a 365 day year, so the p/day share is over 365 days.
+const DAYS_PER_YEAR = 365;
+
+// How the annual margin at a band's midpoint splits between the standing charge (p/day) and the unit
+// rate (p/kWh), from the margin (milli-pence per kWh) and the standing share (percent). Display
+// arithmetic, not a price. Figures are not rounded; the caller formats them.
+function marginSplit(milli, eacMinKwh, eacMaxKwh, sharePct) {
+  if (milli == null || sharePct == null || eacMinKwh == null || eacMaxKwh == null) return null;
+  const mid = (eacMinKwh + eacMaxKwh) / 2;
+  const annualPence = milli * mid / 1000;
+  const standingPence = annualPence * sharePct / 100;
+  const unitPence = annualPence - standingPence;
+  return {
+    midpointKwh: mid, annualPounds: annualPence / 100, standingPounds: standingPence / 100, unitPounds: unitPence / 100,
+    standingPencePerDay: standingPence / DAYS_PER_YEAR, unitPencePerKwh: unitPence / mid,
+  };
+}
+
 function blank(n) { return new Array(n).fill(null); }
 
 function sortedBands(bands) {
@@ -2264,7 +2282,7 @@ function columnFromSet(set, ladderBands) {
     priceConfigId: set.priceConfigId == null ? null : set.priceConfigId,
     isNew: false, stale,
     margins, shares,
-    saved: { margins: margins.slice(), shares: shares.slice() },
+    saved: { margins: margins.slice(), shares: shares.slice(), costPerMeterPence: set.costPerMeterPence },
   };
 }
 
@@ -2309,9 +2327,18 @@ function addColumn(grid, spec) {
   const col = {
     name: spec.name, product: spec.product, costPerMeterPence: spec.costPerMeterPence,
     priceConfigId: null, isNew: true, stale: false, margins, shares,
-    saved: { margins: blank(n), shares: blank(n) },
+    saved: { margins: blank(n), shares: blank(n), costPerMeterPence: null },
   };
   return withColumns(grid, grid.columns.concat([col]));
+}
+
+// Cost per meter in whole pence. It is saved with the band set's margins as an unsaved change like any edit.
+function setCostPerMeter(grid, name, pence) {
+  if (!Number.isSafeInteger(pence) || pence < 0) throw new Error('The cost per meter must be a whole number of pence, zero or more.');
+  const columns = grid.columns.slice();
+  const i = colIndex(grid, name);
+  columns[i] = Object.assign({}, columns[i], { costPerMeterPence: pence });
+  return withColumns(grid, columns);
 }
 
 function layerKey(layer) {
@@ -2401,7 +2428,7 @@ function same(a, b) {
 }
 
 function isChanged(c) {
-  return c.isNew || c.stale || !same(c.margins, c.saved.margins) || !same(c.shares, c.saved.shares);
+  return c.isNew || c.stale || c.costPerMeterPence !== c.saved.costPerMeterPence || !same(c.margins, c.saved.margins) || !same(c.shares, c.saved.shares);
 }
 
 function changedNames(grid) {
@@ -2486,7 +2513,7 @@ function dragValue(scale, y) {
   return Math.max(MARGIN_MIN, Math.round(scale.fromY(y) / 10) * 10);
 }
 
-;return { parseMargin, parseShare, formatMargin, midpointAnnualPounds, carryToLadder, makeGrid, addColumn, setCells, shiftCells, copyColumn, pasteBlock, changedNames, problems, toSavePayload, toPreviewItems, selectionProblem, chartScale, dragValue };
+;return { parseMargin, parseShare, formatMargin, midpointAnnualPounds, DAYS_PER_YEAR, marginSplit, carryToLadder, makeGrid, addColumn, setCostPerMeter, setCells, shiftCells, copyColumn, pasteBlock, changedNames, problems, toSavePayload, toPreviewItems, selectionProblem, chartScale, dragValue };
 })();
 </script>
 <script>
@@ -4413,7 +4440,7 @@ function dragValue(scale, y) {
       if (lines.length) card.append(el("h3", { class: "sub", text: "What this format assumes" }), el("ul", { class: "plain" }, ...lines.map((a) => el("li", { text: a }))));
       if (rep.prepare_problem) {
         card.append(el("p", { class: "msg refused", text: "The runs could not be prepared: " + rep.prepare_problem }),
-          el("p", { class: "hint", text: "The file is loaded. Publish the missing split in Band sets and splits and the runs are prepared for this supplier." }),
+          el("p", { class: "hint", text: "The file is loaded. Publish the missing split in Band sets and splits." }),
           el("div", { class: "actions" }, btn("Open Band sets and splits", () => showTool("pricing", "bands", "menu"), "ghost small")));
       } else {
         card.append(el("div", { class: "actions" }, btn("Open Runs and publishing", () => showTool("pricing", "runs", "menu"), "ghost small")));
@@ -4445,7 +4472,7 @@ function dragValue(scale, y) {
     const sameList = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
     // What a person has edited: a new set, or margins or shares that differ from what was saved. A set
     // saved against an older ladder is also saved again (G.changedNames) but is not an edit of theirs.
-    const editedNames = (g) => g.columns.filter((c) => c.isNew || !sameList(c.margins, c.saved.margins) || !sameList(c.shares, c.saved.shares)).map((c) => c.name);
+    const editedNames = (g) => g.columns.filter((c) => c.isNew || c.costPerMeterPence !== c.saved.costPerMeterPence || !sameList(c.margins, c.saved.margins) || !sameList(c.shares, c.saved.shares)).map((c) => c.name);
     // Columns in the order the grid shows them: each bundle's members together, then the rest.
     function orderColumns(grid, bundles) {
       const rank = new Map();
@@ -4555,7 +4582,7 @@ function dragValue(scale, y) {
           el("span", { class: "marks" },
             c.isNew ? el("span", { class: "badge info", text: "New" }) : null,
             c.stale ? el("span", { class: "badge warn", text: "Older ladder", title: "Saved against an older band ladder. Its margins were carried to the current ladder where a band starts at the same point; check it before saving." }) : null,
-            (!c.isNew && (!sameList(c.margins, c.saved.margins) || !sameList(c.shares, c.saved.shares))) ? el("span", { class: "badge info", text: "Changed" }) : null))));
+            (!c.isNew && (c.costPerMeterPence !== c.saved.costPerMeterPence || !sameList(c.margins, c.saved.margins) || !sameList(c.shares, c.saved.shares))) ? el("span", { class: "badge info", text: "Changed" }) : null))));
         const rows = grid.bands.map((b, bi) => el("tr", {},
           el("th", { scope: "row" }, el("button", { type: "button", class: "linkbtn", text: (bi + 1) + ": " + bandText(b), title: "Select this band in every band set", onclick: () => selectRow(bi) })),
           ...cols.map((c, ci) => {
@@ -4731,19 +4758,26 @@ function dragValue(scale, y) {
           detailHost.textContent = "";
           const ci = lastCell ? g.columns.findIndex((c) => c.name === lastCell.name) : -1, bi = lastCell ? g.bands.findIndex((b) => b.bandIndex === lastCell.bandIndex) : -1;
           if (ci < 0 || bi < 0) { detailHost.append(el("div", { class: "empty", text: "Select a cell in the grid to see its detail." })); return; }
-          const col = g.columns[ci], band = g.bands[bi], m = col.margins[bi], s = col.shares[bi], mid = (band.eacMinKwh + band.eacMaxKwh) / 2;
+          const col = g.columns[ci], band = g.bands[bi], m = col.margins[bi], s = col.shares[bi];
           const card = el("div", { class: "card white" }, el("h2", { text: col.name + ", band " + (bi + 1) }),
             el("p", { class: "hint", text: bandText(band) + ". Product " + col.product + ", cost per meter " + pounds(col.costPerMeterPence) + " a year." + (col.stale ? " Saved against an older ladder; carried to the current one here." : "") }));
+          if (editable) {
+            const costIn = el("input", { type: "text", inputmode: "decimal", value: (col.costPerMeterPence / 100).toFixed(2), "aria-label": "Cost per meter in pounds a year for " + col.name });
+            card.append(el("div", { class: "fields" }, field("Cost per meter (£ a year) for " + col.name, costIn, "Whole pence. Held as an unsaved change until you use Save changes.")),
+              el("div", { class: "actions" }, btn("Set cost per meter", () => {
+                const t = costIn.value.trim().replace(/^£/, "");
+                if (!/^\d+(\.\d{1,2})?$/.test(t)) { gridView.say("Enter the cost per meter in pounds, such as 15 or 15.50.", true); return; }
+                gridView.setGrid(G.setCostPerMeter(gridView.getGrid(), col.name, Math.round(Number(t) * 100)));
+                gridView.say("Cost per meter for " + col.name + " is " + pounds(Math.round(Number(t) * 100)) + " as an unsaved change.", false);
+              }, "ghost small")));
+          }
           if (m == null) card.append(el("p", { text: "This band has no margin yet." }));
           else {
-            const annual = m * mid / 1000;   // pence a year at the midpoint
-            const lines = [el("li", { text: "Margin " + marginText(m) + "p/kWh. Annual margin at the band midpoint (" + comma(mid) + " kWh): " + pounds(annual) + "." })];
-            if (s == null) lines.push(el("li", { text: "No standing charge share yet, so no split between p/day and p/kWh." }));
-            else {
-              const standing = annual * s / 100, unitPart = annual - standing;
-              lines.push(el("li", { text: "Standing charge share " + s + "%: " + pounds(standing) + " a year, which is " + (standing / 365).toFixed(3) + "p/day over 365 days." }),
-                el("li", { text: "The rest, " + pounds(unitPart) + " a year, is " + (unitPart / mid).toFixed(3) + "p/kWh." }));
-            }
+            const sp = G.marginSplit(m, band.eacMinKwh, band.eacMaxKwh, s), mid = (band.eacMinKwh + band.eacMaxKwh) / 2;
+            const lines = [el("li", { text: "Margin " + marginText(m) + "p/kWh. Annual margin at the band midpoint (" + comma(mid) + " kWh): " + GBP.format(G.midpointAnnualPounds(m, band.eacMinKwh, band.eacMaxKwh)) + "." })];
+            if (!sp) lines.push(el("li", { text: "No standing charge share yet, so no split between p/day and p/kWh." }));
+            else lines.push(el("li", { text: "Standing charge share " + s + "%: " + GBP.format(sp.standingPounds) + " a year, which is " + sp.standingPencePerDay.toFixed(3) + "p/day over " + G.DAYS_PER_YEAR + " days." }),
+              el("li", { text: "The rest, " + GBP.format(sp.unitPounds) + " a year, is " + sp.unitPencePerKwh.toFixed(3) + "p/kWh." }));
             card.append(el("ul", { class: "plain" }, ...lines), el("p", { class: "hint", text: "Worked out on this page from the margin and the share, as arithmetic. It is not a supplier figure." }));
           }
           const hist = el("div"); card.append(el("h3", { class: "sub", text: "Version history" }), hist);

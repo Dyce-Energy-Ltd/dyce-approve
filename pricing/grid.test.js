@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   parseMargin, parseShare, formatMargin, midpointAnnualPounds, makeGrid, addColumn, setCells, shiftCells,
   copyColumn, pasteBlock, changedNames, problems, carryToLadder, toSavePayload, toPreviewItems,
-  selectionProblem, chartScale, dragValue,
+  selectionProblem, chartScale, dragValue, marginSplit, DAYS_PER_YEAR, setCostPerMeter,
 } from './grid.js';
 
 // Invented figures only.
@@ -183,4 +183,34 @@ test('chartScale and dragValue', () => {
   assert.equal(dragValue(s, s.toY(1234)), 1230);
   assert.equal(dragValue(s, 1e6), 10);
   assert.equal(dragValue(chartScale([], 100), 0) > 0, true);
+});
+
+test('marginSplit', () => {
+  assert.equal(DAYS_PER_YEAR, 365);
+  // 1.2p/kWh over a 5,000 kWh midpoint is 6,000p a year; a 25% share is 1,500p a year standing.
+  const r = marginSplit(1200, 4000, 6000, 25);
+  assert.equal(r.midpointKwh, 5000);
+  assert.equal(r.annualPounds, 60);
+  assert.equal(r.standingPounds, 15);
+  assert.equal(r.unitPounds, 45);
+  assert.equal(r.unitPencePerKwh, 0.9);
+  assert.equal(r.standingPencePerDay, 1500 / 365);
+  assert.deepEqual(marginSplit(1200, 4000, 6000, 0), { midpointKwh: 5000, annualPounds: 60, standingPounds: 0, unitPounds: 60, standingPencePerDay: 0, unitPencePerKwh: 1.2 });
+  assert.equal(marginSplit(1200, 4000, 6000, 100).unitPencePerKwh, 0);
+  assert.equal(marginSplit(null, 4000, 6000, 25), null);
+  assert.equal(marginSplit(1200, 4000, 6000, null), null);
+});
+
+test('cost per meter is an edit: changed, not mutating, sent on save', () => {
+  const g = grid0();
+  const g2 = setCostPerMeter(g, 'Gold', 1750);
+  assert.equal(g.columns[0].costPerMeterPence, 5);
+  assert.equal(g2.columns[0].costPerMeterPence, 1750);
+  assert.deepEqual(changedNames(g), []);
+  assert.deepEqual(changedNames(g2), ['Gold']);
+  assert.equal(toSavePayload(g2, ['Gold'], 'r').sets[0].costPerMeterPence, 1750);
+  assert.deepEqual(changedNames(setCostPerMeter(g2, 'Gold', 5)), []);
+  assert.throws(() => setCostPerMeter(g, 'Gold', 1.5));
+  assert.throws(() => setCostPerMeter(g, 'Gold', -1));
+  assert.throws(() => setCostPerMeter(g, 'Nope', 5));
 });
