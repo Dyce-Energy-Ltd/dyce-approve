@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   parseMargin, parseShare, formatMargin, midpointAnnualPounds, makeGrid, addColumn, setCells, shiftCells,
   copyColumn, pasteBlock, changedNames, problems, carryToLadder, toSavePayload, toPreviewItems,
-  selectionProblem, chartScale, dragValue, marginSplit, DAYS_PER_YEAR, setCostPerMeter,
+  selectionProblem, chartScale, dragValue, marginSplit, DAYS_PER_YEAR, setCostPerMeter, editedNames,
 } from './grid.js';
 
 // Invented figures only.
@@ -155,7 +155,7 @@ test('toSavePayload and toPreviewItems', () => {
   const p = toSavePayload(g, ['Gold', 'New'], 'Autumn review');
   assert.equal(p.reason, 'Autumn review');
   assert.equal(p.sets.length, 2);
-  assert.deepEqual(Object.keys(p.sets[0]), ['name', 'fuel', 'product', 'costPerMeterPence', 'isNew', 'bands']);
+  assert.deepEqual(Object.keys(p.sets[0]), ['name', 'fuel', 'product', 'costPerMeterPence', 'isNew', 'ladderId', 'bands']);
   assert.equal(p.sets[0].isNew, false);
   assert.equal(p.sets[1].isNew, true);
   assert.equal(p.sets[0].fuel, 'electricity');
@@ -243,4 +243,49 @@ test('editing a stale set makes it changed and its blank bands are problems', ()
   assert.deepEqual(blanks.map(p => p.bandIndex + ':' + p.message), ['1:This band has no margin.', '1:This band has no standing charge share.']);
   g = setCostPerMeter(staleGrid(), 'Old', 99);
   assert.deepEqual(changedNames(g), ['Old']);
+});
+
+// Final review A2: a stale set with every band carried must be savable, or Apply refuses it for ever.
+const FULL_LADDER = [
+  { bandIndex: 0, eacMinKwh: 0, eacMaxKwh: 1499 },
+  { bandIndex: 1, eacMinKwh: 1500, eacMaxKwh: 1999 },
+  { bandIndex: 2, eacMinKwh: 2000, eacMaxKwh: 4999 },
+];
+test('a stale set with no blank band counts as changed and saves its carried values', () => {
+  // Gold's old bands start at 0, 1000, 2000, ...: 0 and 2000 carry; 1500 has no old band.
+  const old = set('Old', 'Gold', 1000, 40, { ladderCurrent: false });
+  old.bands = [{ bandIndex: 0, eacMinKwh: 0, eacMaxKwh: 1499, marginMilliPencePerKwh: 1000, standingSharePct: 40 },
+    { bandIndex: 1, eacMinKwh: 1500, eacMaxKwh: 2999, marginMilliPencePerKwh: 1100, standingSharePct: 35 },
+    { bandIndex: 2, eacMinKwh: 2000, eacMaxKwh: 9999, marginMilliPencePerKwh: 1200, standingSharePct: 30 }];
+  const g = makeGrid(FULL_LADDER, [old, set('Fresh', 'Silver', 800, 30, { bands: FULL_LADDER.map((b, i) => ({ ...b, marginMilliPencePerKwh: 800 + i, standingSharePct: 30 })) })], 'electricity', 'ladder-3');
+  assert.equal(g.columns[0].stale, true);
+  assert.deepEqual(g.columns[0].margins, [1000, 1100, 1200]);
+  assert.deepEqual(changedNames(g), ['Old'], 'complete and stale: changed, so the next Save saves it');
+  assert.deepEqual(editedNames(g), [], 'but nobody has edited it');
+  assert.deepEqual(problems(g), []);
+  const p = toSavePayload(g, changedNames(g), 'Carried to the new ladder');
+  assert.deepEqual(p.sets.map(s => [s.name, s.isNew, s.ladderId]), [['Old', false, 'ladder-3']]);
+  assert.deepEqual(p.sets[0].bands.map(b => [b.bandIndex, b.marginMilliPencePerKwh, b.standingSharePct]), [[0, 1000, 40], [1, 1100, 35], [2, 1200, 30]]);
+});
+
+test('a stale set with a blank band stays unchanged until edited, and is never in editedNames', () => {
+  const g = staleGrid();
+  assert.equal(g.columns[0].stale, true);
+  assert.ok(g.columns[0].margins.includes(null));
+  assert.deepEqual(changedNames(g), []);
+  assert.deepEqual(editedNames(g), []);
+  const g2 = setCells(g, [at('Old', 1)], 'margin', 1150);
+  assert.deepEqual(changedNames(g2), ['Old']);
+  assert.deepEqual(editedNames(g2), ['Old']);
+});
+
+// Final review A3: the ladder the grid was made from goes with every save and every preview item.
+test('makeGrid keeps the ladderId; saves and preview items carry it', () => {
+  let g = makeGrid(LADDER, [set('Gold', 'Gold', 1000, 40)], 'gas', 'ladder-7');
+  assert.equal(g.ladderId, 'ladder-7');
+  g = addColumn(setCells(g, [at('Gold', 0)], 'margin', 1500), { name: 'New', product: 'Standard', costPerMeterPence: 4, fromName: 'Gold' });
+  assert.equal(g.ladderId, 'ladder-7', 'edits keep it');
+  assert.deepEqual(toSavePayload(g, ['Gold', 'New'], 'r').sets.map(s => s.ladderId), ['ladder-7', 'ladder-7']);
+  assert.deepEqual(toPreviewItems(g, [{ name: 'Gold', saleType: 'all' }, { name: 'New', saleType: 'renewal' }]).map(i => i.ladderId), ['ladder-7', 'ladder-7']);
+  assert.equal(makeGrid(LADDER, [], 'gas').ladderId, null, 'none given: null');
 });

@@ -53,7 +53,7 @@ test("apply moves the file to applying, then live; the Voltx file is untouched; 
   const bs = (await d.call({ op: "band_sets", fuel: "electricity" })).body;
   const gold = bs.bandSets.find((s) => s.name === "Gold");
   const yu = (await d.call({ op: "overview" })).body.files.find((f) => f.supplierId === "yu" && f.fuel === "electricity");
-  const items = [{ label: "Gold", product: "Gold", saleType: "all", costPerMeterPence: gold.costPerMeterPence, bands: gold.bands }];
+  const items = [{ label: "Gold", product: "Gold", saleType: "all", costPerMeterPence: gold.costPerMeterPence, ladderId: bs.ladder.ladderId, bands: gold.bands }];
   const pv = (await d.call({ op: "preview_selection", fileId: yu.supplierFileId, region: "10", usages: [2000], items })).body;
   assert.equal(pv.attention.length, 2);
   assert.deepEqual(Object.keys(pv.attention[0]).sort(), ["detail", "issue", "product", "rangeMaxKwh", "rangeMinKwh", "rateCount", "saleType"]);
@@ -79,8 +79,8 @@ test("an older file of the same supplier and fuel turns replaced when the newer 
   const d = demoPage();
   const jf = (await d.call({ op: "overview" })).body.files.filter((f) => f.supplierId === "jellyfish");
   const newer = jf.find((f) => f.state === "awaiting_bandings");
-  const bs = (await d.call({ op: "band_sets", fuel: "gas" })).body.bandSets[0];
-  const items = [{ label: bs.name, product: bs.product, saleType: "all", costPerMeterPence: bs.costPerMeterPence, bands: bs.bands }];
+  const gas = (await d.call({ op: "band_sets", fuel: "gas" })).body, bs = gas.bandSets[0];
+  const items = [{ label: bs.name, product: bs.product, saleType: "all", costPerMeterPence: bs.costPerMeterPence, ladderId: gas.ladder.ladderId, bands: bs.bands }];
   const pv = (await d.call({ op: "preview_selection", fileId: newer.supplierFileId, region: "EA", usages: [20000], items })).body;
   assert.equal(pv.attentionCount, 0);
   const ap = await d.call({ op: "apply", fileId: newer.supplierFileId, selections: [{ priceConfigId: bs.priceConfigId, saleType: "all" }], attentionSeen: 0, fingerprint: pv.fingerprint });
@@ -92,18 +92,63 @@ test("an older file of the same supplier and fuel turns replaced when the newer 
 
 test("saves make new versions, bundles are added, and the preview moves with the margins", async () => {
   const d = demoPage();
-  const set = (await d.call({ op: "band_sets", fuel: "electricity" })).body.bandSets.find((s) => s.name === "Standard");
+  const el = (await d.call({ op: "band_sets", fuel: "electricity" })).body, ladderId = el.ladder.ladderId;
+  const set = el.bandSets.find((s) => s.name === "Standard");
   const hist0 = (await d.call({ op: "band_set_history", fuel: "electricity", name: "Standard" })).body.versions.length;
   const bands = set.bands.map((b) => ({ ...b, marginMilliPencePerKwh: b.marginMilliPencePerKwh + 100 }));
-  const sv = await d.call({ op: "band_sets_save", reason: "demo", sets: [{ name: "Standard", fuel: "electricity", product: "Standard", isNew: false, costPerMeterPence: set.costPerMeterPence, bands }] });
+  const sv = await d.call({ op: "band_sets_save", reason: "demo", sets: [{ name: "Standard", fuel: "electricity", product: "Standard", isNew: false, costPerMeterPence: set.costPerMeterPence, ladderId, bands }] });
   assert.equal(sv.status, 200, JSON.stringify(sv.body));
   assert.equal((await d.call({ op: "band_set_history", fuel: "electricity", name: "Standard" })).body.versions.length, hist0 + 1);
   const bu = await d.call({ op: "bundle_save", fuel: "electricity", name: "Demo bundle", members: ["Standard", "Gold"] });
   assert.equal(bu.status, 200);
   assert.ok((await d.call({ op: "band_sets", fuel: "electricity" })).body.bundles.some((b) => b.name === "Demo bundle"));
   const yu = (await d.call({ op: "overview" })).body.files.find((f) => f.supplierId === "yu" && f.fuel === "electricity");
-  const price = async (b) => (await d.call({ op: "preview_selection", fileId: yu.supplierFileId, region: "10", usages: [2000], items: [{ label: "Standard", product: "Standard", saleType: "acquisition", costPerMeterPence: 1500, bands: b }] })).body.rows.find((r) => r.which === "proposed" && r.termMonths === 12).unitRatePence2dp;
+  const price = async (b) => (await d.call({ op: "preview_selection", fileId: yu.supplierFileId, region: "10", usages: [2000], items: [{ label: "Standard", product: "Standard", saleType: "acquisition", costPerMeterPence: 1500, ladderId, bands: b }] })).body.rows.find((r) => r.which === "proposed" && r.termMonths === 12).unitRatePence2dp;
   assert.ok((await price(bands)) > (await price(set.bands)));
+});
+
+// Final review A7: canApply follows the database (the newest finished file, whatever its state), so the
+// demo offers "Price this file" on a Live newest file, and pricing it again replaces its live set.
+test("the newest finished file can be priced whatever its state; an older or loading one cannot", async () => {
+  const d = demoPage();
+  const files = (await d.call({ op: "overview" })).body.files;
+  const can = (id, fuel) => files.filter((f) => f.supplierId === id && f.fuel === fuel).map((f) => f.state + " " + f.canApply).sort();
+  assert.deepEqual(can("voltx", "electricity"), ["live true"]);
+  assert.deepEqual(can("jellyfish", "gas"), ["awaiting_bandings true", "replaced false"]);
+  const voltx = files.find((f) => f.supplierId === "voltx" && f.fuel === "electricity");
+  const el = (await d.call({ op: "band_sets", fuel: "electricity" })).body, silver = el.bandSets.find((s) => s.name === "Silver");
+  const items = [{ label: "Silver", product: "Silver", saleType: "all", costPerMeterPence: silver.costPerMeterPence, ladderId: el.ladder.ladderId, bands: silver.bands }];
+  const pv = (await d.call({ op: "preview_selection", fileId: voltx.supplierFileId, region: "10", usages: [2000], items })).body;
+  const ap = await d.call({ op: "apply", fileId: voltx.supplierFileId, selections: [{ priceConfigId: silver.priceConfigId, saleType: "all" }], attentionSeen: pv.attentionCount, fingerprint: pv.fingerprint });
+  assert.equal(ap.status, 200, JSON.stringify(ap.body));
+  d.tick(5000);
+  const live = (await d.call({ op: "book_live" })).body.live.filter((x) => x.supplier_id === "voltx" && x.fuel === "electricity");
+  assert.deepEqual(live.map((x) => x.product + " " + x.sale_type).sort(), ["Silver acquisition", "Silver renewal"], "the whole live set is replaced");
+  const old = files.find((f) => f.supplierId === "jellyfish" && f.state === "replaced");
+  const gas = (await d.call({ op: "band_sets", fuel: "gas" })).body, gs = gas.bandSets[0];
+  const refused = await d.call({ op: "preview_selection", fileId: old.supplierFileId, region: "EA", usages: [20000], items: [{ label: gs.name, product: gs.product, saleType: "all", costPerMeterPence: gs.costPerMeterPence, ladderId: gas.ladder.ladderId, bands: gs.bands }] });
+  assert.equal(refused.status, 400);
+  assert.match(refused.body.error, /^Only the newest file of that supplier and fuel can be priced: Jellyfish_gas_demo_13112026\.xlsx\.$/);
+});
+
+// Final review S2 and A3: a save or preview edited against a ladder that has since changed is refused.
+test("a save or a preview against a ladder that is no longer current is refused", async () => {
+  const d = demoPage();
+  const el = (await d.call({ op: "band_sets", fuel: "electricity" })).body, set = el.bandSets.find((s) => s.name === "Standard");
+  const yu = (await d.call({ op: "overview" })).body.files.find((f) => f.supplierId === "yu" && f.fuel === "electricity");
+  const same = el.ladder.bands.map((b) => ({ eacMinKwh: b.eacMinKwh, eacMaxKwh: b.eacMaxKwh }));
+  const unchanged = await d.call({ op: "ladder_save", fuel: "electricity", reason: "demo", bands: same });
+  assert.deepEqual([unchanged.status, unchanged.body.error], [400, "The ladder is the same as the current one. Nothing was saved."]);
+  const wider = same.map((b, i) => (i === same.length - 1 ? { ...b, eacMaxKwh: b.eacMaxKwh + 1000 } : b));
+  const lad = await d.call({ op: "ladder_save", fuel: "electricity", reason: "demo", bands: wider });
+  assert.equal(lad.status, 200);
+  const sentence = "The electricity band ladder has changed since this screen was opened. Open it again.";
+  const sv = await d.call({ op: "band_sets_save", reason: "demo", sets: [{ name: "Standard", fuel: "electricity", product: "Standard", isNew: false, costPerMeterPence: set.costPerMeterPence, ladderId: el.ladder.ladderId, bands: set.bands }] });
+  assert.deepEqual([sv.status, sv.body.error], [400, sentence]);
+  const pv = await d.call({ op: "preview_selection", fileId: yu.supplierFileId, region: "10", usages: [2000], items: [{ label: "Standard", product: "Standard", saleType: "all", costPerMeterPence: 1500, ladderId: el.ladder.ladderId, bands: set.bands }] });
+  assert.deepEqual([pv.status, pv.body.error], [400, sentence]);
+  const none = await d.call({ op: "preview_selection", fileId: yu.supplierFileId, region: "10", usages: [2000], items: [{ label: "Standard", product: "Standard", saleType: "all", costPerMeterPence: 1500, bands: set.bands }] });
+  assert.deepEqual([none.status, none.body.error], [400, "The band ladder is not valid."]);
 });
 
 test("the state lasts for the tab: a reload from the same session storage carries on", async () => {

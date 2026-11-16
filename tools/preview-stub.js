@@ -758,7 +758,9 @@
         attention.push({ product: lastIt.product, saleType: lastIt.saleType, issue: "no_rates_for_term", rangeMinKwh: null, rangeMaxKwh: null, rateCount: 3, detail: "The file has no 36 month rates for this product in this region (invented)." });
       }
     }
-    var fp = 0, s = JSON.stringify(body.items.map(function (i) { return [i.label, i.saleType]; }));
+    // As the database's attention_list_fingerprint: from the attention list itself, not the labels, so a
+    // band set saved under a new name before Apply keeps the fingerprint the person read.
+    var fp = 0, s = JSON.stringify(attention.map(function (a) { return [a.product, a.saleType, a.issue, a.rangeMinKwh, a.rangeMaxKwh, a.rateCount, a.detail]; }));
     for (var i = 0; i < s.length; i++) fp = (fp * 31 + s.charCodeAt(i)) >>> 0;
     prLastPreview = { attentionCount: attention.length, fingerprint: ("0000000" + fp.toString(16)).slice(-8).repeat(8) };
     return { rows: rows, attention: attention, attentionCount: attention.length, fingerprint: prLastPreview.fingerprint };
@@ -838,6 +840,22 @@
   prBundles.push({ bundleId: pid(852), fuel: "electricity", name: "Advanced range", members: ["Advanced Saver"] });
   prBundles.push({ bundleId: pid(853), fuel: "gas", name: "Gas range", members: ["Gas Standard", "Gas Gold"] });
 
+  // The database's rule (pricing.newest_finished_file): only the newest finished file of a supplier and
+  // fuel can be priced, whatever its state, so a Live newest file can be priced again.
+  var prFinished = function (f) { return f.state !== "loading" && f.state !== "load_failed"; };
+  var prNewest = function (f) {
+    return prFiles.filter(function (o) { return o.supplierId === f.supplierId && o.fuel === f.fuel && prFinished(o); })
+      .sort(function (a, b) { return a.loadedAt < b.loadedAt ? 1 : a.loadedAt > b.loadedAt ? -1 : 0; })[0] || null;
+  };
+  var prCanApply = function (f) { var nf = prNewest(f); return !!nf && nf.supplierFileId === f.supplierFileId; };
+  // The Edge Function requires the ladder each saved set and preview item was edited against, and the
+  // database refuses one that is no longer the fuel's current ladder (final review S2).
+  var prLadderProblem = function (ladderId, fuel) {
+    if (typeof ladderId !== "string" || !ladderId) return "The band ladder is not valid.";
+    if (ladderId !== prLadder[fuel].ladderId) return "The " + fuel + " band ladder has changed since this screen was opened. Open it again.";
+    return null;
+  };
+
   function prAnswer(body) {
     var me = sessions[body.token];
     if (!me && body.token && /^stub/.test(body.token) && !ended[body.token] && PERSONA[as]) { me = PERSONA[as]; sessions[body.token] = me; }
@@ -855,7 +873,7 @@
       if (!DEMO) prFiles.forEach(function (f) { if (f.state === "applying") f.state = "live"; });
       var view = prFiles.map(function (f) {
         return { supplierFileId: f.supplierFileId, supplierId: f.supplierId, fuel: f.fuel, fileFormat: f.fileFormat, sourceFilename: f.sourceFilename, loadedAt: f.loadedAt, quoteValidFrom: f.quoteValidFrom, quoteValidUntil: f.quoteValidUntil,
-          rowCountSource: f.rowCountSource, rowCountLoaded: f.rowCountLoaded, refusedCount: f.refusedCount, state: f.state, stateLabel: PR_STATE_LABEL[f.state], canApply: f.state === "awaiting_bandings" };
+          rowCountSource: f.rowCountSource, rowCountLoaded: f.rowCountLoaded, refusedCount: f.refusedCount, state: f.state, stateLabel: PR_STATE_LABEL[f.state], canApply: prCanApply(f) };
       });
       return ok({ suppliers: prSuppliers, files: view, loadFailures: prLoadFailures, splits: prSplits.map(function (x) { var o = copy(x); delete o.split; delete o.supplier_said; return o; }), products: prProducts });
     }
@@ -870,12 +888,15 @@
       if (!body.region) return bad("Give the region.");
       if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 8) return bad("Choose between 1 and 8 band sets.");
       if (!Array.isArray(body.usages) || body.usages.length < 1 || body.usages.length > 10 || !body.usages.every(function (u) { return Number.isSafeInteger(u) && u > 0; })) return bad("Give between 1 and 10 usages, each a whole number of kWh above zero.");
+      for (var pi = 0; pi < body.items.length; pi++) { var lp = prLadderProblem(body.items[pi] && body.items[pi].ladderId, pf.fuel); if (lp) return bad(lp); }
+      if (!prCanApply(pf)) return [400, { ok: false, error: "Only the newest file of that supplier and fuel can be priced: " + (prNewest(pf) || pf).sourceFilename + "." }];
       return ok(prPreview(body, pf));
     }
     if (op === "apply") {
       var af = find(prFiles, "supplierFileId", body.fileId);
       if (!af) return bad("The file is not valid.");
-      if (af.state !== "awaiting_bandings") return bad("That file cannot be priced now. It is " + PR_STATE_LABEL[af.state].toLowerCase() + ".");
+      if (!prCanApply(af)) return bad("Only the newest file of that supplier and fuel can be priced: " + (prNewest(af) || af).sourceFilename + ".");
+      if (af.state === "applying") return bad("That file is being applied now. Wait until its book is built, then try again.");
       if (!Array.isArray(body.selections) || body.selections.length < 1 || body.selections.length > 8) return bad("Choose between 1 and 8 band sets.");
       if (body.selections.some(function (s) { return !prNamed.some(function (x) { return x.versions.some(function (v) { return v.priceConfigId === s.priceConfigId; }); }) || ["all", "acquisition", "renewal"].indexOf(s.saleType) < 0; })) return bad("Every choice must be a saved band set with a sale type.");
       if (body.attentionSeen !== prLastPreview.attentionCount || body.fingerprint !== prLastPreview.fingerprint) return bad("The list of items needing attention has changed since you read it. Preview it again.");
@@ -908,6 +929,8 @@
           if (!st || typeof st.name !== "string" || st.name.trim().length < 1 || st.name.length > 60) return bad("A band set name must be 1 to 60 characters.");
           if (st.fuel !== fuel) return bad(label + ": the fuel does not match.");
           if (st.isNew ? nameTaken(st.name) : !live().some(function (x) { return x.name === st.name; })) return bad(st.isNew ? "There is already a band set or bundle with that name." : label + " was not found.");
+          var slp = prLadderProblem(st.ladderId, fuel);
+          if (slp) return bad(slp);
           if (!Array.isArray(st.bands) || st.bands.length !== ladder.bands.length) return bad(label + ": give a margin and share for each of the " + ladder.bands.length + " bands.");
           for (var j = 0; j < st.bands.length; j++) {
             var bb = st.bands[j];
@@ -960,6 +983,8 @@
         if (!Number.isInteger(lb.eacMinKwh) || !Number.isInteger(lb.eacMaxKwh) || lb.eacMinKwh < 0 || lb.eacMaxKwh <= lb.eacMinKwh) return bad("Band " + (q + 1) + ": the maximum must be above the minimum.");
         if (q && lb.eacMinKwh <= body.bands[q - 1].eacMaxKwh) return bad("Band " + (q + 1) + " must start above the end of band " + q + ".");
       }
+      // As the database (final review S3): the same bands as the current ladder save nothing.
+      if (body.bands.length === prLadder[fuel].bands.length && body.bands.every(function (b, k) { return b.eacMinKwh === prLadder[fuel].bands[k].eacMinKwh && b.eacMaxKwh === prLadder[fuel].bands[k].eacMaxKwh; })) return bad("The ladder is the same as the current one. Nothing was saved.");
       prLadder[fuel] = mkLadder(pid(810 + prLadder[fuel].version), prLadder[fuel].version + 1, body.bands.map(function (b) { return [b.eacMinKwh, b.eacMaxKwh]; }));
       return ok({ ladderId: prLadder[fuel].ladderId });
     }
@@ -1107,7 +1132,8 @@
       prFiles.forEach(function (o) {
         if (o !== f && o.supplierId === f.supplierId && o.fuel === f.fuel && o.loadedAt < f.loadedAt && (o.state === "live" || o.state === "awaiting_bandings")) { o.state = "replaced"; gone[o.supplierFileId] = true; }
       });
-      prLive = prLive.filter(function (x) { return !gone[x.supplier_file_id]; });
+      // Applying replaces the whole live set of the supplier and fuel, as the database's build does.
+      prLive = prLive.filter(function (x) { return !gone[x.supplier_file_id] && !(x.supplier_id === f.supplierId && x.fuel === f.fuel); });
       p.runs.forEach(function (r) {
         var id = pid(600 + (prRunSeq++)), types = r.saleType === "all" ? ["acquisition", "renewal"] : [r.saleType];
         prRuns[id] = { supplierId: f.supplierId, fuel: f.fuel, product: r.product, saleType: r.saleType };
@@ -1219,6 +1245,9 @@
     demoLink.addEventListener("click", function (e) { e.preventDefault(); demoReset(); });
     demoBar.append(demoLabel, demoNote, demoLink);
     document.body.insertBefore(demoBar, document.body.firstChild);
+    // The hub's own footer says names are read from the database; nothing is in the demo, and the
+    // Pricing tab's footer says so instead (final review A7).
+    Array.prototype.forEach.call(document.querySelectorAll("p.foot"), function (p) { p.hidden = true; });
   }
 
   // In the demo no call ever leaves the page: an address the stub does not answer is refused here.

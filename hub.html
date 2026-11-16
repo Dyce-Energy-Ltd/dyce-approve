@@ -2167,15 +2167,21 @@ const PR_GRID = (function () {
 // Grid model for the Pricing tab's margins screen and workspace (v2, spec 4.3 to 4.5, 4.7).
 //
 // Pure functions, no DOM. A grid is a plain object and every function returns a new one:
-//   { fuel, bands: [{bandIndex, eacMinKwh, eacMaxKwh}],
+//   { fuel, ladderId, bands: [{bandIndex, eacMinKwh, eacMaxKwh}],
 //     columns: [{ name, product, costPerMeterPence, priceConfigId, isNew, stale,
 //                 margins: [milli-pence or null, one per band], shares: [percent or null],
 //                 saved: { margins, shares } }] }
 // Margins are whole milli-pence per kWh (1.234p is 1234). Shares are percentages, at most 2 decimals.
 // `saved` is what the database held when the grid was made; a column is changed when it differs.
 // A column saved against an older ladder is `stale`: its margins are carried to the current ladder
-// (carryToLadder), blanks where bands were split or merged, and stays marked stale. It counts as
-// changed only once a person edits one of its cells or its cost per meter; then problems() applies.
+// (carryToLadder), blanks where bands were split or merged, and stays marked stale. A stale column
+// with no blank band counts as changed, so the next Save saves it again on the current ladder with
+// the carried values (without that it could never be saved again, and Apply would refuse it for
+// ever). A stale column with a blank band counts as changed only once a person edits one of its
+// cells or its cost per meter; then problems() applies. editedNames() is what a person has edited,
+// without the stale columns that are changed only because they are complete.
+// ladderId is the band ladder the grid was made from; every save and preview sends it, so the
+// database can refuse margins edited against a ladder that has since changed.
 
 const MARGIN_MIN = 10; // 0.01p, the smallest margin a drag or a shift will give.
 
@@ -2290,13 +2296,15 @@ function columnFromSet(set, ladderBands) {
 }
 
 // ladderBands: the band_sets op's ladder.bands. bandSets: its bandSets array. fuel is optional and is
-// sent back with each set on save.
-function makeGrid(ladderBands, bandSets, fuel) {
+// sent back with each set on save. ladderId is the band_sets op's ladder.ladderId, sent back with
+// each saved set and each preview item.
+function makeGrid(ladderBands, bandSets, fuel, ladderId) {
   const bands = sortedBands(ladderBands).map(b => ({
     bandIndex: b.bandIndex, eacMinKwh: b.eacMinKwh, eacMaxKwh: b.eacMaxKwh,
   }));
   return {
     fuel: fuel == null ? null : fuel,
+    ladderId: ladderId == null ? null : ladderId,
     bands,
     columns: (bandSets || []).map(s => columnFromSet(s, bands)),
   };
@@ -2430,12 +2438,26 @@ function same(a, b) {
   return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
-function isChanged(c) {
+// A new set, or a cost, margins or shares that differ from what was saved.
+function isEdited(c) {
   return c.isNew || c.costPerMeterPence !== c.saved.costPerMeterPence || !same(c.margins, c.saved.margins) || !same(c.shares, c.saved.shares);
 }
 
+const complete = list => list.every(v => v != null);
+
+// Edited, or saved against an older ladder with every band carried (final review A2).
+function isChanged(c) {
+  return isEdited(c) || (!!c.stale && complete(c.margins) && complete(c.shares));
+}
+
+// The band sets the next Save saves.
 function changedNames(grid) {
   return grid.columns.filter(isChanged).map(c => c.name);
+}
+
+// The band sets a person has edited: leaving with these unsaved loses work.
+function editedNames(grid) {
+  return grid.columns.filter(isEdited).map(c => c.name);
 }
 
 function problems(grid) {
@@ -2459,25 +2481,26 @@ function bandsFor(grid, c) {
   }));
 }
 
-// The band_sets_save request body: {reason, sets: [{name, fuel, product, costPerMeterPence, isNew, bands}]}.
+// The band_sets_save request body: {reason, sets: [{name, fuel, product, costPerMeterPence, isNew,
+// ladderId, bands}]}.
 function toSavePayload(grid, names, reason) {
   const sets = names.map(n => {
     const c = grid.columns[colIndex(grid, n)];
     return {
       name: c.name, fuel: grid.fuel, product: c.product,
-      costPerMeterPence: c.costPerMeterPence, isNew: !!c.isNew, bands: bandsFor(grid, c),
+      costPerMeterPence: c.costPerMeterPence, isNew: !!c.isNew, ladderId: grid.ladderId, bands: bandsFor(grid, c),
     };
   });
   return { reason, sets };
 }
 
-// The preview_selection items: [{label, product, saleType, costPerMeterPence, bands}].
+// The preview_selection items: [{label, product, saleType, costPerMeterPence, ladderId, bands}].
 function toPreviewItems(grid, picks) {
   return picks.map(p => {
     const c = grid.columns[colIndex(grid, p.name)];
     return {
       label: c.name, product: c.product, saleType: p.saleType,
-      costPerMeterPence: c.costPerMeterPence, bands: bandsFor(grid, c),
+      costPerMeterPence: c.costPerMeterPence, ladderId: grid.ladderId, bands: bandsFor(grid, c),
     };
   });
 }
@@ -2516,7 +2539,7 @@ function dragValue(scale, y) {
   return Math.max(MARGIN_MIN, Math.round(scale.fromY(y) / 10) * 10);
 }
 
-;return { parseMargin, parseShare, formatMargin, midpointAnnualPounds, DAYS_PER_YEAR, marginSplit, carryToLadder, makeGrid, addColumn, setCostPerMeter, setCells, shiftCells, copyColumn, pasteBlock, changedNames, problems, toSavePayload, toPreviewItems, selectionProblem, chartScale, dragValue };
+;return { parseMargin, parseShare, formatMargin, midpointAnnualPounds, DAYS_PER_YEAR, marginSplit, carryToLadder, makeGrid, addColumn, setCostPerMeter, setCells, shiftCells, copyColumn, pasteBlock, isEdited, isChanged, changedNames, editedNames, problems, toSavePayload, toPreviewItems, selectionProblem, chartScale, dragValue };
 })();
 </script>
 <script>
@@ -4215,7 +4238,9 @@ function dragValue(scale, y) {
       root.append(el("h1", {}, a, el("em", { text: b })), el("p", { class: "stand", text: stand }), msg);
       return msg;
     }
-    const foot = () => root.append(el("p", { class: "foot", text: "Data class: Amber. Prices and margins are read from dyce-prod through the dna-pricing function and are not kept in this page. Costs and margins are for staff only." }));
+    // The demo build (window.__DEMO__, set only by build.py --demo) reads nothing from dyce-prod, so it
+    // says what it is instead (final review A7).
+    const foot = () => root.append(el("p", { class: "foot", text: window.__DEMO__ === true ? "Demo: invented prices. Every name, file and figure on this page is invented, and nothing is read from or saved to Dyce." : "Data class: Amber. Prices and margins are read from dyce-prod through the dna-pricing function and are not kept in this page. Costs and margins are for staff only." }));
     const lock = (box, on) => { for (const b of box.querySelectorAll("button, input, select, textarea")) b.disabled = on; };
     // A list of steps in the order they happen, each with a state in words.
     function steps(parent) {
@@ -4349,7 +4374,7 @@ function dragValue(scale, y) {
       function draw() {
         stop(); body.textContent = ""; lastPv = null;
         const editable = can(T.set), applies = can(T.publish);
-        full = orderColumns(G.makeGrid(bs.ladder.bands, bs.bandSets, file.fuel), bs.bundles);
+        full = orderColumns(G.makeGrid(bs.ladder.bands, bs.bandSets, file.fuel, bs.ladder.ladderId), bs.bundles);
         if (!ui.region || !regions.includes(ui.region)) ui.region = regions[0] || "";
         const known = new Set(full.columns.map((c) => c.name));
         for (const s of [ui.acq, ui.ren]) for (const nm of [...s]) if (!known.has(nm)) s.delete(nm);
@@ -4456,10 +4481,19 @@ function dragValue(scale, y) {
         const amsg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true }), panel = el("div");
         const applyBtn = btn("Apply", () => dialog(), "");
         const applyHint = el("p", { class: "hint" });
+        // Acquisition and renewal chosen separately with nothing on one side: that side's live prices
+        // go when this is applied, so the person is told before Apply (final review A5).
+        function oneSided() {
+          if (ui.same) return "";
+          const acq = full.columns.some((c) => ui.acq.has(c.name)), ren = full.columns.some((c) => ui.ren.has(c.name));
+          if (acq === ren) return "";
+          const side = acq ? "renewal" : "acquisition";
+          return "Nothing is chosen for " + side + ", so " + (names.get(file.supplierId) || file.supplierId) + " " + fuelWord + " will have no " + side + " prices once this is applied.";
+        }
         function refreshApply() {
-          const lines = problemLines();
+          const lines = problemLines(), warn = oneSided();
           applyBtn.disabled = !!lines.length;
-          applyHint.textContent = lines.length ? "Apply is available when the points above are fixed." : lastPv ? "Applying makes this choice the live price book for " + (names.get(file.supplierId) || file.supplierId) + " " + fuelWord + " from this file. The old book stays live until the new one is built." : "Apply is available when the preview has appeared.";
+          applyHint.textContent = lines.length ? "Apply is available when the points above are fixed." : (lastPv ? "Applying makes this choice the live price book for " + (names.get(file.supplierId) || file.supplierId) + " " + fuelWord + " from this file. The old book stays live until the new one is built." : "Apply is available when the preview has appeared.") + (warn ? " " + warn : "");
         }
         body.append(el("h2", { class: "sect", text: "Apply" }));
         if (!applies) body.append(el("div", { class: "card" }, el("p", { class: "hint", text: "Applying needs the Publish tick. Ask Phil Brook to add it in DNA Admin." })));
@@ -4477,8 +4511,9 @@ function dragValue(scale, y) {
           for (const c of [sameBox, region, usagesIn]) c.disabled = on;
         }
         function note() {
-          const ed = unsavedHere();
-          editedLine.textContent = ed.length ? "Edited here and not yet saved: " + ed.join(", ") + ". Apply saves them. Edits to band sets you have not chosen are not saved." : "";
+          const ed = G.editedNames(shown()), carried = unsavedHere().filter((nm) => !ed.includes(nm));
+          editedLine.textContent = (ed.length ? "Edited here and not yet saved: " + ed.join(", ") + ". Apply saves them. Edits to band sets you have not chosen are not saved." : "") +
+            (carried.length ? (ed.length ? " " : "") + carried.join(", ") + (carried.length === 1 ? " was" : " were") + " saved against an older band ladder. Every band was carried to the current ladder, and Apply saves " + (carried.length === 1 ? "it" : "them") + " again on the current one." : "");
         }
         function afterEdit(g) {
           merge(g); note();
@@ -4499,7 +4534,9 @@ function dragValue(scale, y) {
           const lines = problemLines();
           if (lines.length) { say(amsg, lines.join(" "), true); return; }
           if (!lastPv) { say(amsg, "The preview has not appeared yet. Apply when it has, so you have seen the items needing attention.", true); return; }
-          const seen = Number(lastPv.data.attentionCount) || 0, g = shown(), ps = picks(), edited = G.changedNames(g);
+          // The preview the person read: Apply sends its count and fingerprint, and refuses when the
+          // preview made again with the saved margins differs from it in either (final review A1).
+          const seen = Number(lastPv.data.attentionCount) || 0, readFingerprint = lastPv.data.fingerprint, g = shown(), ps = picks(), edited = G.changedNames(g);
           const existing = new Set(bs.bandSets.map((b) => b.name).concat(bs.bundles.map((b) => b.name)));
           const modes = edited.map((nm, i) => {
             const c = g.columns.find((x) => x.name === nm);
@@ -4515,6 +4552,8 @@ function dragValue(scale, y) {
           const dmsg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true }), prog = el("div");
           const card = el("div", { class: "card white" }, el("h2", { text: "Apply this choice" }),
             el("p", { class: "hint", text: "The file " + file.sourceFilename + " will be priced with " + ps.map((p) => p.name + " (" + (SALE[p.saleType] || p.saleType).toLowerCase() + ")").join(", ") + ". Region " + ui.region + " in the preview." }));
+          const warn = oneSided();
+          if (warn) card.append(el("p", { class: "msg", text: warn }));
           if (modes.length) {
             card.append(el("h3", { class: "sub", text: "Edited band sets" }), el("p", { class: "hint", text: "Each edited band set is saved first, then the choice is applied." }));
             for (const m of modes) card.append(el("fieldset", { class: "members" }, el("legend", { text: m.nm }),
@@ -4580,12 +4619,12 @@ function dragValue(scale, y) {
               const p2 = await call("preview_selection", { fileId: file.supplierFileId, items: G.toPreviewItems(g2, ps2), region: ui.region, usages }, 60000);
               if (!alive()) return;
               ok();
-              if (Number(p2.attentionCount) !== seen) {
-                throw { message: "The list of items needing attention is not the one you read: it now has " + (Number(p2.attentionCount) || 0) + ". Read the preview again, then apply.", stale: true };
+              if (Number(p2.attentionCount) !== seen || p2.fingerprint !== readFingerprint) {
+                throw { message: "The list of items needing attention is not the one you read" + (Number(p2.attentionCount) !== seen ? ": it now has " + (Number(p2.attentionCount) || 0) : "") + ". Read the preview again, then apply.", stale: true };
               }
               go2("Applying to the live price book");
               const before = await call("book_live");
-              const a = await call("apply", { fileId: file.supplierFileId, selections: ps2.map((p) => ({ priceConfigId: ids.get(p.name), saleType: p.saleType })), attentionSeen: p2.attentionCount, fingerprint: p2.fingerprint }, 60000);
+              const a = await call("apply", { fileId: file.supplierFileId, selections: ps2.map((p) => ({ priceConfigId: ids.get(p.name), saleType: p.saleType })), attentionSeen: seen, fingerprint: readFingerprint }, 60000);
               if (!alive()) return;
               ok("Applied. " + comma(a.runsPublishing) + (Number(a.runsPublishing) === 1 ? " run is" : " runs are") + " being built into the price book.");
               say(msg, "Applied " + file.sourceFilename + ". It shows as Live on the files list once the book is built.");
@@ -4620,7 +4659,7 @@ function dragValue(scale, y) {
         else if (!mine.length) card.append(el("p", { class: "hint", text: "No published splits for " + (names.get(file.supplierId) || file.supplierId) + " yet." }));
         else card.append(el("ul", { class: "plain" }, ...mine.map((x) => el("li", { text: (STRUCTURE[x.rate_structure] || x.rate_structure) + ": " + SPLIT_KEYS[x.rate_structure].map((k) => KEY_LABEL[k] + " " + pctText(x.split[k])).join(", ") + " (version " + x.version + ")." }))));
         card.append(el("div", { class: "actions" }, btn("Open Band sets and splits", () => {
-          const ed = gridView ? G.changedNames(gridView.getGrid()) : [];
+          const ed = gridView ? G.editedNames(gridView.getGrid()) : [];
           if (ed.length) { say(msg, "You have unsaved changes to " + ed.join(", ") + " here. Apply them or go back to the files first, or they are lost.", true); return; }
           stop(); showTool("pricing", "bands", "menu");
         }, "ghost small")));
@@ -4806,9 +4845,11 @@ function dragValue(scale, y) {
     const G = PR_GRID;
     const LAYER_LABEL = { margin: "Margin (p/kWh)", share: "Standing charge share (%)" };
     // Lines in magenta, navy, grey and navy dashed. Each is also named in the legend, so colour is not the only cue.
+    // Grey on white is about 1.4:1, so the grey line has a navy casing (a wider navy line beneath it) and
+    // its points a 2px navy outline: the navy edge is what reaches 3:1 against white (final review A6).
     const SERIES = [
       { color: "var(--brand-magenta)", dash: "" }, { color: "var(--ink)", dash: "" },
-      { color: "var(--brand-grey)", dash: "" }, { color: "var(--ink)", dash: "7 5" },
+      { color: "var(--brand-grey)", dash: "", casing: "var(--brand-navy)" }, { color: "var(--ink)", dash: "7 5" },
     ];
     const SVGNS = "http://www.w3.org/2000/svg";
     function svg(tag, attrs, ...kids) {
@@ -4819,10 +4860,10 @@ function dragValue(scale, y) {
     }
     const bandText = (b) => comma(b.eacMinKwh) + " to " + comma(b.eacMaxKwh) + " kWh";
     const marginText = (m) => m == null ? "–" : (m / 1000).toFixed(3);
-    const sameList = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
-    // What a person has edited: a new set, or a cost, margins or shares that differ from what was saved.
-    // A set saved against an older ladder is not changed until it is edited (G.changedNames agrees).
-    const editedNames = (g) => g.columns.filter((c) => c.isNew || c.costPerMeterPence !== c.saved.costPerMeterPence || !sameList(c.margins, c.saved.margins) || !sameList(c.shares, c.saved.shares)).map((c) => c.name);
+    // What a person has edited (G.editedNames): leaving with these unsaved loses work. G.changedNames is
+    // what the next Save saves: the edited sets and any set saved against an older ladder whose every
+    // band was carried to the current one (final review A2), which is not an edit.
+    const editedNames = (g) => G.editedNames(g);
     // Columns in the order the grid shows them: each bundle's members together, then the rest.
     function orderColumns(grid, bundles) {
       const rank = new Map();
@@ -4931,8 +4972,8 @@ function dragValue(scale, y) {
           el("span", { class: "sub", text: c.product + ", meter " + pounds(c.costPerMeterPence) }),
           el("span", { class: "marks" },
             c.isNew ? el("span", { class: "badge info", text: "New" }) : null,
-            c.stale ? el("span", { class: "badge warn", text: "Older ladder", title: "Saved against an older band ladder. Its margins were carried to the current ladder where a band starts at the same point; check it before saving." }) : null,
-            (!c.isNew && (c.costPerMeterPence !== c.saved.costPerMeterPence || !sameList(c.margins, c.saved.margins) || !sameList(c.shares, c.saved.shares))) ? el("span", { class: "badge info", text: "Changed" }) : null))));
+            c.stale ? el("span", { class: "badge warn", text: "Older ladder", title: "Saved against an older band ladder. Its margins were carried to the current ladder where a band starts at the same point; check it before saving." + (G.isChanged(c) && !G.isEdited(c) ? " Every band was carried, so the next save saves it again on the current ladder." : "") }) : null,
+            (!c.isNew && G.isEdited(c)) ? el("span", { class: "badge info", text: "Changed" }) : null))));
         const rows = grid.bands.map((b, bi) => el("tr", {},
           el("th", { scope: "row" }, el("button", { type: "button", class: "linkbtn", text: (bi + 1) + ": " + bandText(b), title: "Select this band in every band set", onclick: () => selectRow(bi) })),
           ...cols.map((c, ci) => {
@@ -5019,12 +5060,16 @@ function dragValue(scale, y) {
         cols.forEach((c, si) => {
           const sty = SERIES[si], vals = c.margins.slice();
           const line = svg("polyline", { fill: "none", stroke: sty.color, "stroke-width": 3, "stroke-dasharray": sty.dash || null, "stroke-linejoin": "round" });
-          const draw = () => line.setAttribute("points", vals.map((v, i) => v == null ? null : xAt(i) + "," + (T + scale.toY(v))).filter(Boolean).join(" "));
-          draw(); root2.append(line);
+          const casing = sty.casing ? svg("polyline", { fill: "none", stroke: sty.casing, "stroke-width": 6, "stroke-linejoin": "round" }) : null;
+          const draw = () => {
+            const pts = vals.map((v, i) => v == null ? null : xAt(i) + "," + (T + scale.toY(v))).filter(Boolean).join(" ");
+            line.setAttribute("points", pts); if (casing) casing.setAttribute("points", pts);
+          };
+          draw(); if (casing) root2.append(casing); root2.append(line);
           const ci = colPos(c.name);
           vals.forEach((v, i) => {
             if (v == null) return;
-            const dot = svg("circle", { class: "pt", cx: xAt(i), cy: T + scale.toY(v), r: 6, fill: sty.color, stroke: "var(--ink)", "stroke-width": 1.5, "data-name": c.name, "data-i": i });
+            const dot = svg("circle", { class: "pt", cx: xAt(i), cy: T + scale.toY(v), r: 6, fill: sty.color, stroke: sty.casing || "var(--ink)", "stroke-width": sty.casing ? 2 : 1.5, "data-name": c.name, "data-i": i });
             const ti = svg("title"); ti.textContent = c.name + ", band " + (i + 1) + ": " + marginText(v) + "p/kWh"; dot.append(ti);
             if (editable) {
               dot.setAttribute("tabindex", "0"); dot.setAttribute("role", "slider"); dot.setAttribute("aria-orientation", "vertical");
@@ -5048,7 +5093,7 @@ function dragValue(scale, y) {
           });
         });
         chartBox.append(el("h3", { class: "sub", text: "Margin by band (p/kWh)" }), root2,
-          el("div", { class: "legend" }, ...cols.map((c, si) => el("span", { class: "key" }, (() => { const s2 = svg("svg", { width: 30, height: 10, "aria-hidden": "true" }); s2.append(svg("line", { x1: 0, x2: 30, y1: 5, y2: 5, stroke: SERIES[si].color, "stroke-width": 3, "stroke-dasharray": SERIES[si].dash || null })); return s2; })(), " " + c.name))),
+          el("div", { class: "legend" }, ...cols.map((c, si) => el("span", { class: "key" }, (() => { const s2 = svg("svg", { width: 30, height: 10, "aria-hidden": "true" }); if (SERIES[si].casing) s2.append(svg("line", { x1: 0, x2: 30, y1: 5, y2: 5, stroke: SERIES[si].casing, "stroke-width": 6 })); s2.append(svg("line", { x1: 0, x2: 30, y1: 5, y2: 5, stroke: SERIES[si].color, "stroke-width": 3, "stroke-dasharray": SERIES[si].dash || null })); return s2; })(), " " + c.name))),
           el("p", { class: "hint", text: (names.length > 4 ? "Showing the first four of the " + names.length + " selected band sets. " : picks.length ? "" : "Showing the first four band sets. Select cells to choose others. ") + (editable ? "Drag a point, or focus it and use the up and down keys, to change that cell's margin (0.01p steps)." : "") }));
         if (focusPoint) { const f = chartBox.querySelector('circle.pt[data-name="' + CSS.escape(focusPoint.name) + '"][data-i="' + focusPoint.i + '"]'); if (f) f.focus(); focusPoint = null; }
       }
@@ -5158,7 +5203,7 @@ function dragValue(scale, y) {
           gridView.say("Version " + v.version + " of " + name + " is in the grid as an unsaved change. Save changes to make it a new version. The cost per meter is not changed." + (blanks ? " " + blanks + (blanks === 1 ? " band does" : " bands do") + " not line up with the current ladder and need filling." : ""), false);
         }
 
-        gridView = drawGrid(gridHost, orderColumns(G.makeGrid(bs.ladder.bands, bs.bandSets, bsFuel), bs.bundles), {
+        gridView = drawGrid(gridHost, orderColumns(G.makeGrid(bs.ladder.bands, bs.bandSets, bsFuel, bs.ladder.ladderId), bs.bundles), {
           editable, bundles: bs.bundles,
           onSelectCell: (cell) => { lastCell = cell; drawDetail(); },
           onChange: () => { drawDetail(); drawActionsState(); },

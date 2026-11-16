@@ -1,15 +1,21 @@
 // Grid model for the Pricing tab's margins screen and workspace (v2, spec 4.3 to 4.5, 4.7).
 //
 // Pure functions, no DOM. A grid is a plain object and every function returns a new one:
-//   { fuel, bands: [{bandIndex, eacMinKwh, eacMaxKwh}],
+//   { fuel, ladderId, bands: [{bandIndex, eacMinKwh, eacMaxKwh}],
 //     columns: [{ name, product, costPerMeterPence, priceConfigId, isNew, stale,
 //                 margins: [milli-pence or null, one per band], shares: [percent or null],
 //                 saved: { margins, shares } }] }
 // Margins are whole milli-pence per kWh (1.234p is 1234). Shares are percentages, at most 2 decimals.
 // `saved` is what the database held when the grid was made; a column is changed when it differs.
 // A column saved against an older ladder is `stale`: its margins are carried to the current ladder
-// (carryToLadder), blanks where bands were split or merged, and stays marked stale. It counts as
-// changed only once a person edits one of its cells or its cost per meter; then problems() applies.
+// (carryToLadder), blanks where bands were split or merged, and stays marked stale. A stale column
+// with no blank band counts as changed, so the next Save saves it again on the current ladder with
+// the carried values (without that it could never be saved again, and Apply would refuse it for
+// ever). A stale column with a blank band counts as changed only once a person edits one of its
+// cells or its cost per meter; then problems() applies. editedNames() is what a person has edited,
+// without the stale columns that are changed only because they are complete.
+// ladderId is the band ladder the grid was made from; every save and preview sends it, so the
+// database can refuse margins edited against a ladder that has since changed.
 
 const MARGIN_MIN = 10; // 0.01p, the smallest margin a drag or a shift will give.
 
@@ -124,13 +130,15 @@ function columnFromSet(set, ladderBands) {
 }
 
 // ladderBands: the band_sets op's ladder.bands. bandSets: its bandSets array. fuel is optional and is
-// sent back with each set on save.
-export function makeGrid(ladderBands, bandSets, fuel) {
+// sent back with each set on save. ladderId is the band_sets op's ladder.ladderId, sent back with
+// each saved set and each preview item.
+export function makeGrid(ladderBands, bandSets, fuel, ladderId) {
   const bands = sortedBands(ladderBands).map(b => ({
     bandIndex: b.bandIndex, eacMinKwh: b.eacMinKwh, eacMaxKwh: b.eacMaxKwh,
   }));
   return {
     fuel: fuel == null ? null : fuel,
+    ladderId: ladderId == null ? null : ladderId,
     bands,
     columns: (bandSets || []).map(s => columnFromSet(s, bands)),
   };
@@ -264,12 +272,26 @@ function same(a, b) {
   return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
-function isChanged(c) {
+// A new set, or a cost, margins or shares that differ from what was saved.
+export function isEdited(c) {
   return c.isNew || c.costPerMeterPence !== c.saved.costPerMeterPence || !same(c.margins, c.saved.margins) || !same(c.shares, c.saved.shares);
 }
 
+const complete = list => list.every(v => v != null);
+
+// Edited, or saved against an older ladder with every band carried (final review A2).
+export function isChanged(c) {
+  return isEdited(c) || (!!c.stale && complete(c.margins) && complete(c.shares));
+}
+
+// The band sets the next Save saves.
 export function changedNames(grid) {
   return grid.columns.filter(isChanged).map(c => c.name);
+}
+
+// The band sets a person has edited: leaving with these unsaved loses work.
+export function editedNames(grid) {
+  return grid.columns.filter(isEdited).map(c => c.name);
 }
 
 export function problems(grid) {
@@ -293,25 +315,26 @@ function bandsFor(grid, c) {
   }));
 }
 
-// The band_sets_save request body: {reason, sets: [{name, fuel, product, costPerMeterPence, isNew, bands}]}.
+// The band_sets_save request body: {reason, sets: [{name, fuel, product, costPerMeterPence, isNew,
+// ladderId, bands}]}.
 export function toSavePayload(grid, names, reason) {
   const sets = names.map(n => {
     const c = grid.columns[colIndex(grid, n)];
     return {
       name: c.name, fuel: grid.fuel, product: c.product,
-      costPerMeterPence: c.costPerMeterPence, isNew: !!c.isNew, bands: bandsFor(grid, c),
+      costPerMeterPence: c.costPerMeterPence, isNew: !!c.isNew, ladderId: grid.ladderId, bands: bandsFor(grid, c),
     };
   });
   return { reason, sets };
 }
 
-// The preview_selection items: [{label, product, saleType, costPerMeterPence, bands}].
+// The preview_selection items: [{label, product, saleType, costPerMeterPence, ladderId, bands}].
 export function toPreviewItems(grid, picks) {
   return picks.map(p => {
     const c = grid.columns[colIndex(grid, p.name)];
     return {
       label: c.name, product: c.product, saleType: p.saleType,
-      costPerMeterPence: c.costPerMeterPence, bands: bandsFor(grid, c),
+      costPerMeterPence: c.costPerMeterPence, ladderId: grid.ladderId, bands: bandsFor(grid, c),
     };
   });
 }
