@@ -6,7 +6,7 @@
 //
 // ?as=admin: the tab sits between Commission Engine and DNA Admin; the side menu is All views, then
 // the Views group with the stub's three views by their friendly names, added after the function
-// answers; All views lists the three with their first lines; the search ("ldz", any case) narrows
+// answers; All views lists the three with their first lines ("No description yet" in the muted grey for the one with no comment, which its page shows too); the search ("ldz", any case) narrows
 // to one view and its matching column, asking nothing of the function, and clearing it brings the
 // list back; a view picked in the menu draws its table, "No description yet" in the muted grey for
 // the undescribed column, and the description that looks like HTML as text, moving the menu mark
@@ -23,8 +23,8 @@
   const REFUSAL = "You do not have access to this. Ask Phil Brook to add it in DNA Admin.";
   const FAILED = "The dictionary could not be loaded. Try again shortly.";
   const NAMES = ["Example broker", "Example contract", "Example postcode ldz"];
-  const FIRST = ["One row per example broker, with its trading name.", "One row per example contract, from the deal it belongs to.",
-    "One row per example postcode, with its gas zone."];
+  const NODESC = "No description yet";
+  const FIRST = ["One row per example broker, with its trading name.", NODESC, "One row per example postcode, with its gas zone."];
   const q = new URLSearchParams(location.search);
   const as = q.get("as") || "admin";
   const results = [];
@@ -75,6 +75,8 @@
     check("the search box has its label", $("#sd input[type=search]") && $("#sd input[type=search]").labels.length === 1 && $("#sd input[type=search]").labels[0].textContent === "Search all columns", $("#sd input[type=search]") && $("#sd input[type=search]").labels[0] && $("#sd input[type=search]").labels[0].textContent);
     const rows = $$("#sd .sd-views .row").map((r) => [r.querySelector(".t").textContent, r.querySelector(".d").textContent]);
     check("All views lists the three with their first lines", JSON.stringify(rows) === JSON.stringify(NAMES.map((n, i) => [n, FIRST[i]])), JSON.stringify(rows));
+    const noneRow = $$("#sd .sd-views .row")[1].querySelector(".d .sd-none");
+    check("a view with no comment says No description yet in the muted grey, at 4.5:1 or more", noneRow && noneRow.textContent === NODESC && getComputedStyle(noneRow).color === "rgb(91, 107, 114)" && contrast(getComputedStyle(noneRow).color, "rgb(255, 255, 255)") >= 4.5, noneRow && getComputedStyle(noneRow).color);
     check("each view's name is a button", $$("#sd .sd-views .row .t").every((b) => b.localName === "button" && b.type === "button"));
     check("the footer", text("#sd footer") === "Data class: Amber. The descriptions come from Phil Brook's spine files.", text("#sd footer"));
     check("the heading is the tool's", text("#sd h1") === "Spine Dictionary", text("#sd h1"));
@@ -116,6 +118,14 @@
     check("the menu mark moves to the view", JSON.stringify(marked()) === '["Example broker"]', JSON.stringify(marked()));
     check("the line above the content names the view", text("#crumb") === "Spine Dictionary / Views / Example broker", text("#crumb"));
     check("picking a view asks nothing of the function", calls().length === 1, calls().length);
+
+    // A view with no comment: its page says No description yet in the first line, in the muted grey.
+    viewButton("Example contract").click();
+    await until(() => text("#sd h1") === "Example contract");
+    const firstNone = $("#sd .sd-first .sd-none");
+    check("a view page with no comment says No description yet", firstNone && text("#sd .sd-first") === NODESC && getComputedStyle(firstNone).color === "rgb(91, 107, 114)", text("#sd .sd-first"));
+    viewButton("Example broker").click();
+    await until(() => text("#sd h1") === "Example broker");
 
     // The same search box at the top of a view page: it searches every view, and clearing it
     // returns to the view the person was on, asking nothing of the function.

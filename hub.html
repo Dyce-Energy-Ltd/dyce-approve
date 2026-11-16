@@ -4994,7 +4994,7 @@ function workbookFor(XLSX, layout, rows) {
       title(); body.textContent = "";
       if (!views.length) { body.append(el("p", { class: "empty", text: "There are no views yet." })); return; }
       body.append(el("div", { class: "list sd-views" }, ...views.map((v) =>
-        el("div", { class: "row" }, el("div", {}, nameButton(v, "t"), el("div", { class: "d", text: firstLine(v.description) }))))));
+        el("div", { class: "row" }, el("div", {}, nameButton(v, "t"), el("div", { class: "d" }, firstLine(v.description) || el("span", { class: "sd-none", text: "No description yet" })))))));
     }
     function drawResults(query) {
       const { body } = parts;
@@ -5028,7 +5028,7 @@ function workbookFor(XLSX, layout, rows) {
       h1.textContent = friendly(v.name);
       body.textContent = "";
       const first = firstLine(v.description);
-      if (first) body.append(el("p", { class: "stand sd-first", text: first }));
+      body.append(el("p", { class: "stand sd-first" }, first || el("span", { class: "sd-none", text: "No description yet" })));
       body.append(v.columns.length ? table(v.columns) : el("p", { class: "empty", text: "This view has no columns." }));
     }
     function table(columns) {

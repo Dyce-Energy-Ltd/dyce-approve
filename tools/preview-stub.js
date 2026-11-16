@@ -50,7 +50,8 @@
 // the preview". ?as=viewer has no commission tick, so no Commission Engine tab.
 // The Spine Dictionary's answer (the spine-dictionary function's one op, dictionary) holds three
 // invented views in name order, each with its comment (header lines joined with a line break) and
-// its columns in table order: one column has no explanation (null) and one explanation looks like
+// its columns in table order: one view has no comment (null, example_contract), one column has no
+// explanation (null) and one explanation looks like
 // HTML, so the page must show it as text. Gated as hub.spine_dictionary gates it: signedOut (401)
 // for an ended session, the refusal (403) without spine_dictionary.view. Admin Example and Dee
 // Example hold the tick; ?as=viewer does not, so no Spine Dictionary tab.
@@ -1012,7 +1013,7 @@
       { name: "broker_id", description: "The broker's number in the example list." },
       { name: "broker_name", description: "Holds <b>bold<\/b> text" },
       { name: "added_on", description: null }] },
-    { name: "example_contract", description: "One row per example contract, from the deal it belongs to.\nA second line the page does not show.", columns: [
+    { name: "example_contract", description: null, columns: [
       { name: "contract_id", description: "The contract's number." },
       { name: "broker_id", description: "The broker who placed the contract." },
       { name: "start_date", description: "The day supply starts." },
