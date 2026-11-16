@@ -33,11 +33,11 @@ FIXTURE = (
 
 
 def copy_pricing_code(folder):
-    # The files {{XLSX_LIB}}, {{PRICING_ADAPTERS}} and {{PRICING_EXPORTS}} in hub.src.html read.
+    # The files {{XLSX_LIB}}, {{PRICING_ADAPTERS}}, {{PRICING_EXPORTS}} and {{PRICING_GRID}} in hub.src.html read.
     (folder / "vendor").mkdir(exist_ok=True)
     (folder / "pricing").mkdir(exist_ok=True)
     shutil.copy(ROOT / "vendor" / "xlsx.full.min.js", folder / "vendor" / "xlsx.full.min.js")
-    for name in ("adapters.js", "exports.js"):
+    for name in ("adapters.js", "exports.js", "grid.js"):
         shutil.copy(ROOT / "pricing" / name, folder / "pricing" / name)
 
 
@@ -423,9 +423,11 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("return { FORMATS, ROW_KEYS, parseSupplierFile };", page)
         self.assertIn("function workbookFor(", page)
         self.assertIn("return { BROKER_SHEET, UD_SHEET, BROKER_HEADER, UD_HEADER, brokerSheet, udUploadSheet, workbookFor };", page)
+        self.assertIn("function selectionProblem(", page)
+        self.assertIn("return { parseMargin,", page)
         self.assertNotIn("{{", page)
         # The source holds the placeholders; the build holds the code.
-        for key in ("XLSX_LIB", "PRICING_ADAPTERS", "PRICING_EXPORTS"):
+        for key in ("XLSX_LIB", "PRICING_ADAPTERS", "PRICING_EXPORTS", "PRICING_GRID"):
             self.assertIn("{{%s}}" % key, src)
         self.assertNotRegex(page, r"(?m)^export\b")
 

@@ -7,13 +7,14 @@ and inlining the parts/ files named in INCLUDES.
 
 --root DIR builds in another folder (used by the tests).
 
-Three more placeholders put the Pricing tab's code into the page, each as one expression:
+Four more placeholders put the Pricing tab's code into the page, each as one expression:
   {{XLSX_LIB}}            vendor/xlsx.full.min.js, wrapped in a function that returns XLSX
   {{PRICING_ADAPTERS}}    pricing/adapters.js, as an object of its exports
   {{PRICING_EXPORTS}}     pricing/exports.js, as an object of its exports
-The two modules are ES modules for the Node tests. Here their `export` keywords are stripped and
-the source is wrapped in a function that returns the exported names, so the two files' private
-names (both have a LAYOUTS) cannot clash. Every non-ASCII character is written as a unicode
+  {{PRICING_GRID}}        pricing/grid.js, as an object of its exports
+The three modules are ES modules for the Node tests. Here their `export` keywords are stripped and
+the source is wrapped in a function that returns the exported names, so the files' private
+names (adapters and exports both have a LAYOUTS) cannot clash. Every non-ASCII character is written as a unicode
 escape, so the built page is plain ASCII there (the library holds thousands, em dashes among them).
 """
 import argparse
@@ -39,6 +40,7 @@ CODE = {
     "XLSX_LIB": ("vendor/xlsx.full.min.js", "lib"),
     "PRICING_ADAPTERS": ("pricing/adapters.js", "module"),
     "PRICING_EXPORTS": ("pricing/exports.js", "module"),
+    "PRICING_GRID": ("pricing/grid.js", "module"),
 }
 EXPORT = re.compile(r"^export\s+(?:const|let|function|class)\s+([A-Za-z_$][\w$]*)", re.M)
 BACKSLASH_BEFORE_NON_ASCII = re.compile("\\\\[^\u0000-\u007f]")
