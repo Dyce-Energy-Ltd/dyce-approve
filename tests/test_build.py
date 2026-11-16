@@ -414,11 +414,13 @@ class CommittedPagesTests(unittest.TestCase):
         src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
         self.assertIn('id: "pricing", label: "Pricing"', page)
         self.assertIn('allowed: (t) => t.some((c) => c.startsWith("pricing."))', page)
-        for item in ("files", "bands", "runs", "book"):
+        for item in ("files", "bands", "book"):
             self.assertIn('{ id: "%s"' % item, page)
         # Band sets and splits is one screen: the separate Splits item is gone.
         self.assertIn('{ id: "bands", label: "Band sets and splits", need: PR_VIEW }', page)
         self.assertNotIn('{ id: "splits"', page)
+        # Runs and publishing is gone: files are priced from the Supplier files workspace.
+        self.assertNotIn('{ id: "runs", label: "Runs and publishing"', page)
         self.assertIn("/functions/v1/dna-pricing", page)
         # The three inlined modules: the spreadsheet library, the adapters and the exports.
         self.assertIn("SheetJS", page)
@@ -450,15 +452,20 @@ class CommittedPagesTests(unittest.TestCase):
 
     def test_pricing_stub_answers_every_op_with_four_ticks(self):
         stub = (ROOT / "tools" / "preview-stub.js").read_text(encoding="utf-8")
-        ops = ("overview band_set_get split_list run_set preview book_live book_rows file_start file_rows "
-               "file_finish file_reject band_set_new band_set_copy band_set_save band_set_approve band_set_retire "
-               "split_save split_publish run_set_prepare publish publish_abandon output_upload_url output_record "
-               "output_link band_sets band_set_history band_sets_save bundle_save bundle_retire ladder_save").split()
+        ops = ("overview split_list book_live book_rows file_start file_rows "
+               "file_finish file_reject band_set_retire "
+               "split_save split_publish apply publish_abandon output_upload_url output_record "
+               "output_link band_sets band_set_history band_sets_save bundle_save bundle_retire ladder_save "
+               "file_regions preview_selection").split()
         for op in ops:
             self.assertIn('"%s"' % op, stub, op)
         for tick in ("pricing.view", "pricing.load", "pricing.set", "pricing.publish"):
             self.assertIn('"%s"' % tick, stub, tick)
         self.assertIn("pricing:", stub)
+        # Ops no screen calls any more have no stub answer (task 9).
+        mine = stub[stub.index("// ---------- Pricing: the dna-pricing"): stub.index("// ---------- Commission Engine")]
+        for gone in ("run_set", "run_set_prepare", "preview", "band_set_get", "band_set_new", "band_set_copy", "band_set_save", "band_set_approve", "publish"):
+            self.assertNotIn('"%s"' % gone, mine, gone)
 
     def test_band_sets_and_splits_screen_calls_the_v2_ops(self):
         src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
@@ -469,26 +476,47 @@ class CommittedPagesTests(unittest.TestCase):
         for gone in ("band_set_new", "band_set_copy", "band_set_save", "band_set_approve", "function drawEditor", "async function splits("):
             self.assertNotIn(gone, mine, gone)
         # Publishing a split no longer reprices anything, so the page does not say it did.
-        self.assertNotIn("r.runsPrepared", mine[mine.index("// Band sets and splits (spec 4.4)"): mine.index("// Runs and publishing")])
+        self.assertNotIn("r.runsPrepared", mine[mine.index("// Band sets and splits (spec 4.4)"): mine.index("// After Publish: wait for the book")])
         self.assertIn("G.toSavePayload(", mine)
         self.assertIn("return { show, reset, drawGrid };", mine)
 
     def test_pricing_page_shows_the_database_figures(self):
-        # R31: the preview shows the figures pricing.preview_run works out at the usage typed (I1),
-        # the load report the rows the database holds (M7), and a set can be prepared again (I3).
+        # The load report shows the rows the database holds (M7); the hand-load card no longer reports runs
+        # prepared; the preview shows the figures the function works out (sellAnnualPence, marginAnnualPence).
         src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
         mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
-        self.assertIn("sell_annual_pence", mine)
-        self.assertIn("margin_annual_pence", mine)
+        self.assertIn("sellAnnualPence", mine)
+        self.assertIn("marginAnnualPence", mine)
         self.assertNotIn("sell_tac_pence", mine)
-        self.assertNotIn("margin_pence)", mine)
         self.assertIn("rep.row_count_loaded", mine)
         self.assertNotIn('"Rows loaded: " + comma(added)', mine)
-        self.assertEqual(mine.count('call("run_set_prepare"'), 2, "on the set screen and after Abandon")
-        self.assertIn("Prepare again", mine)
+        self.assertNotIn("runs_prepared", mine)
+        self.assertNotIn("run_set_prepare", mine)
+        self.assertIn('"Load a file by hand (until the SharePoint loader runs)"', mine)
         stub = (ROOT / "tools" / "preview-stub.js").read_text(encoding="utf-8")
-        self.assertIn("sell_annual_pence", stub)
+        self.assertIn("sellAnnualPence", stub)
         self.assertIn("row_count_loaded", stub)
+        self.assertNotIn("runs_prepared", stub)
+
+    def test_price_this_file_workspace_calls_the_v2_ops(self):
+        src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
+        for op in ("overview", "file_regions", "preview_selection", "apply", "band_sets", "band_sets_save", "bundle_save", "book_live", "publish_abandon"):
+            self.assertIn('"%s"' % op, mine, op)
+        for gone in ('call("run_set"', 'call("preview"', 'call("publish"', "async function runs(", "function previewCard(", "function prepareCard("):
+            self.assertNotIn(gone, mine, gone)
+        # The three states of a file the list shows, and the one sentence for a stale band set.
+        self.assertIn("Price this file", mine)
+        self.assertIn("f.canApply", mine)
+        self.assertIn("was saved against an older band ladder. Open it on the margins screen and save it again.", mine)
+        self.assertIn("Same for acquisition and renewal", mine)
+        self.assertIn("Also save this choice as a bundle", mine)
+        self.assertIn("G.selectionProblem(", mine)
+        self.assertIn("G.toPreviewItems(", mine)
+        self.assertIn("afterPublish(", mine)
+        self.assertIn("makeFiles(", mine)
+        # afterPublish and makeFiles are not inside a removed screen.
+        self.assertIn("async function afterPublish(set, before, box, alive)", mine)
 
     def test_this_file_holds_no_em_dash(self):
         # M6: the em dashes this file tests for are written as escapes.
