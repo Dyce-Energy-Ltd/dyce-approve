@@ -478,7 +478,7 @@ class CommittedPagesTests(unittest.TestCase):
 
     def test_commission_tab_and_its_parts(self):
         page = (ROOT / "hub.src.html").read_text(encoding="utf-8")
-        # The tab sits after Dashboard Pool and before DNA Admin, for any commission tick.
+        # The tab sits after Dashboard Pool (and Pricing) and before DNA Admin, for any commission tick.
         i_pool, i_ce, i_admin = (page.index('{ id: "%s"' % t) for t in ("dashboard_pool", "commission", "dna_admin"))
         self.assertLess(i_pool, i_ce)
         self.assertLess(i_ce, i_admin)
@@ -548,6 +548,8 @@ class CommittedPagesTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         shutil.copytree(ASSETS, tmp / "assets")
         shutil.copytree(ROOT / "parts", tmp / "parts")
+        shutil.copytree(ROOT / "vendor", tmp / "vendor")
+        shutil.copytree(ROOT / "pricing", tmp / "pricing")
         shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
         (tmp / "tools").mkdir()
         shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
