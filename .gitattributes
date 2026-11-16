@@ -2,6 +2,8 @@
 # normalising line endings), so text files keep LF in every checkout, whatever core.autocrlf says.
 *.html text eol=lf
 *.js text eol=lf
+*.mjs text eol=lf
+*.css text eol=lf
 *.py text eol=lf
 *.md text eol=lf
 .gitattributes text eol=lf

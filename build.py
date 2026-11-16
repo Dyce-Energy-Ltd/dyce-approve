@@ -30,6 +30,8 @@ INCLUDES = {
     "POOL_LIB_JS": "parts/pool-lib.js",
     "POOL_SCREEN_JS": "parts/pool-screen.js",
     "POOL_SCREEN_CSS": "parts/pool-screen.css",
+    "COMMISSION_JS": "parts/commission.js",
+    "COMMISSION_CSS": "parts/commission.css",
 }
 PLACEHOLDER = re.compile(r"\{\{([A-Za-z0-9_]+)\}\}")
 # placeholder -> (source file, "lib" for a script that makes the global XLSX, "module" for an ES module)

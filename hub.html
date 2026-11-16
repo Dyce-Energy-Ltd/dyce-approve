@@ -518,6 +518,148 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #pr .inline { display: inline-flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 #pr .foot { margin-top: 34px; }
 
+/* Commission Engine: the commission-engine function's pages (ce- classes), on the hub's tokens.
+   The status tokens are used only on state badges, each with its word (parts/commission.css). */
+/* The Commission Engine tab: the commission-engine function's pages (every ce- class its renderers
+   emit), drawn on the hub's tokens and scoped to #ce. Built from the laptop app's own styles
+   (line/grid.css, filter_box.html, exceptions_page.html) where they say how a thing should look:
+   a negative figure is ink and ExtraBold, not a colour; an unpriced line is the words, muted; the
+   filter box sits beside the list and goes above it when the page is narrow. The status tokens are
+   the Dyce dashboard tokens, used only on state badges, each with its word. Magenta is a rule, a
+   figure or a 24px heading only. */
+#ce {
+  --status-ok: #187244; --status-ok-wash: #E2F3E9; --status-ok-edge: #A5CCB8;
+  --status-warn: #8A5A00; --status-warn-wash: #FDEFCF; --status-warn-edge: #DAC291;
+  --status-critical: #B5281F; --status-critical-wash: #FBE0DD; --status-critical-edge: #E6A9A4;
+  --status-info: #1F5FAE; --status-info-wash: #E2ECF9; --status-info-edge: #A8C2E2;
+  --status-neutral: #5B6B72; --status-neutral-wash: #ECEFF1; --status-neutral-edge: #C0C7CB;
+  font-size: 15px; line-height: 24px; color: var(--ink);
+}
+#ce > .msg { margin: 6px 0 0; }
+#ce .ce-foot { margin-top: 34px; font-size: 12px; line-height: 18px; color: var(--muted); }
+
+/* The page: heading, lede, warnings, count and paging */
+#ce .ce-page > p:first-child { margin: 14px 0 0; font-size: 14px; line-height: 22px; }
+#ce .ce-page > h2 { margin: 22px 0 6px; overflow-wrap: anywhere; }
+#ce .ce-page > h2:focus { outline: none; }
+#ce .ce-lede { color: var(--muted); max-width: 65ch; margin: 0 0 14px; }
+#ce .ce-warning { margin: 14px 0; border-left: 3px solid var(--brand-magenta); background: var(--surface-raised); padding: 10px 14px; font-size: 14px; line-height: 22px; font-weight: 800; max-width: 880px; overflow-wrap: anywhere; }
+#ce .ce-count { margin: 14px 0 6px; font-size: 14px; line-height: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+#ce .ce-paging { margin: 6px 0 10px; font-size: 14px; line-height: 22px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+#ce .ce-page a { color: var(--ink); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+#ce .ce-page a:hover { text-decoration-thickness: 2px; }
+#ce a:focus-visible { outline: 3px solid var(--brand-magenta); outline-offset: 2px; }
+#ce h3 { display: inline-block; font-size: 13px; line-height: 18px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); margin: 34px 0 10px; padding-bottom: 6px; border-bottom: 2px solid var(--brand-magenta); }
+#ce .ce-visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
+
+/* Controls: the Runs and Decisions filters, the Lines search, the filter box */
+#ce button { font: inherit; font-weight: 800; font-size: 13px; line-height: 20px; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--brand-navy); background: var(--brand-navy); color: var(--brand-white); cursor: pointer; }
+#ce select { font: inherit; font-size: 14px; line-height: 20px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; padding: 8px 10px; max-width: 100%; }
+#ce .ce-filters, #ce .ce-search { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 14px 0; max-width: 640px; }
+#ce .ce-filters input[type="search"], #ce .ce-search input[type="text"] { flex: 1 1 200px; width: auto; min-width: 0; font-size: 14px; padding: 8px 12px; }
+
+/* Tables. Each is put in a .ce-scroll by the page, so a wide one scrolls rather than widening it. */
+#ce .ce-scroll { overflow-x: auto; max-width: 100%; }
+#ce table.ce-table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 20px; }
+#ce .ce-table th { text-align: left; font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); padding: 8px 8px; border-bottom: 1px solid var(--hairline); vertical-align: bottom; }
+#ce .ce-table td { padding: 8px 8px; border-bottom: 1px solid var(--hairline); vertical-align: top; overflow-wrap: break-word; }
+#ce .ce-table td a { font-weight: 800; }
+#ce .ce-table th a { color: var(--muted); text-decoration: none; }
+#ce .ce-table th a:hover { color: var(--ink); text-decoration: underline; }
+#ce .ce-table th[aria-sort] a { color: var(--ink); }
+#ce .ce-sort { color: var(--ink); font-size: 11px; white-space: nowrap; }
+#ce .ce-fields { max-width: 880px; }
+#ce .ce-fields th { width: 240px; vertical-align: top; padding-top: 11px; }
+#ce .ce-fields td { font-size: 14px; line-height: 22px; }
+#ce .ce-amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
+#ce .ce-negative { color: var(--ink); font-weight: 800; }
+#ce span.ce-unpriced { color: var(--muted); white-space: nowrap; }
+#ce b.ce-unpriced { color: var(--ink); font-weight: 800; }
+#ce .ce-decided-by { font-size: 12px; line-height: 18px; color: var(--muted); margin-top: 4px; }
+
+/* State badges: the word, its state as the wash and edge */
+#ce .ce-badge { display: inline-block; font-size: 10px; line-height: 14px; letter-spacing: 0.08em; font-weight: 800; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; border: 1px solid; white-space: nowrap; }
+#ce .ce-badge--ok { color: var(--status-ok); background: var(--status-ok-wash); border-color: var(--status-ok-edge); }
+#ce .ce-badge--warn { color: var(--status-warn); background: var(--status-warn-wash); border-color: var(--status-warn-edge); }
+#ce .ce-badge--critical { color: var(--status-critical); background: var(--status-critical-wash); border-color: var(--status-critical-edge); }
+#ce .ce-badge--info { color: var(--status-info); background: var(--status-info-wash); border-color: var(--status-info-edge); }
+#ce .ce-badge--neutral { color: var(--status-neutral); background: var(--status-neutral-wash); border-color: var(--status-neutral-edge); }
+
+/* The Lines totals bar: three raised tiles */
+#ce .ce-totals { display: flex; flex-wrap: wrap; gap: 14px; margin: 14px 0 22px; }
+#ce .ce-total { flex: 1 1 15rem; min-width: 0; background: var(--surface-raised); border-radius: var(--r-card); padding: 14px 18px; display: flex; flex-direction: column; gap: 4px; }
+#ce .ce-total-label { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); }
+#ce .ce-total-value { font-size: 24px; line-height: 30px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--ink); overflow-wrap: anywhere; }
+#ce .ce-total-note { font-size: 13px; line-height: 20px; color: var(--muted); max-width: 44ch; }
+
+/* The list and the filter box beside it */
+#ce .ce-layout { display: flex; align-items: flex-start; gap: 30px; margin-top: 14px; }
+#ce .ce-main { flex: 1 1 auto; min-width: 0; }
+#ce .ce-main > :first-child, #ce .ce-main > .ce-list:first-child > h3 { margin-top: 0; }
+#ce .ce-filter-box { flex: 0 0 260px; order: 1; display: flex; flex-direction: column; gap: 12px; padding: 0 0 16px; background: var(--surface-raised); border-radius: var(--r-card); overflow: hidden; }
+#ce .ce-filter-box h3 { display: block; margin: 0; padding: 8px 15px; background: var(--brand-navy); color: var(--brand-white); font-size: 11px; line-height: 18px; letter-spacing: 0.16em; border-bottom: 0; }
+#ce .ce-filter-month, #ce .ce-filter, #ce .ce-filter-acts { padding: 0 15px; }
+#ce .ce-filter-month { display: flex; flex-direction: column; gap: 6px; }
+#ce .ce-filter { display: flex; flex-direction: column; gap: 6px; }
+#ce .ce-filter-title { margin: 0; font-size: 14px; line-height: 20px; font-weight: 800; }
+#ce .ce-filter-count { font-weight: 400; color: var(--muted); }
+#ce .ce-filter-search { font-size: 14px; padding: 6px 10px; }
+#ce .ce-filter-list { display: flex; flex-direction: column; gap: 4px; }
+#ce .ce-filter-long { max-height: 260px; overflow-y: auto; }
+#ce .ce-filter-choice { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; line-height: 20px; min-height: 24px; overflow-wrap: anywhere; }
+#ce .ce-filter-choice input { accent-color: var(--brand-magenta); width: 18px; height: 18px; margin: 1px 0 0; flex: 0 0 auto; }
+#ce .ce-filter-none { font-size: 13px; line-height: 20px; color: var(--muted); }
+#ce .ce-filter-acts { display: flex; gap: 14px; align-items: center; }
+#ce .ce-filter-acts a { color: var(--ink); font-size: 14px; }
+
+/* Exceptions: the tiles, the lists and each item drawn open */
+#ce .ce-note { margin: 0; font-size: 13px; line-height: 20px; color: var(--muted); }
+#ce .ce-page > .ce-note { margin: 10px 0 6px; }
+#ce .ce-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 8px; }
+#ce .ce-tile { background: var(--surface-raised); border-radius: var(--r-card); padding: 14px 16px; }
+#ce .ce-fig { font-size: 30px; line-height: 36px; font-weight: 800; color: var(--brand-magenta); font-variant-numeric: tabular-nums; }
+#ce .ce-lab { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); }
+#ce .ce-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
+#ce .ce-list > h3 { align-self: flex-start; margin-bottom: 0; }
+#ce .ce-how { margin: 0; font-size: 14px; line-height: 22px; color: var(--muted); }
+#ce .ce-how b { color: var(--ink); }
+#ce .ce-item { border: 2px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); overflow: hidden; }
+#ce .ce-item-head { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-start; padding: 14px 16px; background: var(--surface-raised); }
+#ce .ce-mid { flex: 999 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+#ce .ce-ref { font-size: 15px; line-height: 22px; font-weight: 800; overflow-wrap: anywhere; }
+#ce .ce-ref span { font-weight: 400; color: var(--muted); }
+#ce .ce-sum { font-size: 14px; line-height: 22px; overflow-wrap: anywhere; }
+#ce .ce-right { flex: 1 0 120px; display: flex; flex-direction: column; align-items: flex-end; }
+#ce .ce-amt { font-size: 15px; line-height: 22px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#ce .ce-item-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; border-top: 1px solid var(--hairline); }
+#ce .ce-item-body:empty { display: none; }
+#ce .ce-found { background: var(--magenta-tint); border-radius: 10px; padding: 10px 14px; font-size: 14px; line-height: 22px; overflow-wrap: anywhere; }
+#ce .ce-found-item { margin-top: 4px; padding-left: 14px; }
+#ce .ce-block { display: flex; flex-direction: column; gap: 6px; }
+#ce .ce-changes { font-size: 14px; line-height: 22px; overflow-wrap: anywhere; }
+#ce .ce-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+#ce .ce-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px 14px; border: 1px solid var(--hairline); border-radius: 12px; font-size: 13px; line-height: 20px; background: var(--surface); overflow-wrap: anywhere; }
+#ce .ce-card b { font-size: 15px; line-height: 22px; }
+#ce .ce-card--same { border: 2px solid var(--brand-magenta); background: var(--magenta-tint); }
+#ce .ce-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 16px; background: var(--surface-raised); border-radius: 10px; padding: 12px 14px; }
+#ce .ce-fact { display: flex; flex-direction: column; gap: 2px; }
+#ce .ce-fact span:last-child { font-size: 14px; line-height: 20px; overflow-wrap: anywhere; }
+#ce .ce-upload-box { display: flex; flex-direction: column; gap: 8px; }
+#ce .ce-upload td { white-space: nowrap; overflow-wrap: normal; }
+#ce .ce-notes td:first-child { min-width: 240px; }
+
+/* The filter box goes above the list where the two would be cramped side by side. */
+@media (max-width: 1000px) {
+  #ce .ce-layout { flex-direction: column; align-items: stretch; gap: 22px; }
+  #ce .ce-filter-box { order: -1; flex-basis: auto; }
+}
+@media (max-width: 760px) {
+  #ce .ce-fields th { width: 40%; }
+  #ce .ce-notes td:first-child { min-width: 180px; }
+  #ce .ce-right { align-items: flex-start; flex-basis: 100%; }
+}
+
+
 @media (max-width: 760px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .rail { position: static; height: auto; overflow: visible; }
@@ -2054,6 +2196,7 @@ function workbookFor(XLSX, layout, rows) {
   const DV_VIEW = "dna_viewer.view", DV_REVIEW = "dna_viewer.review", DV_ORIGINALS = "dna_viewer.originals";
   const POOL_REVIEW = "dashboard_pool.review";
   const PR_VIEW = "pricing.view";
+  const CE_VIEW = "commission.view";
   const TOOLS = [
     { id: "broker_emails", label: "Broker Emails", allowed: (t) => t.some((c) => c.startsWith("broker_emails.")),
       items: [{ id: "new", label: "New email", group: "Price emails", need: REQUEST },
@@ -2077,6 +2220,14 @@ function workbookFor(XLSX, layout, rows) {
               { id: "splits", label: "Splits", need: PR_VIEW }, { id: "runs", label: "Runs and publishing", need: PR_VIEW },
               { id: "book", label: "Live price book", need: PR_VIEW }],
       render: renderPricing },
+    // Piece 1 of the Commission Engine is read-only: every page needs View. Later pieces add ticks
+    // (commission.*), so the tab shows for any of them.
+    { id: "commission", label: "Commission Engine", allowed: (t) => t.some((c) => c.startsWith("commission.")),
+      items: [{ id: "lines", label: "Lines", group: "Monthly run", need: CE_VIEW },
+              { id: "exceptions", label: "Exceptions", group: "Monthly run", need: CE_VIEW },
+              { id: "decisions", label: "Decisions", group: "Monthly run", need: CE_VIEW },
+              { id: "runs", label: "Runs", group: "Monthly run", need: CE_VIEW }],
+      render: renderCommission },
     { id: "dna_admin", label: "DNA Admin", allowed: (t) => t.includes("dna_admin.admin"),
       items: [{ id: "people", label: "People and access" }, { id: "signins", label: "Who may sign in" },
               { id: "history", label: "Sign-in history" }, { id: "changes", label: "Changes made here" }], render: renderAdmin },
@@ -3286,14 +3437,14 @@ function workbookFor(XLSX, layout, rows) {
     // data-dv-href and its href becomes "#" (ruling R18): open in a new tab, copy link address and
     // drag then carry no crn, invoice key or folder id into a github.io address or the history.
     const HTML_NS = "http://www.w3.org/1999/xhtml", SVG_NS = "http://www.w3.org/2000/svg";
-    const HTML_TAGS = new Set(["a", "b", "button", "div", "form", "h2", "h3", "i", "input", "option", "p", "section", "select", "span", "table", "tbody", "thead", "td", "th", "tr"]);
+    const HTML_TAGS = new Set(["a", "b", "br", "button", "div", "form", "h2", "h3", "i", "input", "label", "option", "p", "section", "select", "span", "table", "tbody", "thead", "td", "th", "tr"]);
     const SVG_TAGS = new Set(["svg", "circle", "line", "polyline", "rect", "text", "title"]);
     const SVG_ATTRS = new Set(["viewBox", "width", "height", "x", "y", "x1", "x2", "y1", "y2", "cx", "cy", "r", "rx", "ry", "points",
       "fill", "fill-opacity", "stroke", "stroke-width", "stroke-dasharray", "stroke-dashoffset", "stroke-linejoin", "stroke-linecap", "stroke-opacity",
       "opacity", "transform", "font-size", "font-weight", "text-anchor"]);
     const TAG_ATTRS = {
       td: ["colspan"], th: ["colspan"], form: ["action", "method"],
-      input: ["type", "name", "value", "placeholder", "required", "accept"], button: ["type", "name", "value"],
+      input: ["type", "name", "value", "placeholder", "required", "accept", "checked"], button: ["type", "name", "value"],
       select: ["name"], option: ["value", "selected"],
     };
     // Inline styles the pages use: progress bars, legend dots, a few margins and the broker picker.
@@ -3326,7 +3477,7 @@ function workbookFor(XLSX, layout, rows) {
       if (name === "action") return pagePath(v) ? v : null;
       if (name === "method") return /^(get|post)$/i.test(v) ? v.toLowerCase() : null;
       if (name === "colspan") return /^\d{1,3}$/.test(v) ? v : null;
-      if (name === "type") return (tag === "button" ? /^(button|submit)$/i : /^(hidden|text|search|file)$/i).test(v) ? v.toLowerCase() : null;
+      if (name === "type") return (tag === "button" ? /^(button|submit)$/i : /^(hidden|text|search|file|checkbox)$/i).test(v) ? v.toLowerCase() : null;
       return v;
     }
     function copyNode(n) {
@@ -3741,8 +3892,7 @@ function workbookFor(XLSX, layout, rows) {
       ({ files, bands, splits, runs, book }[item] || files)(n);
     }
 
-    // =====================================================================================
-    // Supplier files
+    // ==============================================================================    // Supplier files
     // =====================================================================================
     async function files(n) {
       const msg = head("Supplier ", "files", "Load a supplier's price file. The file is read here, in your browser, and only its rows are sent. Loading a file publishes nothing: you publish from Runs and publishing.");
@@ -4482,6 +4632,159 @@ function workbookFor(XLSX, layout, rows) {
     return { show, reset };
   })();
   // END PRICING
+=======
+  // ---------- Commission Engine: the laptop's commission app (Django) in the hub, one piece at a
+  // time. Piece 1 is read-only: Runs, Lines, Exceptions and Decisions, drawn by the
+  // commission-engine function and shown after dvSanitise (parts/commission.js, inlined by build.py).
+  function renderCommission(item, g) {
+    if (item) { CE.show(item, g); return; }
+    $("main").append(el("h1", {}, "Commission ", el("em", { text: "Engine" })),
+      el("p", { class: "stand", text: "To see the commission runs, lines, exceptions and decisions, ask Phil Brook to add View in DNA Admin." }));
+  }
+
+  // The Commission Engine's pages come from the commission-engine function as HTML it has already
+  // escaped: {title, html}, with links as href="/<path>?<query>" and filter forms as
+  // <form action="/<path>" method="get"> (ruling R6). The page shows that HTML only after
+  // dvSanitise(), the DNA Viewer's allowlist sanitiser, and turns its links and forms into page
+  // calls to the function: nothing navigates the hub away and no form is submitted by the browser
+  // (form-action 'none'). Only the function's seven pages are followed (PAGES, compared exactly);
+  // DNA Viewer's own paths are not widened. Every parameter may repeat (?outcome=Yes&outcome=Maybe),
+  // so a query is sent as {name: [values]}. Nothing from these pages goes into storage or the
+  // address bar: the hub keeps only the tool and menu item (dyce.hub.where). ceGen is bumped on
+  // sign-out (reset) and on every move inside the tab, so an answer that arrives after either is
+  // dropped rather than drawn; g, the hub's gen, drops one after a move to another tool or item.
+  // Inlined into hub.html's script by build.py (the COMMISSION_JS include), so it uses the hub's token, me,
+  // gen, el, $, say, explain, showSignIn and dvSanitise.
+  const CE = (() => {
+    const CE_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/commission-engine";
+    // The function's pages (core.ts PAGE_PIECE). A link or form to any other address is not followed.
+    const PAGES = new Set(["/runs", "/run", "/lines", "/line", "/exceptions", "/decisions", "/decision"]);
+    // The side menu item each page sits under, and the page each item opens.
+    const ITEM = { "/runs": "runs", "/run": "runs", "/lines": "lines", "/line": "lines", "/exceptions": "exceptions",
+      "/decisions": "decisions", "/decision": "decisions" };
+    const START = { lines: "/lines", exceptions: "/exceptions", decisions: "/decisions", runs: "/runs" };
+    let ceGen = 0, hubGen = -1, root = null, parts = null;
+
+    // ---------- the function. A signedOut answer ends the session as api() does.
+    async function call(op, fields) {
+      const t = token;
+      let res, j;
+      try {
+        res = await fetch(CE_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ op, token: t, ...fields }), signal: AbortSignal.timeout(30000) });
+        j = await res.json();
+      } catch { throw { message: "The server did not answer. Check your connection and try again." }; }
+      if (!j || typeof j !== "object") throw { message: "Unexpected answer from the server." };
+      if (res.status === 401 && j.signedOut) { if (t && token === t) showSignIn("Your session has ended. Sign in again."); throw { signedOut: true, message: "Your session has ended. Sign in again." }; }
+      if (!j.ok) throw { message: j.error || "Something went wrong." };
+      return j;
+    }
+    const still = (n) => n === ceGen && hubGen === gen && !!me && !!root && root.isConnected;
+    // A list of values under each name. No prototype, so a parameter called __proto__ is just a name.
+    function addTo(query, k, v) { if (!query[k]) query[k] = []; query[k].push(v); }
+    // A page address as the function takes it: one of PAGES, and every value of every parameter.
+    function target(href) {
+      let u;
+      try { u = new URL(href, "https://ce.invalid"); } catch { return null; }
+      if (u.origin !== "https://ce.invalid" || !PAGES.has(u.pathname)) return null;
+      const query = Object.create(null);
+      for (const [k, v] of u.searchParams) addTo(query, k, v);
+      return { path: u.pathname, query };
+    }
+
+    // ---------- the tab: the heading, a message line, the page, the footer
+    function build() {
+      const msg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
+      const body = el("section", { class: "ce-body" });
+      const r = el("div", { id: "ce" }, el("h1", {}, "Commission ", el("em", { text: "Engine" })), msg, body,
+        el("footer", { class: "ce-foot", text: "Data class: Red. Source: dyce-prod, the commission tables. Nothing on these pages changes a run, a line or a decision." }));
+      parts = { msg, body };
+      r.addEventListener("click", onClick);
+      r.addEventListener("auxclick", (e) => { const a = e.target.closest("a"); if (a && body.contains(a)) e.preventDefault(); });
+      r.addEventListener("submit", onSubmit);
+      r.addEventListener("input", onInput);
+      return r;
+    }
+
+    function show(item, g) {
+      hubGen = g; ceGen++;
+      root = build(); $("main").append(root);
+      go({ path: START[item] || "/lines", query: Object.create(null) }, false);
+    }
+
+    // Asks for a page and draws it. moved: a link or form asked for it, so focus goes to its heading.
+    async function go(t, moved) {
+      const n = ++ceGen;
+      say(parts.msg, "Loading…"); root.setAttribute("aria-busy", "true");
+      try {
+        const r = await call("page", { path: t.path, query: t.query });
+        if (!still(n)) return;
+        say(parts.msg, "");
+        draw(r.page, t);
+        if (moved) {
+          const h = parts.body.querySelector("h2");
+          if (h) { h.setAttribute("tabindex", "-1"); h.focus({ preventScroll: true }); }
+          if (root.getBoundingClientRect().top < 0) root.scrollIntoView();
+        }
+      } catch (err) {
+        if (still(n) && !(err && err.signedOut)) {
+          say(parts.msg, explain(err), true);
+          if (moved && parts.msg.getBoundingClientRect().top < 0) parts.msg.scrollIntoView();
+        }
+      } finally { if (still(n)) root.removeAttribute("aria-busy"); }
+    }
+
+    // The title names the page region; the page's own h2 is its heading.
+    function draw(page, t) {
+      const p = (page && typeof page === "object") ? page : {};
+      const { body } = parts;
+      body.textContent = "";
+      body.setAttribute("aria-label", String(p.title ?? ""));
+      body.append(dvSanitise(String(p.html ?? "")));
+      // A wide table scrolls in its own box rather than widening the page.
+      for (const t of [...body.querySelectorAll("table")]) { const w = el("div", { class: "ce-scroll" }); t.replaceWith(w); w.append(t); }
+      const cur = ITEM[t.path];
+      for (const b of $("sidemenu").querySelectorAll("button[data-item]")) { if (b.dataset.item === cur) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
+    }
+
+    // ---------- links, forms and the Broker list's search
+    function onClick(e) {
+      const a = e.target.closest("a");
+      if (!a || !parts || !parts.body.contains(a)) return;
+      e.preventDefault();
+      const t = target(a.getAttribute("data-dv-href") || "");
+      if (t) go(t, true);
+    }
+    // A filter form is read as the browser would send it, each ticked box and every repeat kept.
+    // These pages have no form that posts.
+    function onSubmit(e) {
+      const f = e.target;
+      if (!parts || !parts.body.contains(f)) return;
+      e.preventDefault();
+      const t = target(f.getAttribute("action") || "");
+      if (!t || f.getAttribute("method") !== "get") return;
+      const query = Object.create(null);
+      for (const [k, v] of new FormData(f)) if (typeof v === "string") addTo(query, k, v);
+      go({ path: t.path, query }, true);
+    }
+    // As the laptop's filter box: typing hides the names that do not match and never hides or
+    // unticks a ticked one. Nothing is asked of the function.
+    function onInput(e) {
+      const s = e.target;
+      if (!parts || !s.classList || !s.classList.contains("ce-filter-search") || !parts.body.contains(s)) return;
+      const box = s.closest(".ce-filter"); if (!box) return;
+      const words = s.value.trim().toLowerCase();
+      for (const c of box.querySelectorAll(".ce-filter-choice")) {
+        const tick = c.querySelector('input[type="checkbox"]');
+        c.hidden = !!words && !(tick && tick.checked) && !c.textContent.toLowerCase().includes(words);
+      }
+    }
+
+    // On sign-out nothing from these pages stays: showSignIn has emptied #main and the side menu,
+    // and answers on their way are dropped.
+    function reset() { ceGen++; root = null; parts = null; }
+    return { show, reset };
+  })();
+
 
   // ---------- Dashboard Pool. Reviewers vote Keep, Maybe or Drop (or the quiet Pass) on each
   // candidate board, with audiences on Keep and Maybe and an optional note; Phil Brook decides.
@@ -5188,7 +5491,7 @@ function workbookFor(XLSX, layout, rows) {
     gen++; token = null; me = null; dropStored(TOKEN_KEY);
     // The side menu lives inside the rail's tool list, so it is emptied and kept, not cleared away.
     const side = $("sidemenu"); side.textContent = ""; side.hidden = true; $("tabs").replaceChildren(side); setCrumb(null);
-    clearMain(); BE.reset(); DV.reset(); POOL.reset(); PR.reset();
+    clearMain(); BE.reset(); DV.reset(); POOL.reset(); PR.reset(); CE.reset();
     $("app").hidden = true; $("signin").hidden = false; $("who").hidden = true; $("conn").textContent = "";
     $("emailStep").hidden = false; $("codeStep").hidden = true; $("retryStep").hidden = true; $("siCode").value = "";
     setMsg(message || "");

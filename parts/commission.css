@@ -1,0 +1,138 @@
+/* The Commission Engine tab: the commission-engine function's pages (every ce- class its renderers
+   emit), drawn on the hub's tokens and scoped to #ce. Built from the laptop app's own styles
+   (line/grid.css, filter_box.html, exceptions_page.html) where they say how a thing should look:
+   a negative figure is ink and ExtraBold, not a colour; an unpriced line is the words, muted; the
+   filter box sits beside the list and goes above it when the page is narrow. The status tokens are
+   the Dyce dashboard tokens, used only on state badges, each with its word. Magenta is a rule, a
+   figure or a 24px heading only. */
+#ce {
+  --status-ok: #187244; --status-ok-wash: #E2F3E9; --status-ok-edge: #A5CCB8;
+  --status-warn: #8A5A00; --status-warn-wash: #FDEFCF; --status-warn-edge: #DAC291;
+  --status-critical: #B5281F; --status-critical-wash: #FBE0DD; --status-critical-edge: #E6A9A4;
+  --status-info: #1F5FAE; --status-info-wash: #E2ECF9; --status-info-edge: #A8C2E2;
+  --status-neutral: #5B6B72; --status-neutral-wash: #ECEFF1; --status-neutral-edge: #C0C7CB;
+  font-size: 15px; line-height: 24px; color: var(--ink);
+}
+#ce > .msg { margin: 6px 0 0; }
+#ce .ce-foot { margin-top: 34px; font-size: 12px; line-height: 18px; color: var(--muted); }
+
+/* The page: heading, lede, warnings, count and paging */
+#ce .ce-page > p:first-child { margin: 14px 0 0; font-size: 14px; line-height: 22px; }
+#ce .ce-page > h2 { margin: 22px 0 6px; overflow-wrap: anywhere; }
+#ce .ce-page > h2:focus { outline: none; }
+#ce .ce-lede { color: var(--muted); max-width: 65ch; margin: 0 0 14px; }
+#ce .ce-warning { margin: 14px 0; border-left: 3px solid var(--brand-magenta); background: var(--surface-raised); padding: 10px 14px; font-size: 14px; line-height: 22px; font-weight: 800; max-width: 880px; overflow-wrap: anywhere; }
+#ce .ce-count { margin: 14px 0 6px; font-size: 14px; line-height: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+#ce .ce-paging { margin: 6px 0 10px; font-size: 14px; line-height: 22px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+#ce .ce-page a { color: var(--ink); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+#ce .ce-page a:hover { text-decoration-thickness: 2px; }
+#ce a:focus-visible { outline: 3px solid var(--brand-magenta); outline-offset: 2px; }
+#ce h3 { display: inline-block; font-size: 13px; line-height: 18px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); margin: 34px 0 10px; padding-bottom: 6px; border-bottom: 2px solid var(--brand-magenta); }
+#ce .ce-visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
+
+/* Controls: the Runs and Decisions filters, the Lines search, the filter box */
+#ce button { font: inherit; font-weight: 800; font-size: 13px; line-height: 20px; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--brand-navy); background: var(--brand-navy); color: var(--brand-white); cursor: pointer; }
+#ce select { font: inherit; font-size: 14px; line-height: 20px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; padding: 8px 10px; max-width: 100%; }
+#ce .ce-filters, #ce .ce-search { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 14px 0; max-width: 640px; }
+#ce .ce-filters input[type="search"], #ce .ce-search input[type="text"] { flex: 1 1 200px; width: auto; min-width: 0; font-size: 14px; padding: 8px 12px; }
+
+/* Tables. Each is put in a .ce-scroll by the page, so a wide one scrolls rather than widening it. */
+#ce .ce-scroll { overflow-x: auto; max-width: 100%; }
+#ce table.ce-table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 20px; }
+#ce .ce-table th { text-align: left; font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); padding: 8px 8px; border-bottom: 1px solid var(--hairline); vertical-align: bottom; }
+#ce .ce-table td { padding: 8px 8px; border-bottom: 1px solid var(--hairline); vertical-align: top; overflow-wrap: break-word; }
+#ce .ce-table td a { font-weight: 800; }
+#ce .ce-table th a { color: var(--muted); text-decoration: none; }
+#ce .ce-table th a:hover { color: var(--ink); text-decoration: underline; }
+#ce .ce-table th[aria-sort] a { color: var(--ink); }
+#ce .ce-sort { color: var(--ink); font-size: 11px; white-space: nowrap; }
+#ce .ce-fields { max-width: 880px; }
+#ce .ce-fields th { width: 240px; vertical-align: top; padding-top: 11px; }
+#ce .ce-fields td { font-size: 14px; line-height: 22px; }
+#ce .ce-amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
+#ce .ce-negative { color: var(--ink); font-weight: 800; }
+#ce span.ce-unpriced { color: var(--muted); white-space: nowrap; }
+#ce b.ce-unpriced { color: var(--ink); font-weight: 800; }
+#ce .ce-decided-by { font-size: 12px; line-height: 18px; color: var(--muted); margin-top: 4px; }
+
+/* State badges: the word, its state as the wash and edge */
+#ce .ce-badge { display: inline-block; font-size: 10px; line-height: 14px; letter-spacing: 0.08em; font-weight: 800; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; border: 1px solid; white-space: nowrap; }
+#ce .ce-badge--ok { color: var(--status-ok); background: var(--status-ok-wash); border-color: var(--status-ok-edge); }
+#ce .ce-badge--warn { color: var(--status-warn); background: var(--status-warn-wash); border-color: var(--status-warn-edge); }
+#ce .ce-badge--critical { color: var(--status-critical); background: var(--status-critical-wash); border-color: var(--status-critical-edge); }
+#ce .ce-badge--info { color: var(--status-info); background: var(--status-info-wash); border-color: var(--status-info-edge); }
+#ce .ce-badge--neutral { color: var(--status-neutral); background: var(--status-neutral-wash); border-color: var(--status-neutral-edge); }
+
+/* The Lines totals bar: three raised tiles */
+#ce .ce-totals { display: flex; flex-wrap: wrap; gap: 14px; margin: 14px 0 22px; }
+#ce .ce-total { flex: 1 1 15rem; min-width: 0; background: var(--surface-raised); border-radius: var(--r-card); padding: 14px 18px; display: flex; flex-direction: column; gap: 4px; }
+#ce .ce-total-label { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); }
+#ce .ce-total-value { font-size: 24px; line-height: 30px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--ink); overflow-wrap: anywhere; }
+#ce .ce-total-note { font-size: 13px; line-height: 20px; color: var(--muted); max-width: 44ch; }
+
+/* The list and the filter box beside it */
+#ce .ce-layout { display: flex; align-items: flex-start; gap: 30px; margin-top: 14px; }
+#ce .ce-main { flex: 1 1 auto; min-width: 0; }
+#ce .ce-main > :first-child, #ce .ce-main > .ce-list:first-child > h3 { margin-top: 0; }
+#ce .ce-filter-box { flex: 0 0 260px; order: 1; display: flex; flex-direction: column; gap: 12px; padding: 0 0 16px; background: var(--surface-raised); border-radius: var(--r-card); overflow: hidden; }
+#ce .ce-filter-box h3 { display: block; margin: 0; padding: 8px 15px; background: var(--brand-navy); color: var(--brand-white); font-size: 11px; line-height: 18px; letter-spacing: 0.16em; border-bottom: 0; }
+#ce .ce-filter-month, #ce .ce-filter, #ce .ce-filter-acts { padding: 0 15px; }
+#ce .ce-filter-month { display: flex; flex-direction: column; gap: 6px; }
+#ce .ce-filter { display: flex; flex-direction: column; gap: 6px; }
+#ce .ce-filter-title { margin: 0; font-size: 14px; line-height: 20px; font-weight: 800; }
+#ce .ce-filter-count { font-weight: 400; color: var(--muted); }
+#ce .ce-filter-search { font-size: 14px; padding: 6px 10px; }
+#ce .ce-filter-list { display: flex; flex-direction: column; gap: 4px; }
+#ce .ce-filter-long { max-height: 260px; overflow-y: auto; }
+#ce .ce-filter-choice { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; line-height: 20px; min-height: 24px; overflow-wrap: anywhere; }
+#ce .ce-filter-choice input { accent-color: var(--brand-magenta); width: 18px; height: 18px; margin: 1px 0 0; flex: 0 0 auto; }
+#ce .ce-filter-none { font-size: 13px; line-height: 20px; color: var(--muted); }
+#ce .ce-filter-acts { display: flex; gap: 14px; align-items: center; }
+#ce .ce-filter-acts a { color: var(--ink); font-size: 14px; }
+
+/* Exceptions: the tiles, the lists and each item drawn open */
+#ce .ce-note { margin: 0; font-size: 13px; line-height: 20px; color: var(--muted); }
+#ce .ce-page > .ce-note { margin: 10px 0 6px; }
+#ce .ce-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 8px; }
+#ce .ce-tile { background: var(--surface-raised); border-radius: var(--r-card); padding: 14px 16px; }
+#ce .ce-fig { font-size: 30px; line-height: 36px; font-weight: 800; color: var(--brand-magenta); font-variant-numeric: tabular-nums; }
+#ce .ce-lab { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); }
+#ce .ce-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
+#ce .ce-list > h3 { align-self: flex-start; margin-bottom: 0; }
+#ce .ce-how { margin: 0; font-size: 14px; line-height: 22px; color: var(--muted); }
+#ce .ce-how b { color: var(--ink); }
+#ce .ce-item { border: 2px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); overflow: hidden; }
+#ce .ce-item-head { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-start; padding: 14px 16px; background: var(--surface-raised); }
+#ce .ce-mid { flex: 999 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+#ce .ce-ref { font-size: 15px; line-height: 22px; font-weight: 800; overflow-wrap: anywhere; }
+#ce .ce-ref span { font-weight: 400; color: var(--muted); }
+#ce .ce-sum { font-size: 14px; line-height: 22px; overflow-wrap: anywhere; }
+#ce .ce-right { flex: 1 0 120px; display: flex; flex-direction: column; align-items: flex-end; }
+#ce .ce-amt { font-size: 15px; line-height: 22px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#ce .ce-item-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; border-top: 1px solid var(--hairline); }
+#ce .ce-item-body:empty { display: none; }
+#ce .ce-found { background: var(--magenta-tint); border-radius: 10px; padding: 10px 14px; font-size: 14px; line-height: 22px; overflow-wrap: anywhere; }
+#ce .ce-found-item { margin-top: 4px; padding-left: 14px; }
+#ce .ce-block { display: flex; flex-direction: column; gap: 6px; }
+#ce .ce-changes { font-size: 14px; line-height: 22px; overflow-wrap: anywhere; }
+#ce .ce-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+#ce .ce-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px 14px; border: 1px solid var(--hairline); border-radius: 12px; font-size: 13px; line-height: 20px; background: var(--surface); overflow-wrap: anywhere; }
+#ce .ce-card b { font-size: 15px; line-height: 22px; }
+#ce .ce-card--same { border: 2px solid var(--brand-magenta); background: var(--magenta-tint); }
+#ce .ce-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 16px; background: var(--surface-raised); border-radius: 10px; padding: 12px 14px; }
+#ce .ce-fact { display: flex; flex-direction: column; gap: 2px; }
+#ce .ce-fact span:last-child { font-size: 14px; line-height: 20px; overflow-wrap: anywhere; }
+#ce .ce-upload-box { display: flex; flex-direction: column; gap: 8px; }
+#ce .ce-upload td { white-space: nowrap; overflow-wrap: normal; }
+#ce .ce-notes td:first-child { min-width: 240px; }
+
+/* The filter box goes above the list where the two would be cramped side by side. */
+@media (max-width: 1000px) {
+  #ce .ce-layout { flex-direction: column; align-items: stretch; gap: 22px; }
+  #ce .ce-filter-box { order: -1; flex-basis: auto; }
+}
+@media (max-width: 760px) {
+  #ce .ce-fields th { width: 40%; }
+  #ce .ce-notes td:first-child { min-width: 180px; }
+  #ce .ce-right { align-items: flex-start; flex-basis: 100%; }
+}

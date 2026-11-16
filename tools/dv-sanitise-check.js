@@ -32,6 +32,12 @@
     ['<noscript><p title="</noscript><img src=x onerror=alert(1)>"></noscript>', ""],
     ['<noscript><p title="</noscript><img src=x onerror=alert(1)>"></p></noscript><p>after</p>', "<p>after</p>"],
     ['<p ONCLICK=alert(1) OnMouseOver=alert(1)>x</p><a HREF="/queue" ONCLICK=x>q</a>', '<p>x</p><a data-dv-href="/queue" href="#">q</a>'],
+    // The Commission Engine's filter box: ticked choices, labels and line breaks survive; a
+    // checkbox keeps no handler, and a type not on the list (password) is dropped.
+    ['<input type="checkbox" name="broker" value="12" checked aria-label="Example Brokers Ltd">', '<input type="checkbox" name="broker" value="12" checked="" aria-label="Example Brokers Ltd">'],
+    ['<input type="checkbox" name="outcome" value="Yes" onclick=alert(1) onfocus=alert(1) autofocus>', '<input type="checkbox" name="outcome" value="Yes">'],
+    ['<label for="x" onclick=alert(1)>Yes</label><br onmouseover=alert(1)>', "<label>Yes</label><br>"],
+    ['<input type="password" name="p" value="s">', '<input name="p" value="s">'],
   ];
   const BANNED = new Set(["script", "style", "iframe", "object", "embed", "noscript"]);
   const SINGLE_SLASH = /^\/(?!\/)/;
