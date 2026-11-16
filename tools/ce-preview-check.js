@@ -25,6 +25,9 @@
 // fields under its action and the page goes where the answer says with its message as text.
 // ?as=viewer: no commission tick, so no tab, and no commission page is asked for.
 // ?as=ceview: View only, so Lines and Exceptions draw no decide control and nothing is sent.
+// ?as=cedecide: Decide only, so the menu is Lines and Exceptions, and both open with their controls.
+// Keyboard (ruling, 16/11/2026): a Yes reached by an arrow key waits for Save or Enter; a Yes picked
+// with the mouse is sent at once; a save from the menu-opened Exceptions page keeps its place.
 (() => {
   const PAGES = ["/runs", "/run", "/lines", "/line", "/exceptions", "/decisions", "/decision", "/decide", "/set-broker",
     "/choose-broker", "/resolve"];
@@ -190,7 +193,20 @@
     const row = (line) => $(`#ce .ce-decide[data-line="${line}"]`);
     const select = (line) => $("select", row(line));
     const reason = (line) => $(".ce-decide-reason", row(line));
-    const pick = (line, v) => { const s = select(line); s.value = v; s.dispatchEvent(new Event("change", { bubbles: true })); };
+    // A choice made with the mouse (pointerdown and mousedown on the select first), and one made
+    // from the keyboard (an arrow key's keydown first, as Chrome and Edge fire change per arrow).
+    const pick = (line, v) => {
+      const s = select(line);
+      s.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })); s.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      s.value = v; s.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    const key = (line, v) => {
+      const s = select(line);
+      s.focus();
+      s.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+      s.value = v; s.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    const idle = () => !$("#ce").getAttribute("aria-busy");
     const controls = () => $$("#ce .ce-body select, #ce .ce-body input, #ce .ce-body button");
 
     menu("lines").click();
@@ -218,6 +234,36 @@
     check("the page is redrawn where it was", y > 0 && Math.abs(window.scrollY - y) <= 2, y + " then " + window.scrollY);
     check("focus goes back to the row's select", document.activeElement === select("501"), document.activeElement && document.activeElement.outerHTML.slice(0, 80));
     check("the controls are free again", controls().every((c) => !c.disabled));
+
+    // From the keyboard (ruling, 16/11/2026): Yes waits for Save or Enter, so arrowing past Yes
+    // on the way to No writes nothing.
+    n = acts().length;
+    key("504", "Yes");
+    check("Yes from the keyboard sends nothing and shows Save, without the reason box", acts().length === n &&
+      !reason("504").hidden && $("input", reason("504")).hidden && visible($("button[data-ce-save]", reason("504"))));
+    check("focus stays on the select", document.activeElement === select("504"));
+    key("504", "");
+    check("back to the first value hides Save again", reason("504").hidden && acts().length === n);
+    key("504", "Yes");
+    const onSelect = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+    select("504").dispatchEvent(onSelect);
+    await until(() => acts().length > n);
+    check("Enter on the select saves the keyboard's Yes", onSelect.defaultPrevented && lastAct() &&
+      JSON.stringify(lastAct().args.fields) === JSON.stringify({ seen: ["504:"], decided_pay: ["Yes"], reason: [""], next: ["/lines"] }), JSON.stringify(lastAct() && lastAct().args));
+    await until(() => idle() && msg() === "1 line marked Yes.");
+    n = acts().length;
+    key("514", "Yes");
+    check("Yes from the keyboard waits", acts().length === n);
+    $("button[data-ce-save]", reason("514")).click();
+    await until(() => acts().length > n);
+    check("Save sends the keyboard's Yes", JSON.stringify(lastAct().args.fields) === JSON.stringify({ seen: ["514:"], decided_pay: ["Yes"], reason: [""], next: ["/lines"] }), JSON.stringify(lastAct().args));
+    await until(() => idle() && msg() === "1 line marked Yes.");
+    n = acts().length;
+    key("502", "No");
+    check("No from the keyboard shows the reason box and focuses it, sending nothing", !reason("502").hidden && !$("input", reason("502")).hidden &&
+      document.activeElement === $("input", reason("502")) && acts().length === n);
+    key("502", "");
+    check("and the first value hides it", reason("502").hidden && acts().length === n);
 
     // No: the reason box, and nothing sent until it is saved.
     n = acts().length;
@@ -289,12 +335,17 @@
     // Pay.
     n = acts().length;
     let f = $$('#ce form[action="/decide"]').find((x) => x.querySelector('input[name="seen"]').value === "505:" && x.querySelector('input[name="decided_pay"]').value === "Yes");
+    // The menu opened /exceptions with no query; the form's next is "this page" with run= first.
+    check("Exceptions was opened from the menu, with no query", JSON.stringify(lastCall().args.query) === "{}", JSON.stringify(lastCall().args));
+    f.scrollIntoView({ block: "center" });
+    const yPay = window.scrollY;
     submitIn(f);
     await until(() => acts().length > n);
     check("Pay posts the item's form as decide", lastAct().action === "decide" && sorted(lastAct().args.fields) === sorted({
       seen: ["505:"], decided_pay: ["Yes"], next: ["/exceptions?run=June26"], reason: ["Paid from the deal that is this contract."] }), JSON.stringify(lastAct().args));
-    await until(() => msg() === "1 line marked Yes." && heading() === "June26 exceptions");
+    await until(() => idle() && msg() === "1 line marked Yes." && heading() === "June26 exceptions");
     check("then the exceptions page, with the message", msg() === "1 line marked Yes." && JSON.stringify(lastCall().args.query) === '{"run":["June26"]}', msg());
+    check("a save from the menu-opened Exceptions page keeps its place", yPay > 0 && Math.abs(window.scrollY - yPay) <= 2, yPay + " then " + window.scrollY);
     // A Pay refused: the sentence, the page in place.
     n = acts().length;
     f = $$('#ce form[action="/decide"]').find((x) => x.querySelector('input[name="seen"]').value === "512:" && x.querySelector('input[name="decided_pay"]').value === "Yes");
@@ -379,5 +430,18 @@
     check("the hub falls back to the person's first tool", !$("#ce"));
   }
 
-  (as === "viewer" ? viewer() : as === "ceview" ? ceview() : admin()).catch((e) => check("the check ran to the end", false, e && e.stack)).finally(done);
+  // Decide alone: the menu is Lines and Exceptions (the last place, Runs, is not open to them, so
+  // the tab opens on Lines), and Lines draws its controls.
+  async function cedecide() {
+    if (!(await until(() => heading() === "Lines" && $("#ce .ce-decide")))) { check("Lines is drawn", false, text("#main").slice(0, 300)); return; }
+    const side = $$("#sidemenu > *").map((n) => n.textContent.trim());
+    check("the side menu is Monthly run: Lines, Exceptions", JSON.stringify(side) === JSON.stringify(["Monthly run", "Lines", "Exceptions"]), JSON.stringify(side));
+    check("Lines is marked and draws the dropdowns", current() && current().item === "lines" && $$("#ce .ce-decide").length === 19);
+    menu("exceptions").click();
+    await until(() => heading() === "June26 exceptions");
+    check("Exceptions opens with its forms", heading() === "June26 exceptions" && !!$('#ce form[method="post"][action="/uplift"]'), heading());
+    check("no Decisions or Runs item", !menu("decisions") && !menu("runs"));
+  }
+
+  (as === "viewer" ? viewer() : as === "ceview" ? ceview() : as === "cedecide" ? cedecide() : admin()).catch((e) => check("the check ran to the end", false, e && e.stack)).finally(done);
 })();

@@ -9,7 +9,8 @@
 // View only), ?as=reviewer (Rae Example, Dashboard Pool Review only), ?as=decider (Admin Example
 // without the Dashboard Pool Review tick, so the tab shows only as the decider's), ?as=pricing (Quinn Example,
 // all four Pricing ticks), ?as=pricingview (Tara Example, Pricing View only), ?as=ceview (Cy Example,
-// Commission Engine View only), ?as=none (an address with no access: "start" answers as for anyone,
+// Commission Engine View only), ?as=cedecide (Dee Example, Commission Engine Decide only, with
+// deciding counted as signed off), ?as=none (an address with no access: "start" answers as for anyone,
 // "finish" refuses). Admin Example is the Dashboard Pool's
 // decider, as Phil Brook is in the database.
 // Any 8-digit code signs in, except 00000000, which gets the wrong-code sentence.
@@ -71,6 +72,7 @@
     pricing: "quinn.example@dyce-energy.co.uk",
     pricingview: "tara.example@dyce-energy.co.uk",
     ceview: "cy.example@dyce-energy.co.uk",
+    cedecide: "dee.example@dyce-energy.co.uk",
     none: null
   };
   var DOMAIN = /^[a-z0-9._%-]+@dyce-energy\.co\.uk$/;
@@ -131,6 +133,10 @@
   // The View-only Commission Engine person is listed only in their own preview.
   if (as === "ceview") {
     people.push({ email: PERSONA.ceview, display_name: "Cy Example", active: true, grants: ["commission.view"], added_at: "2026-11-16T10:30:00+00:00", added_by: ADMIN });
+  }
+  // The Decide-only Commission Engine person is listed only in their own preview.
+  if (as === "cedecide") {
+    people.push({ email: PERSONA.cedecide, display_name: "Dee Example", active: true, grants: ["commission.decide"], added_at: "2026-11-16T10:35:00+00:00", added_by: ADMIN });
   }
   var changes = people.map(function (p) {
     return { at: p.added_at, by: p.added_by, for: p.email, what: p.email === ADMIN ? "Added as Admin Example, with every tick" : "Added as " + p.display_name };

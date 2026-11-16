@@ -12,7 +12,8 @@
   //
   // Piece 2 (deciding). A form with method="post" is sent as the function's act op,
   // {action, fields}, the action named by the form's path (ACT) and every field kept with its
-  // repeats; the Lines grid's Decision dropdown saves on change. The function answers {go, message}:
+  // repeats; the Lines grid's Decision dropdown saves Yes picked with the mouse or touch on change,
+  // and waits for Save (or Enter) after No or a change from the keyboard. The function answers {go, message}:
   // the page goes to go and shows message, as text in the message line. When go is the page already
   // shown, it is drawn again where it was, and focus goes back to the row whose dropdown saved. A
   // refusal shows its sentence and draws the page shown again, in place. While a call is on its way
@@ -102,6 +103,8 @@
       r.addEventListener("input", onInput);
       r.addEventListener("change", onChange);
       r.addEventListener("keydown", onKeydown);
+      r.addEventListener("pointerdown", onPoint);
+      r.addEventListener("mousedown", onPoint);
       return r;
     }
 
@@ -194,7 +197,10 @@
       if (!still(n)) return;
       const message = typeof r.message === "string" ? r.message : "";
       const t = target(typeof r.go === "string" ? r.go : "") || from;
-      const same = keyOf(t) === keyOf(from);
+      // The page shown, or the form's own next on the same path: the function writes next as "this
+      // page" with run=<month> first (exceptions.ts herePath), while the menu opened it with no query.
+      const own = fields.next && fields.next.length ? target(fields.next[0]) : null;
+      const same = keyOf(t) === keyOf(from) || (!!own && t.path === from.path && keyOf(own) === keyOf(t));
       go(t, !same, { text: message, keep: same ? keep : null, line: same ? line : null });
     }
 
@@ -206,36 +212,58 @@
       const line = box.getAttribute("data-line") || "";
       act("decide", { seen: [line + ":" + (box.getAttribute("data-seen") || "")], decided_pay: [pay], reason: [reason], next: [hrefOf(shown)] }, line);
     }
-    // Save (or Enter in the reason box): No with its reason, stopped here when the reason is blank.
+    // Save (or Enter): Yes as it is; No with its reason, stopped here when the reason is blank.
     function save(box) {
       const s = box.querySelector("select");
       const i = box.querySelector(".ce-decide-reason input");
-      if (!s || s.value !== "No") return;
+      if (!s || s.value === drawnValue(s)) return;
+      if (s.value === "Yes") { decide(box, "Yes", ""); return; }
+      if (s.value !== "No") return;
       const reason = i ? i.value : "";
       if (blank(reason)) { say(parts.msg, NO_REASON, true); if (i) i.focus(); return; }
       decide(box, "No", reason);
     }
-    // Yes is saved at once; No first shows the reason box; the value it was drawn with hides it again.
+    // How each select was last worked: "pointer" (mouse, pen or touch) or "key". Chrome and Edge on
+    // Windows fire change on every arrow key on a closed select, so a keyboard user passing Yes on
+    // the way to No must not write Yes (ruling, 16/11/2026). Unknown counts as the keyboard.
+    const how = new WeakMap();
+    function onPoint(e) {
+      const s = e.target && e.target.closest ? e.target.closest("select") : null;
+      if (s && parts && parts.body.contains(s)) how.set(s, "pointer");
+    }
+    // Yes picked with the mouse or touch is saved at once (Phil Brook, 16/11/2026). Yes reached from
+    // the keyboard shows Save and waits for it (or Enter). No shows the reason box, focused, and
+    // waits. The value it was drawn with puts the row back as drawn.
     function onChange(e) {
       const s = e.target;
       if (!parts || s.tagName !== "SELECT" || !parts.body.contains(s)) return;
       const box = s.closest(".ce-decide[data-ce-decide]");
       if (!box) return;
+      const by = how.get(s);
+      how.delete(s);
       const why = box.querySelector(".ce-decide-reason");
+      const i = why ? why.querySelector("input") : null;
+      if (i) i.hidden = false;
       if (s.value === drawnValue(s)) { if (why) why.hidden = true; return; }
       if (s.value === "No") {
-        if (why) { why.hidden = false; const i = why.querySelector("input"); if (i) i.focus(); }
+        if (why) why.hidden = false;
+        if (i) i.focus();
         return;
       }
-      if (why) why.hidden = true;
-      if (s.value === "Yes") decide(box, "Yes", "");
+      if (s.value !== "Yes") return;
+      if (by === "pointer") { if (why) why.hidden = true; decide(box, "Yes", ""); return; }
+      if (why) why.hidden = false;
+      if (i) i.hidden = true;
     }
-    // Enter in a row's reason box saves the row; it never sends the bulk form the grid sits in.
+    // A key on a row's select marks it as worked from the keyboard; Enter there, or in the row's
+    // reason box, saves the row. Enter never sends the bulk form the grid sits in.
     function onKeydown(e) {
       const i = e.target;
-      if (e.key !== "Enter" || !parts || !i.closest || !parts.body.contains(i)) return;
-      const box = i.closest(".ce-decide-reason") ? i.closest(".ce-decide[data-ce-decide]") : null;
+      if (!parts || !i.closest || !parts.body.contains(i)) return;
+      const box = i.closest(".ce-decide[data-ce-decide]");
       if (!box) return;
+      if (i.tagName === "SELECT") how.set(i, "key");
+      if (e.key !== "Enter" || !(i.tagName === "SELECT" || i.closest(".ce-decide-reason"))) return;
       e.preventDefault();
       save(box);
     }

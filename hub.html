@@ -2225,7 +2225,7 @@ function workbookFor(XLSX, layout, rows) {
   const DV_VIEW = "dna_viewer.view", DV_REVIEW = "dna_viewer.review", DV_ORIGINALS = "dna_viewer.originals";
   const POOL_REVIEW = "dashboard_pool.review";
   const PR_VIEW = "pricing.view";
-  const CE_VIEW = "commission.view";
+  const CE_VIEW = "commission.view", CE_DECIDE = "commission.decide";
   const TOOLS = [
     { id: "broker_emails", label: "Broker Emails", allowed: (t) => t.some((c) => c.startsWith("broker_emails.")),
       items: [{ id: "new", label: "New email", group: "Price emails", need: REQUEST },
@@ -2249,11 +2249,13 @@ function workbookFor(XLSX, layout, rows) {
               { id: "splits", label: "Splits", need: PR_VIEW }, { id: "runs", label: "Runs and publishing", need: PR_VIEW },
               { id: "book", label: "Live price book", need: PR_VIEW }],
       render: renderPricing },
-    // Piece 1 of the Commission Engine is read-only: every page needs View. Later pieces add ticks
-    // (commission.*), so the tab shows for any of them.
+    // The Commission Engine shows for any of its ticks (commission.*). View opens every page; Decide
+    // (piece 2) also opens Lines and Exceptions, where its controls sit, as the function's
+    // PAGE_TICKS does (spec 4.2.1: any action tick opens the pages that action needs). A need may
+    // be a list: any one of its ticks is enough.
     { id: "commission", label: "Commission Engine", allowed: (t) => t.some((c) => c.startsWith("commission.")),
-      items: [{ id: "lines", label: "Lines", group: "Monthly run", need: CE_VIEW },
-              { id: "exceptions", label: "Exceptions", group: "Monthly run", need: CE_VIEW },
+      items: [{ id: "lines", label: "Lines", group: "Monthly run", need: [CE_VIEW, CE_DECIDE] },
+              { id: "exceptions", label: "Exceptions", group: "Monthly run", need: [CE_VIEW, CE_DECIDE] },
               { id: "decisions", label: "Decisions", group: "Monthly run", need: CE_VIEW },
               { id: "runs", label: "Runs", group: "Monthly run", need: CE_VIEW }],
       render: renderCommission },
@@ -2270,7 +2272,9 @@ function workbookFor(XLSX, layout, rows) {
   // back, leaving the page as it is (Phil Brook, 16/11/2026). A tool with no menu items for the
   // person (Broker Emails with Approve alone) has nothing to fold.
   let menuOpen = true;
-  const hasItems = (t) => t.items.some((x) => !x.need || ticks().includes(x.need));
+  // A menu item opens for someone holding its tick, or any one of its ticks when need is a list.
+  const mayOpen = (x) => !x.need || [].concat(x.need).some((c) => ticks().includes(c));
+  const hasItems = (t) => t.items.some(mayOpen);
   function renderTabs() {
     const bar = $("tabs"), menu = $("sidemenu");
     bar.textContent = "";
@@ -2362,7 +2366,7 @@ function workbookFor(XLSX, layout, rows) {
         el("p", { class: "stand", text: "You have no tools yet. Ask Phil Brook to add them in DNA Admin." }));
       return;
     }
-    const items = t.items.filter((x) => !x.need || ticks().includes(x.need));
+    const items = t.items.filter(mayOpen);
     const it = items.find((x) => x.id === item) || items[0] || null;
     // Moving to another tool opens its menu; staying in the same tool keeps it as folded or open.
     if (t.id !== where.tool) menuOpen = true;
@@ -4670,12 +4674,13 @@ function workbookFor(XLSX, layout, rows) {
   // END PRICING
 
   // ---------- Commission Engine: the laptop's commission app (Django) in the hub, one piece at a
-  // time. Piece 1 is read-only: Runs, Lines, Exceptions and Decisions, drawn by the
-  // commission-engine function and shown after dvSanitise (parts/commission.js, inlined by build.py).
+  // time: Runs, Lines, Exceptions and Decisions (piece 1), with the decide controls on Lines and
+  // Exceptions (piece 2), drawn by the commission-engine function and shown after dvSanitise
+  // (parts/commission.js, inlined by build.py).
   function renderCommission(item, g) {
     if (item) { CE.show(item, g); return; }
     $("main").append(el("h1", {}, "Commission ", el("em", { text: "Engine" })),
-      el("p", { class: "stand", text: "To see the commission runs, lines, exceptions and decisions, ask Phil Brook to add View in DNA Admin." }));
+      el("p", { class: "stand", text: "To see the commission runs, lines, exceptions and decisions, ask Phil Brook to add View in DNA Admin. Decide opens Lines and Exceptions." }));
   }
 
   // The Commission Engine's pages come from the commission-engine function as HTML it has already
@@ -4692,7 +4697,8 @@ function workbookFor(XLSX, layout, rows) {
   //
   // Piece 2 (deciding). A form with method="post" is sent as the function's act op,
   // {action, fields}, the action named by the form's path (ACT) and every field kept with its
-  // repeats; the Lines grid's Decision dropdown saves on change. The function answers {go, message}:
+  // repeats; the Lines grid's Decision dropdown saves Yes picked with the mouse or touch on change,
+  // and waits for Save (or Enter) after No or a change from the keyboard. The function answers {go, message}:
   // the page goes to go and shows message, as text in the message line. When go is the page already
   // shown, it is drawn again where it was, and focus goes back to the row whose dropdown saved. A
   // refusal shows its sentence and draws the page shown again, in place. While a call is on its way
@@ -4782,6 +4788,8 @@ function workbookFor(XLSX, layout, rows) {
       r.addEventListener("input", onInput);
       r.addEventListener("change", onChange);
       r.addEventListener("keydown", onKeydown);
+      r.addEventListener("pointerdown", onPoint);
+      r.addEventListener("mousedown", onPoint);
       return r;
     }
 
@@ -4874,7 +4882,10 @@ function workbookFor(XLSX, layout, rows) {
       if (!still(n)) return;
       const message = typeof r.message === "string" ? r.message : "";
       const t = target(typeof r.go === "string" ? r.go : "") || from;
-      const same = keyOf(t) === keyOf(from);
+      // The page shown, or the form's own next on the same path: the function writes next as "this
+      // page" with run=<month> first (exceptions.ts herePath), while the menu opened it with no query.
+      const own = fields.next && fields.next.length ? target(fields.next[0]) : null;
+      const same = keyOf(t) === keyOf(from) || (!!own && t.path === from.path && keyOf(own) === keyOf(t));
       go(t, !same, { text: message, keep: same ? keep : null, line: same ? line : null });
     }
 
@@ -4886,36 +4897,58 @@ function workbookFor(XLSX, layout, rows) {
       const line = box.getAttribute("data-line") || "";
       act("decide", { seen: [line + ":" + (box.getAttribute("data-seen") || "")], decided_pay: [pay], reason: [reason], next: [hrefOf(shown)] }, line);
     }
-    // Save (or Enter in the reason box): No with its reason, stopped here when the reason is blank.
+    // Save (or Enter): Yes as it is; No with its reason, stopped here when the reason is blank.
     function save(box) {
       const s = box.querySelector("select");
       const i = box.querySelector(".ce-decide-reason input");
-      if (!s || s.value !== "No") return;
+      if (!s || s.value === drawnValue(s)) return;
+      if (s.value === "Yes") { decide(box, "Yes", ""); return; }
+      if (s.value !== "No") return;
       const reason = i ? i.value : "";
       if (blank(reason)) { say(parts.msg, NO_REASON, true); if (i) i.focus(); return; }
       decide(box, "No", reason);
     }
-    // Yes is saved at once; No first shows the reason box; the value it was drawn with hides it again.
+    // How each select was last worked: "pointer" (mouse, pen or touch) or "key". Chrome and Edge on
+    // Windows fire change on every arrow key on a closed select, so a keyboard user passing Yes on
+    // the way to No must not write Yes (ruling, 16/11/2026). Unknown counts as the keyboard.
+    const how = new WeakMap();
+    function onPoint(e) {
+      const s = e.target && e.target.closest ? e.target.closest("select") : null;
+      if (s && parts && parts.body.contains(s)) how.set(s, "pointer");
+    }
+    // Yes picked with the mouse or touch is saved at once (Phil Brook, 16/11/2026). Yes reached from
+    // the keyboard shows Save and waits for it (or Enter). No shows the reason box, focused, and
+    // waits. The value it was drawn with puts the row back as drawn.
     function onChange(e) {
       const s = e.target;
       if (!parts || s.tagName !== "SELECT" || !parts.body.contains(s)) return;
       const box = s.closest(".ce-decide[data-ce-decide]");
       if (!box) return;
+      const by = how.get(s);
+      how.delete(s);
       const why = box.querySelector(".ce-decide-reason");
+      const i = why ? why.querySelector("input") : null;
+      if (i) i.hidden = false;
       if (s.value === drawnValue(s)) { if (why) why.hidden = true; return; }
       if (s.value === "No") {
-        if (why) { why.hidden = false; const i = why.querySelector("input"); if (i) i.focus(); }
+        if (why) why.hidden = false;
+        if (i) i.focus();
         return;
       }
-      if (why) why.hidden = true;
-      if (s.value === "Yes") decide(box, "Yes", "");
+      if (s.value !== "Yes") return;
+      if (by === "pointer") { if (why) why.hidden = true; decide(box, "Yes", ""); return; }
+      if (why) why.hidden = false;
+      if (i) i.hidden = true;
     }
-    // Enter in a row's reason box saves the row; it never sends the bulk form the grid sits in.
+    // A key on a row's select marks it as worked from the keyboard; Enter there, or in the row's
+    // reason box, saves the row. Enter never sends the bulk form the grid sits in.
     function onKeydown(e) {
       const i = e.target;
-      if (e.key !== "Enter" || !parts || !i.closest || !parts.body.contains(i)) return;
-      const box = i.closest(".ce-decide-reason") ? i.closest(".ce-decide[data-ce-decide]") : null;
+      if (!parts || !i.closest || !parts.body.contains(i)) return;
+      const box = i.closest(".ce-decide[data-ce-decide]");
       if (!box) return;
+      if (i.tagName === "SELECT") how.set(i, "key");
+      if (e.key !== "Enter" || !(i.tagName === "SELECT" || i.closest(".ce-decide-reason"))) return;
       e.preventDefault();
       save(box);
     }

@@ -482,10 +482,18 @@ class CommittedPagesTests(unittest.TestCase):
         i_pool, i_ce, i_admin = (page.index('{ id: "%s"' % t) for t in ("dashboard_pool", "commission", "dna_admin"))
         self.assertLess(i_pool, i_ce)
         self.assertLess(i_ce, i_admin)
-        self.assertIn('const CE_VIEW = "commission.view";', page)
+        self.assertIn('const CE_VIEW = "commission.view", CE_DECIDE = "commission.decide";', page)
         self.assertIn('{ id: "commission", label: "Commission Engine", allowed: (t) => t.some((c) => c.startsWith("commission.")),', page)
-        self.assertIn('items: [{ id: "lines", label: "Lines", group: "Monthly run", need: CE_VIEW },', page)
-        self.assertIn('{ id: "exceptions", label: "Exceptions", group: "Monthly run", need: CE_VIEW },', page)
+        # Decide alone opens Lines and Exceptions (spec 4.2.1, the function's PAGE_TICKS); Decisions and
+        # Runs need View. A need may be a list, and both menu filters read it through mayOpen.
+        self.assertIn('items: [{ id: "lines", label: "Lines", group: "Monthly run", need: [CE_VIEW, CE_DECIDE] },', page)
+        self.assertIn('{ id: "exceptions", label: "Exceptions", group: "Monthly run", need: [CE_VIEW, CE_DECIDE] },', page)
+        self.assertIn("const mayOpen = (x) => !x.need || [].concat(x.need).some((c) => ticks().includes(c));", page)
+        self.assertIn("const hasItems = (t) => t.items.some(mayOpen);", page)
+        self.assertIn("const items = t.items.filter(mayOpen);", page)
+        self.assertNotIn("ticks().includes(x.need)", page)
+        self.assertNotIn("Piece 1 is read-only", page)
+        self.assertNotIn("Piece 1 of the Commission Engine is read-only", page)
         self.assertIn('{ id: "decisions", label: "Decisions", group: "Monthly run", need: CE_VIEW },', page)
         self.assertIn('{ id: "runs", label: "Runs", group: "Monthly run", need: CE_VIEW }],', page)
         self.assertIn("render: renderCommission },", page)
@@ -514,6 +522,13 @@ class CommittedPagesTests(unittest.TestCase):
         # five characters, with the laptop's sentence.
         self.assertIn('r.addEventListener("change", onChange);', js)
         self.assertIn('r.addEventListener("keydown", onKeydown);', js)
+        # A Yes from the keyboard waits for Save or Enter (Chrome and Edge fire change per arrow key);
+        # only a Yes picked with the mouse or touch is sent at once. Unknown counts as the keyboard.
+        self.assertIn('r.addEventListener("pointerdown", onPoint);', js)
+        self.assertIn('r.addEventListener("mousedown", onPoint);', js)
+        self.assertIn('if (by === "pointer") { if (why) why.hidden = true; decide(box, "Yes", ""); return; }', js)
+        # A save keeps its place when go is the form's own next on the page's path ("this page").
+        self.assertIn("keyOf(own) === keyOf(t)", js)
         self.assertIn(r'const BLANK = " \u00a0\t\r\n";', js)
         self.assertIn('"Withholding payment needs a stated reason. This is the row that stops a broker being paid, '
                       'and a blank reason is the one decision nobody can review later."', js)
@@ -562,6 +577,7 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("  var CE_SAY = {", block)
         self.assertIn("function ceAct(", stub)
         self.assertIn('ceview: "cy.example@dyce-energy.co.uk"', stub)
+        self.assertIn('cedecide: "dee.example@dyce-energy.co.uk"', stub)
 
     def test_commission_preview_in_a_browser(self):
         # The preview hub, signed in through the stub, driven by tools/ce-preview-check.js in a
@@ -590,8 +606,9 @@ class CommittedPagesTests(unittest.TestCase):
         j = page.rindex("</body>")
         page = page[:j] + "<script>" + check + "</script>" + page[j:]
         (tmp / "check.html").write_text(page, encoding="utf-8")
-        # ?as=ceview: View only, so no decide control is drawn and nothing is sent.
-        for query in ("as=admin", "as=viewer", "as=ceview"):
+        # ?as=ceview: View only, so no decide control is drawn and nothing is sent. ?as=cedecide:
+        # Decide only, so the menu is Lines and Exceptions, and Lines opens with its controls.
+        for query in ("as=admin", "as=viewer", "as=ceview", "as=cedecide"):
             with self.subTest(query=query):
                 r = subprocess.run(
                     [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
