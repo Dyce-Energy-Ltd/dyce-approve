@@ -8,7 +8,9 @@
 // Lines, Exceptions, Decisions and Runs; Runs draws its table and the wrong usage month's warning;
 // a link opens a run and marks Runs in the menu; Lines draws its totals and filter box; the Broker
 // search hides names that do not match and never a ticked one, asking nothing of the function;
-// ticking two Outcome choices sends both (a repeated parameter); a line opens; Exceptions draws its
+// ticking two Outcome choices sends both (a repeated parameter); a line opens, the line above the
+// content and the last place staying on Lines; the line's run link moves both, and the menu mark,
+// to Runs; Exceptions draws its
 // tiles and items, and the hostile broker name stays text; the Decisions filter and a decision; an
 // answer that arrives after a later move is dropped; nothing but the hub's token and last place is
 // stored and the address does not change; a refusal shows its sentence; sign-out empties the tab.
@@ -16,6 +18,7 @@
 (() => {
   const PAGES = ["/runs", "/run", "/lines", "/line", "/exceptions", "/decisions", "/decision"];
   const REFUSAL = "You do not have access to this. Ask Phil Brook to add it in DNA Admin.";
+  const CRUMB = "Commission Engine / Monthly run / ";
   const q = new URLSearchParams(location.search);
   const as = q.get("as") || "admin";
   const results = [];
@@ -63,6 +66,7 @@
     check("the call carries the path and the id as a list", lastCall() && lastCall().args.path === "/run" && JSON.stringify(lastCall().args.query) === '{"id":["11111111-1111-4111-8111-111111111111"]}', JSON.stringify(lastCall()));
     check("focus goes to the page's heading", document.activeElement === $("#ce .ce-body h2"));
     check("Runs stays marked", current() && current().item === "runs");
+    check("the line above the content says Runs", text("#crumb") === CRUMB + "Runs", text("#crumb"));
     check("the source files", /ID625 June 2026 example\.xlsx/.test(text("#ce .ce-body")));
 
     // Lines.
@@ -102,6 +106,14 @@
     link("/line?id=501").click();
     await until(() => heading() === "yu YU-9100000001-2026-06");
     check("a line opens", heading() === "yu YU-9100000001-2026-06" && current().item === "lines", heading());
+    check("the line above the content stays on Lines", text("#crumb") === CRUMB + "Lines", text("#crumb"));
+    check("the last place stays on Lines", localStorage.getItem("dyce.hub.where") === JSON.stringify({ tool: "commission", item: "lines" }), localStorage.getItem("dyce.hub.where"));
+    // The line's run: a link that moves the page under another menu item.
+    link("/run?id=11111111-1111-4111-8111-111111111111").click();
+    await until(() => heading() === "June26 revision 2");
+    check("the line's run link marks Runs", heading() === "June26 revision 2" && current() && current().item === "runs", heading());
+    check("the line above the content follows to Runs", text("#crumb") === CRUMB + "Runs", text("#crumb"));
+    check("the last place follows to Runs", localStorage.getItem("dyce.hub.where") === JSON.stringify({ tool: "commission", item: "runs" }), localStorage.getItem("dyce.hub.where"));
 
     // Exceptions.
     menu("exceptions").click();
@@ -149,7 +161,7 @@
     // Sign-out empties the tab.
     $("#signOutBtn").click();
     await sleep(300);
-    check("sign-out empties the tab", !$("#ce") && $$("#tabs button[data-tool]").length === 0 && $("#sidemenu").childElementCount === 0 && $("#app").hidden);
+    check("sign-out empties the tab", !$("#ce") && $$("#tabs button[data-tool]").length === 0 && $("#sidemenu").childElementCount === 0 && $("#app").hidden && $("#crumb").hidden);
   }
 
   async function viewer() {

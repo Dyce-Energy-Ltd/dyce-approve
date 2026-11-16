@@ -507,6 +507,9 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn('showSignIn("Your session has ended. Sign in again.")', js)
         self.assertIn("return { show, reset };", js)
         self.assertEqual(js.count("fetch("), 1, "one fetch, to CE_ENDPOINT")
+        # A link that moves the page under another menu item updates the line above the content and
+        # the last place through the hub's own helpers.
+        self.assertIn("if (it) { keepWhere(tool, it); setCrumb(tool, it); }", js)
         # Nothing stored: dyce.hub.where (the hub's own) is all that is kept, and the page's HTML
         # goes in only through the sanitiser.
         for word in ("localStorage", "sessionStorage", "indexedDB", "putStored", "getStored", "document.cookie",
