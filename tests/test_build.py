@@ -500,8 +500,28 @@ class CommittedPagesTests(unittest.TestCase):
     def test_commission_module_talks_only_to_its_function_and_keeps_nothing(self):
         js = (ROOT / "parts" / "commission.js").read_text(encoding="utf-8")
         self.assertIn('const CE_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/commission-engine";', js)
-        # Its own allowlist of the function's seven pages (ruling R6); DNA Viewer's pagePath is not widened.
-        self.assertIn('const PAGES = new Set(["/runs", "/run", "/lines", "/line", "/exceptions", "/decisions", "/decision"]);', js)
+        # Its own allowlist of the function's pages (ruling R6), the four deciding pages added in piece 2;
+        # DNA Viewer's pagePath is not widened. /uplift is a form action only, never a page.
+        self.assertIn('const PAGES = new Set(["/runs", "/run", "/lines", "/line", "/exceptions", "/decisions", "/decision",'
+                      ' "/decide", "/set-broker", "/choose-broker", "/resolve"]);', js)
+        # A form that posts is an act call, its action named by the form's path.
+        self.assertIn('const ACT = { "/decide": "decide", "/uplift": "enter_uplift", "/set-broker": "set_broker",'
+                      ' "/choose-broker": "choose_broker", "/resolve": "resolve" };', js)
+        self.assertIn('call("act", { action, fields })', js)
+        # Every value of a form is sent, repeats kept, with the button that sent it (Yes or No).
+        self.assertEqual(js.count("new FormData(f, e.submitter || null)"), 1, "one reading of a form, for get and post")
+        # The dropdown saves on change; a blank No reason is stopped in the page by the function's
+        # five characters, with the laptop's sentence.
+        self.assertIn('r.addEventListener("change", onChange);', js)
+        self.assertIn('r.addEventListener("keydown", onKeydown);', js)
+        self.assertIn(r'const BLANK = " \u00a0\t\r\n";', js)
+        self.assertIn('"Withholding payment needs a stated reason. This is the row that stops a broker being paid, '
+                      'and a blank reason is the one decision nobody can review later."', js)
+        # Controls are held by the DOM while a call is on its way (the sanitiser drops a disabled attribute).
+        self.assertIn("c.disabled = true", js)
+        # The footer says what is written, and no longer that nothing changes.
+        self.assertIn("Decisions, uplifts, brokers and resolutions you save here are written to dyce-prod straight away.", js)
+        self.assertNotIn("Nothing on these pages changes", js)
         self.assertIn("body.append(dvSanitise(", js)
         self.assertIn("signal: AbortSignal.timeout(30000)", js)
         self.assertIn('showSignIn("Your session has ended. Sign in again.")', js)
@@ -533,9 +553,15 @@ class CommittedPagesTests(unittest.TestCase):
         block = stub[start:stub.index("  // END COMMISSION ENGINE PAGES")]
         self.assertNotIn("</", block)
         self.assertNotIn("<!", block)
-        paths = set(re.findall(r'"path":"(/[a-z]+)"', block))
-        self.assertTrue({"/runs", "/lines", "/exceptions", "/decisions", "/run", "/line", "/decision"} <= paths, paths)
+        paths = set(re.findall(r'"path":"(/[a-z-]+)"', block))
+        self.assertTrue({"/runs", "/lines", "/exceptions", "/decisions", "/run", "/line", "/decision",
+                         "/decide", "/set-broker", "/choose-broker", "/resolve"} <= paths, paths)
         self.assertIn('{ code: "commission.view", tool: "Commission Engine", label: "View" }', stub)
+        # Piece 2: the Decide tick, the act op's answers and the function's own sentences.
+        self.assertIn('{ code: "commission.decide", tool: "Commission Engine", label: "Decide" }', stub)
+        self.assertIn("  var CE_SAY = {", block)
+        self.assertIn("function ceAct(", stub)
+        self.assertIn('ceview: "cy.example@dyce-energy.co.uk"', stub)
 
     def test_commission_preview_in_a_browser(self):
         # The preview hub, signed in through the stub, driven by tools/ce-preview-check.js in a
@@ -564,13 +590,14 @@ class CommittedPagesTests(unittest.TestCase):
         j = page.rindex("</body>")
         page = page[:j] + "<script>" + check + "</script>" + page[j:]
         (tmp / "check.html").write_text(page, encoding="utf-8")
-        for query in ("as=admin", "as=viewer"):
+        # ?as=ceview: View only, so no decide control is drawn and nothing is sent.
+        for query in ("as=admin", "as=viewer", "as=ceview"):
             with self.subTest(query=query):
                 r = subprocess.run(
                     [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
                      "--user-data-dir=" + str(tmp / ("profile-" + re.sub(r"\W", "-", query))),
-                     "--virtual-time-budget=20000", "--dump-dom", (tmp / "check.html").as_uri() + "?" + query],
-                    capture_output=True, text=True, encoding="utf-8", timeout=120)
+                     "--virtual-time-budget=60000", "--dump-dom", (tmp / "check.html").as_uri() + "?" + query],
+                    capture_output=True, text=True, encoding="utf-8", timeout=180)
                 found = re.findall(r'<pre id="result">(.*?)</pre>', r.stdout, re.S)
                 self.assertTrue(found and found[-1], "the check wrote no result: %s" % r.stderr[-500:])
                 result = json.loads(html.unescape(found[-1]))

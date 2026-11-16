@@ -14,10 +14,24 @@
 // tiles and items, and the hostile broker name stays text; the Decisions filter and a decision; an
 // answer that arrives after a later move is dropped; nothing but the hub's token and last place is
 // stored and the address does not change; a refusal shows its sentence; sign-out empties the tab.
+// Deciding (piece 2), as Admin Example, who holds Decide: the footer says what is written; the Lines
+// dropdown sends Yes at once (the controls held by the DOM while it is on its way, the page redrawn
+// where it was and focus back on the row's select), shows the reason for No without sending, hides
+// it again at the first value, stops a blank reason with the laptop's sentence, saves with Save or
+// Enter (the reason as typed, the bulk form around the grid not submitted), and a refusal shows its
+// sentence and redraws the page in place; the bulk form sends the ticked lines and the button's Yes,
+// and the Decide page's form posts every field as an act call; each Exceptions control (Pay, Hold
+// refused, Enter uplift, Choose broker, Set broker refused then saved, Resolve) posts its form's
+// fields under its action and the page goes where the answer says with its message as text.
 // ?as=viewer: no commission tick, so no tab, and no commission page is asked for.
+// ?as=ceview: View only, so Lines and Exceptions draw no decide control and nothing is sent.
 (() => {
-  const PAGES = ["/runs", "/run", "/lines", "/line", "/exceptions", "/decisions", "/decision"];
+  const PAGES = ["/runs", "/run", "/lines", "/line", "/exceptions", "/decisions", "/decision", "/decide", "/set-broker",
+    "/choose-broker", "/resolve"];
   const REFUSAL = "You do not have access to this. Ask Phil Brook to add it in DNA Admin.";
+  const FOOT = "Data class: Red. Source: dyce-prod, the commission tables. Decisions, uplifts, brokers and resolutions you save here are written to dyce-prod straight away.";
+  const NO_REASON = "Withholding payment needs a stated reason. This is the row that stops a broker being paid, and a blank reason is the one decision nobody can review later.";
+  const HOSTILE = "<img src=x onerror=alert(1)>";
   const CRUMB = "Commission Engine / Monthly run / ";
   const q = new URLSearchParams(location.search);
   const as = q.get("as") || "admin";
@@ -38,6 +52,11 @@
   const lastCall = () => { const c = pageCalls(); return c.length ? c[c.length - 1] : null; };
   const link = (href) => $$("#ce .ce-body a").find((a) => a.getAttribute("data-dv-href") === href);
   const visible = (el) => !el.hidden && el.offsetParent !== null;
+  const acts = () => window.__stub.calls.filter((c) => c.op === "act");
+  const lastAct = () => { const a = acts(); return a.length ? a[a.length - 1] : null; };
+  const msg = () => text("#ce > .msg");
+  const refused = () => $("#ce > .msg").classList.contains("refused");
+  const sorted = (o) => JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));
   function done() { const pre = document.createElement("pre"); pre.id = "result"; pre.textContent = JSON.stringify({ as, results }); document.body.append(pre); }
 
   async function admin() {
@@ -136,6 +155,8 @@
     await until(() => heading() === "Decision 7003");
     check("a decision opens", heading() === "Decision 7003" && current().item === "decisions", heading());
 
+    await decider();
+
     // An answer that arrives after a later move is dropped.
     window.__stub.delay.page = 1500;
     menu("lines").click();
@@ -164,6 +185,192 @@
     check("sign-out empties the tab", !$("#ce") && $$("#tabs button[data-tool]").length === 0 && $("#sidemenu").childElementCount === 0 && $("#app").hidden && $("#crumb").hidden);
   }
 
+  async function decider() {
+    check("the footer says what is written", text("#ce .ce-foot") === FOOT, text("#ce .ce-foot"));
+    const row = (line) => $(`#ce .ce-decide[data-line="${line}"]`);
+    const select = (line) => $("select", row(line));
+    const reason = (line) => $(".ce-decide-reason", row(line));
+    const pick = (line, v) => { const s = select(line); s.value = v; s.dispatchEvent(new Event("change", { bubbles: true })); };
+    const controls = () => $$("#ce .ce-body select, #ce .ce-body input, #ce .ce-body button");
+
+    menu("lines").click();
+    await until(() => heading() === "Lines" && row("501"));
+    check("each line of an open run has the dropdown", $$("#ce .ce-decide").length === 19, $$("#ce .ce-decide").length);
+    check("the dropdown and its reason box carry no name", $$("#ce .ce-decide select, #ce .ce-decide input").every((c) => !c.name));
+    check("an undecided line starts at Undecided, a decided one at its decision", select("501").value === "" && select("503").value === "Yes" && select("513").value === "No");
+    check("the reason box starts hidden", $$("#ce .ce-decide-reason").every((r) => r.hidden));
+    check("the grid sits in the bulk form", !!$("#ce form.ce-bulk") && $$('#ce form.ce-bulk input[name="line"]').length === 19);
+
+    // Yes on an undecided line: sent at once, the controls held by the DOM while it is on its way.
+    select("501").scrollIntoView({ block: "center" });
+    const y = window.scrollY;
+    window.__stub.delay.decide = 700;
+    let n = acts().length;
+    pick("501", "Yes");
+    await until(() => acts().length > n);
+    check("the controls are held while the call is on its way", controls().length > 20 && controls().every((c) => c.disabled), controls().filter((c) => !c.disabled).length);
+    check("Yes sends decide with the line and the head it showed, at once", lastAct() && lastAct().action === "decide" &&
+      JSON.stringify(lastAct().args.fields) === JSON.stringify({ seen: ["501:"], decided_pay: ["Yes"], reason: [""], next: ["/lines"] }), JSON.stringify(lastAct()));
+    await until(() => msg() === "1 line marked Yes." && !$("#ce").getAttribute("aria-busy"));
+    delete window.__stub.delay.decide;
+    check("the answer's message is shown", msg() === "1 line marked Yes." && !refused(), msg());
+    check("the page it went to was asked for", lastCall().args.path === "/lines" && JSON.stringify(lastCall().args.query) === "{}", JSON.stringify(lastCall()));
+    check("the page is redrawn where it was", y > 0 && Math.abs(window.scrollY - y) <= 2, y + " then " + window.scrollY);
+    check("focus goes back to the row's select", document.activeElement === select("501"), document.activeElement && document.activeElement.outerHTML.slice(0, 80));
+    check("the controls are free again", controls().every((c) => !c.disabled));
+
+    // No: the reason box, and nothing sent until it is saved.
+    n = acts().length;
+    pick("502", "No");
+    check("No shows the reason box and focuses it, sending nothing", !reason("502").hidden && document.activeElement === $("input", reason("502")) && acts().length === n);
+    pick("502", "");
+    check("back to the first value hides the reason box", reason("502").hidden && acts().length === n);
+    pick("502", "No");
+    $("input", reason("502")).value = " \u00a0\t\r\n";
+    $("button[data-ce-save]", reason("502")).click();
+    await sleep(200);
+    check("a blank reason is stopped in the page with the laptop's sentence", msg() === NO_REASON && refused() && acts().length === n, msg());
+    // Enter in the reason box saves the row. Its keydown is prevented, which is what keeps the
+    // browser from submitting the bulk form the grid sits in (implicit submission).
+    const pagesBefore = pageCalls().length;
+    const typed = "Not due " + HOSTILE + " & \"quoted\"";
+    $("input", reason("502")).value = typed;
+    const enter = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+    $("input", reason("502")).dispatchEvent(enter);
+    await until(() => acts().length > n);
+    check("Enter is taken from the bulk form: its keydown is prevented and no page is asked for", enter.defaultPrevented && pageCalls().length === pagesBefore);
+    check("Enter saves No with the reason as typed", enter.defaultPrevented && lastAct() &&
+      JSON.stringify(lastAct().args.fields) === JSON.stringify({ seen: ["502:"], decided_pay: ["No"], reason: [typed], next: ["/lines"] }), JSON.stringify(lastAct() && lastAct().args));
+    await until(() => msg() === "1 line marked No.");
+    check("No is saved, and nothing typed became markup", msg() === "1 line marked No." && !$("#ce img"), msg());
+
+    // A decided line: No with Save carries the head the page showed.
+    n = acts().length;
+    pick("503", "No");
+    $("input", reason("503")).value = "Paid in error last month";
+    $("button[data-ce-save]", reason("503")).click();
+    await until(() => acts().length > n);
+    check("Save sends No with the decided line's head", JSON.stringify(lastAct().args.fields) === JSON.stringify({ seen: ["503:7001"], decided_pay: ["No"], reason: ["Paid in error last month"], next: ["/lines"] }), JSON.stringify(lastAct().args));
+    await until(() => msg() === "1 line marked No.");
+
+    // A refusal: the sentence, and the page drawn again in place.
+    select("512").scrollIntoView({ block: "center" });
+    const y2 = window.scrollY;
+    const asked = pageCalls().length;
+    pick("512", "Yes");
+    await until(() => refused() && pageCalls().length > asked && !$("#ce").getAttribute("aria-busy"));
+    check("a refusal shows its sentence", /^Nothing was written\. 1 line changed since this page was rendered/.test(msg()) && refused(), msg());
+    check("a refusal redraws the page in place", pageCalls().length === asked + 1 && select("512").value === "" && Math.abs(window.scrollY - y2) <= 2, window.scrollY + " vs " + y2);
+
+    // Bulk: the ticked lines and the button pressed, then the Decide page's form as an act call.
+    for (const v of ["501", "502"]) $(`#ce form.ce-bulk input[name="line"][value="${v}"]`).click();
+    $('#ce form.ce-bulk button[name="pay"][value="Yes"]').click();
+    await until(() => heading() === "Decide 2 lines");
+    const bulk = lastCall();
+    check("the bulk form sends the ticked lines and the button's value", bulk && bulk.args.path === "/decide" &&
+      JSON.stringify((bulk.args.query.line || []).slice().sort()) === '["501","502"]' && JSON.stringify(bulk.args.query.pay) === '["Yes"]' && JSON.stringify(bulk.args.query.run) === '["June26"]', JSON.stringify(bulk && bulk.args));
+    check("the Decide page sits under Lines", current() && current().item === "lines");
+    n = acts().length;
+    $('#ce form[action="/decide"] input[name="reason"]').value = "Checked against the deals";
+    $$('#ce form[action="/decide"] button').find((b) => b.textContent === "Confirm 2 lines").click();
+    await until(() => acts().length > n);
+    check("the Decide form posts every field as decide", lastAct().action === "decide" && sorted(lastAct().args.fields) === sorted({
+      seen: ["501:,502:"], next: ["/lines?run=June26&page=1"], run: ["June26"], decided_pay: ["Yes"], reason: ["Checked against the deals"] }), JSON.stringify(lastAct().args));
+    await until(() => heading() === "Lines" && msg() === "2 lines marked Yes.");
+    check("after it the page goes to the answer's address with its message", heading() === "Lines" && msg() === "2 lines marked Yes." &&
+      JSON.stringify(lastCall().args.query) === '{"run":["June26"],"page":["1"]}', JSON.stringify(lastCall().args));
+
+    // Exceptions.
+    menu("exceptions").click();
+    await until(() => heading() === "June26 exceptions" && $('#ce form[action="/uplift"]'));
+    const postForm = (action, field, value) => $$(`#ce form[method="post"][action="${action}"]`).find((f) =>
+      !field || (f.querySelector(`input[type="hidden"][name="${field}"]`) || {}).value === value);
+    const submitIn = (f) => f.querySelector('button[type="submit"]').click();
+    // Pay.
+    n = acts().length;
+    let f = $$('#ce form[action="/decide"]').find((x) => x.querySelector('input[name="seen"]').value === "505:" && x.querySelector('input[name="decided_pay"]').value === "Yes");
+    submitIn(f);
+    await until(() => acts().length > n);
+    check("Pay posts the item's form as decide", lastAct().action === "decide" && sorted(lastAct().args.fields) === sorted({
+      seen: ["505:"], decided_pay: ["Yes"], next: ["/exceptions?run=June26"], reason: ["Paid from the deal that is this contract."] }), JSON.stringify(lastAct().args));
+    await until(() => msg() === "1 line marked Yes." && heading() === "June26 exceptions");
+    check("then the exceptions page, with the message", msg() === "1 line marked Yes." && JSON.stringify(lastCall().args.query) === '{"run":["June26"]}', msg());
+    // A Pay refused: the sentence, the page in place.
+    n = acts().length;
+    f = $$('#ce form[action="/decide"]').find((x) => x.querySelector('input[name="seen"]').value === "512:" && x.querySelector('input[name="decided_pay"]').value === "Yes");
+    f.scrollIntoView({ block: "center" });
+    const y3 = window.scrollY;
+    submitIn(f);
+    await until(() => acts().length > n && refused() && !$("#ce").getAttribute("aria-busy"));
+    check("a refused Pay keeps the page where it was", /^Nothing was written/.test(msg()) && Math.abs(window.scrollY - y3) <= 2, window.scrollY + " vs " + y3);
+    // Enter uplift.
+    n = acts().length;
+    f = postForm("/uplift", "line", "509");
+    f.querySelector('input[name="ur"]').value = "1.5";
+    f.querySelector('input[name="evidence"]').value = "signed contract, page 2";
+    submitIn(f);
+    await until(() => acts().length > n);
+    check("Enter uplift posts its form as enter_uplift", lastAct().action === "enter_uplift" && sorted(lastAct().args.fields) === sorted({
+      line: ["509"], next: ["/exceptions?run=June26"], run: ["June26"], ur: ["1.5"], sc: [""], evidence: ["signed contract, page 2"] }), JSON.stringify(lastAct().args));
+    await until(() => /^Uplift saved: 1\.5p per kWh/.test(msg()));
+    check("its message", /^Uplift saved: 1\.5p per kWh and 0p per day\./.test(msg()) && !refused(), msg());
+    // Choose broker.
+    n = acts().length;
+    submitIn(postForm("/choose-broker", "exception", "9001"));
+    await until(() => acts().length > n);
+    check("Choose broker posts its form as choose_broker", lastAct().action === "choose_broker" && sorted(lastAct().args.fields) === sorted({
+      exception: ["9001"], next: ["/exceptions?run=June26"], run: ["June26"], broker: ["12"], reason: ["Chosen on the exceptions page: this broker sold the contract."] }), JSON.stringify(lastAct().args));
+    await until(() => /^Broker recorded for this contract/.test(msg()));
+    check("its message", /^Broker recorded for this contract, and 1 exception resolved\./.test(msg()), msg());
+    // Set broker: the page, a refusal naming the hostile broker as text, then saved.
+    link("/set-broker?exception=9005&next=%2Fexceptions%3Frun%3DJune26").click();
+    await until(() => heading() === "Set the broker for a contract");
+    check("Set broker opens its page under Exceptions", heading() === "Set the broker for a contract" && current().item === "exceptions", heading());
+    n = acts().length;
+    f = postForm("/set-broker");
+    f.querySelector('select[name="broker"]').value = "44";
+    f.querySelector('input[name="reason"]').value = "On the signed contract";
+    submitIn(f);
+    await until(() => acts().length > n && refused() && !$("#ce").getAttribute("aria-busy"));
+    check("Set broker posts its form as set_broker", lastAct().action === "set_broker" && sorted(lastAct().args.fields) === sorted({
+      exception: ["9005"], next: ["/exceptions?run=June26"], run: ["June26"], broker: ["44"], reason: ["On the signed contract"] }), JSON.stringify(lastAct().args));
+    check("a refusal naming a hostile broker shows it as text and stays on the page", msg() === "That contract already has a broker: " + HOSTILE + " (44). Nothing was written. If that broker is right, resolve the exception with a note." &&
+      !$("#ce img") && heading() === "Set the broker for a contract", msg());
+    n = acts().length;
+    f = postForm("/set-broker");
+    f.querySelector('select[name="broker"]').value = "12";
+    f.querySelector('input[name="reason"]').value = "On the signed contract";
+    submitIn(f);
+    await until(() => acts().length > n && heading() === "June26 exceptions" && /^Broker set for this contract/.test(msg()));
+    check("saved, the page goes back to the exceptions with the message", heading() === "June26 exceptions" && /^Broker set for this contract and the exception resolved\./.test(msg()), msg());
+    // Resolve.
+    link("/resolve?id=9001&next=%2Fexceptions%3Frun%3DJune26").click();
+    await until(() => heading() === "Resolve 1 exception");
+    check("Resolve opens its page under Exceptions", heading() === "Resolve 1 exception" && current().item === "exceptions", heading());
+    n = acts().length;
+    f = postForm("/resolve");
+    f.querySelector('input[name="resolution"]').value = "Checked with the broker";
+    submitIn(f);
+    await until(() => acts().length > n);
+    check("Resolve posts its form as resolve", lastAct().action === "resolve" && sorted(lastAct().args.fields) === sorted({
+      ids: ["9001"], next: ["/exceptions?run=June26"], run: ["June26"], resolution: ["Checked with the broker"] }), JSON.stringify(lastAct().args));
+    await until(() => heading() === "June26 exceptions" && msg() === "1 exception marked resolved.");
+    check("then the exceptions page, with the message", heading() === "June26 exceptions" && msg() === "1 exception marked resolved.", msg());
+    check("every act call was answered by the stub", acts().every((c) => c.status === 200 || c.status === 409), JSON.stringify(acts().map((c) => c.status)));
+  }
+
+  async function ceview() {
+    if (!(await until(() => heading() === "Runs"))) { check("Runs is drawn", false, text("#main").slice(0, 300)); return; }
+    menu("lines").click();
+    await until(() => heading() === "Lines" && $("#ce .ce-table"));
+    check("Lines draws no dropdown, bulk form or tick box for View only", !$("#ce .ce-decide") && !$("#ce form.ce-bulk") && !$('#ce input[name="line"]'));
+    check("the footer says what is written", text("#ce .ce-foot") === FOOT, text("#ce .ce-foot"));
+    menu("exceptions").click();
+    await until(() => heading() === "June26 exceptions");
+    check("Exceptions draws no form that posts for View only", heading() === "June26 exceptions" && !$('#ce form[method="post"]') && !link("/set-broker?exception=9005&next=%2Fexceptions%3Frun%3DJune26"));
+    check("nothing is sent", acts().length === 0, JSON.stringify(acts()));
+  }
+
   async function viewer() {
     await until(() => $("#tabs button[data-tool]"));
     await sleep(800);
@@ -172,5 +379,5 @@
     check("the hub falls back to the person's first tool", !$("#ce"));
   }
 
-  (as === "viewer" ? viewer() : admin()).catch((e) => check("the check ran to the end", false, e && e.stack)).finally(done);
+  (as === "viewer" ? viewer() : as === "ceview" ? ceview() : admin()).catch((e) => check("the check ran to the end", false, e && e.stack)).finally(done);
 })();
