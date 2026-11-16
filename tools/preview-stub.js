@@ -47,9 +47,16 @@
 // gated as its core.ts gates them (commission.view, then one of its seven paths, else the refusal;
 // Admin Example passes as Phil Brook does before sign-off). A page they do not hold answers "Not in
 // the preview". ?as=viewer has no commission tick, so no Commission Engine tab.
+// DEMO MODE (build.py --demo): the build puts "window.__DEMO__ = true;" before this file. The page then
+// signs in as Demo Example (all four Pricing ticks, no sign-in screen), opens Pricing > Supplier files,
+// shows a "Demo: invented prices" bar with a "Reset demo" link, holds its state in sessionStorage (so it
+// lasts for the browser tab) and answers every call in the page: window.fetch never reaches another host.
+// The demo's supplier names are Dyce's own (Voltx, Yu, Jellyfish); every file name, figure and person is
+// invented. See the section "Demo mode" at the end of this file.
 (function () {
+  var DEMO = window.__DEMO__ === true;
   var ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/comms-web";
-  var as = (new URLSearchParams(location.search).get("as") || "admin").toLowerCase();
+  var as = DEMO ? "demo" : (new URLSearchParams(location.search).get("as") || "admin").toLowerCase();
   var ADMIN = "admin.example@dyce-energy.co.uk";
   var PERSONA = {
     admin: ADMIN,
@@ -63,6 +70,7 @@
     reviewer: "rae.example@dyce-energy.co.uk",
     pricing: "quinn.example@dyce-energy.co.uk",
     pricingview: "tara.example@dyce-energy.co.uk",
+    demo: "demo.example@dyce-energy.co.uk",
     none: null
   };
   var DOMAIN = /^[a-z0-9._%-]+@dyce-energy\.co\.uk$/;
@@ -115,6 +123,9 @@
   // The Pricing people are listed only in their own preview.
   if (as === "pricing") {
     people.push({ email: PERSONA.pricing, display_name: "Quinn Example", active: true, grants: ["pricing.view", "pricing.load", "pricing.set", "pricing.publish"], added_at: "2026-11-13T10:30:00+00:00", added_by: ADMIN });
+  }
+  if (as === "demo") {
+    people.push({ email: PERSONA.demo, display_name: "Demo Example", active: true, grants: ["pricing.view", "pricing.load", "pricing.set", "pricing.publish"], added_at: "2026-11-13T10:30:00+00:00", added_by: ADMIN });
   }
   if (as === "pricingview") {
     people.push({ email: PERSONA.pricingview, display_name: "Tara Example", active: true, grants: ["pricing.view"], added_at: "2026-11-13T10:35:00+00:00", added_by: ADMIN });
@@ -716,7 +727,7 @@
   var prLastPreview = { attentionCount: -1, fingerprint: "" }, prAppliedRuns = [];
   // INVENTED ARITHMETIC, not a supplier's or Dyce's pricing: it only lets a margin edit move the figures.
   // The real function works the rates out in the database.
-  var prPreview = function (body) {
+  var prPreview = function (body, file) {
     var rows = [], attention = [], terms = [12, 24, 36];
     body.items.forEach(function (it, n) {
       var types = it.saleType === "all" ? ["acquisition", "renewal"] : [it.saleType];
@@ -728,7 +739,7 @@
             var unit = Math.round((15 + t * 0.02 + k * 0.1 + m / 1000 * (1 - sh / 100)) * 100) / 100;
             var stand = Math.round((30 + (m / 1000 * u * sh / 100) / 365) * 100) / 100;
             var sell = Math.round(unit * u + stand * 365);
-            rows.push({ label: it.label, which: "proposed", saleType: st, usageKwh: u, termMonths: t, unitRatePence2dp: unit, standingChargePence2dp: stand, sellAnnualPence: sell, marginAnnualPence: Math.round(m / 1000 * u - it.costPerMeterPence) });
+            rows.push({ label: it.label, which: "proposed", saleType: st, usageKwh: u, termMonths: t, unitRatePence2dp: unit, standingChargePence2dp: stand, sellAnnualPence: sell, marginAnnualPence: Math.round(m / 1000 * u - (DEMO ? it.costPerMeterPence / 2 : it.costPerMeterPence)) });
             var lsell = Math.round(sell * 1.02 + 900 - t * 15);
             rows.push({ label: it.label, which: "live", saleType: st, usageKwh: u, termMonths: t, unitRatePence2dp: Math.round((unit + 0.2) * 100) / 100, standingChargePence2dp: stand, sellAnnualPence: lsell, marginAnnualPence: Math.round(lsell * 0.05) });
           });
@@ -737,6 +748,16 @@
       if (n === 0) attention.push({ product: it.product, saleType: it.saleType, issue: "range_not_covered", rangeMinKwh: 200000, rangeMaxKwh: 300000, rateCount: 12, detail: null });
       if (it.bands.some(function (b) { return b.marginMilliPencePerKwh < 250; })) attention.push({ product: it.product, saleType: it.saleType, issue: "margin_below_floor", rangeMinKwh: null, rangeMaxKwh: null, rateCount: null, detail: "A band has a margin under 0.25p/kWh (invented rule)." });
     });
+    // Demo: the Yu electricity file always shows the same two invented items (whatever the margins), so the
+    // count read before Apply is the count Apply checks. Other demo files show none.
+    if (DEMO) {
+      attention = [];
+      if (file && file.supplierId === "yu" && file.fuel === "electricity") {
+        attention.push({ product: body.items[0].product, saleType: body.items[0].saleType, issue: "range_not_covered", rangeMinKwh: 200001, rangeMaxKwh: 300000, rateCount: 12, detail: null });
+        var lastIt = body.items[body.items.length - 1];
+        attention.push({ product: lastIt.product, saleType: lastIt.saleType, issue: "no_rates_for_term", rangeMinKwh: null, rangeMaxKwh: null, rateCount: 3, detail: "The file has no 36 month rates for this product in this region (invented)." });
+      }
+    }
     var fp = 0, s = JSON.stringify(body.items.map(function (i) { return [i.label, i.saleType]; }));
     for (var i = 0; i < s.length; i++) fp = (fp * 31 + s.charCodeAt(i)) >>> 0;
     prLastPreview = { attentionCount: attention.length, fingerprint: ("0000000" + fp.toString(16)).slice(-8).repeat(8) };
@@ -763,18 +784,25 @@
   var prProblems = [{ supplier: "gamma", fuel: "gas", message: "Build failed: the book could not be written for 2 runs (invented message for the preview).", "when": "2026-11-12T17:45:00+00:00" }];
   var prBuiltAt = null, prPublishedFile = null, prRecorded = {};
   prRecorded[R(4)] = [{ layout: "broker", path: "outputs/" + R(4) + "/broker.xlsx", sha256: "c".repeat(64) }, { layout: "ud_upload", path: "outputs/" + R(4) + "/ud_upload.xlsx", sha256: "c".repeat(64) }];
+  // prRuns: what each run of the demo's book is (supplier, fuel, product, sale type). Empty outside the demo,
+  // where every run answers as Beta Example's Standard electricity.
+  var prRuns = {};
   var prBookRows = function (runId) {
     var rows = [], terms = [12, 24, 36], structures = ["single", "day_night"];
+    var info = prRuns[runId] || { supplierId: "beta", fuel: "electricity", product: "Standard", saleType: "all" };
+    var bump = prProducts.map(function (x) { return x.product; }).indexOf(info.product) * 0.35;
+    if (bump < 0) bump = 0;
+    var money = function (v) { return (Math.round(v * 100) / 100).toFixed(2); };
     for (var i = 0; i < 12; i++) {
       var term = terms[i % 3], st = structures[Math.floor(i / 3) % 2];
       rows.push({
-        price_run_id: runId, product_key: "beta|electricity|all|" + String(1000 + i), supplier_id: "beta", fuel: "electricity", product: "Standard", sale_type: "all",
+        price_run_id: runId, product_key: info.supplierId + "|" + info.fuel + "|" + info.product + "|" + info.saleType + "|" + String(1000 + i), supplier_id: info.supplierId, fuel: info.fuel, product: info.product, sale_type: info.saleType,
         base_rate_id: String(5000 + i), band_index: 1, product_name: "Example product", dno_id: "10", ldz: null, exit_zone: null, meter_type: "nhh", profile_class: 1,
         rate_structure: st, llf_band_group: "nda", llf_band_number: 1, min_kva: null, max_kva: null, term_months: term, contract_start_earliest: "2026-12-01",
         contract_start_latest: "2026-12-31", green_energy: false, carbon_offset: false, piece_min_kwh: "0", piece_max_kwh: "10000",
-        sell_unit_rate_single_pence_2dp: st === "single" ? "20.00" : null, sell_unit_rate_day_pence_2dp: st === "single" ? null : "21.00", sell_unit_rate_night_pence_2dp: st === "single" ? null : "15.00",
+        sell_unit_rate_single_pence_2dp: st === "single" ? money(20 + bump) : null, sell_unit_rate_day_pence_2dp: st === "single" ? null : money(21 + bump), sell_unit_rate_night_pence_2dp: st === "single" ? null : money(15 + bump),
         sell_unit_rate_ew_pence_2dp: null, sell_standing_charge_pence_2dp: "40.00", sell_capacity_rate_pence_2dp: null,
-        tariff_code: "EXAMPLE" + i, tariff_name_acquisition: "Dec26-" + term + "M-Acq Standard Standard", tariff_name_renewal: "Dec26-" + term + "M-Ren Standard Standard",
+        tariff_code: "EXAMPLE" + i, tariff_name_acquisition: "Dec26-" + term + "M-Acq " + info.product + " " + info.product, tariff_name_renewal: "Dec26-" + term + "M-Ren " + info.product + " " + info.product,
         sell_tac_pence: "250000", quote_valid_from: "2026-11-11", quote_valid_until: "2026-11-25", published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00"
       });
     }
@@ -824,7 +852,7 @@
     // is all here (prFiles[].state and the flip below) so the full demo (task 9a) can extend it.
     if (op === "overview") {
       // An applied file moves to live on the next overview call after the apply.
-      prFiles.forEach(function (f) { if (f.state === "applying") f.state = "live"; });
+      if (!DEMO) prFiles.forEach(function (f) { if (f.state === "applying") f.state = "live"; });
       var view = prFiles.map(function (f) {
         return { supplierFileId: f.supplierFileId, supplierId: f.supplierId, fuel: f.fuel, fileFormat: f.fileFormat, sourceFilename: f.sourceFilename, loadedAt: f.loadedAt, quoteValidFrom: f.quoteValidFrom, quoteValidUntil: f.quoteValidUntil,
           rowCountSource: f.rowCountSource, rowCountLoaded: f.rowCountLoaded, refusedCount: f.refusedCount, state: f.state, stateLabel: PR_STATE_LABEL[f.state], canApply: f.state === "awaiting_bandings" };
@@ -842,7 +870,7 @@
       if (!body.region) return bad("Give the region.");
       if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 8) return bad("Choose between 1 and 8 band sets.");
       if (!Array.isArray(body.usages) || body.usages.length < 1 || body.usages.length > 10 || !body.usages.every(function (u) { return Number.isSafeInteger(u) && u > 0; })) return bad("Give between 1 and 10 usages, each a whole number of kWh above zero.");
-      return ok(prPreview(body));
+      return ok(prPreview(body, pf));
     }
     if (op === "apply") {
       var af = find(prFiles, "supplierFileId", body.fileId);
@@ -939,7 +967,7 @@
     if (op === "split_list") return ok({ splits: prSplits, solved: prSolved });
     if (op === "book_live") {
       var building = prBuiltAt !== null && Date.now() < prBuiltAt, live = copy(prLive);
-      if (prPublishedFile && !building) {
+      if (!DEMO && prPublishedFile && !building) {
         // The runs of the applied choice, once built: one per product and sale type chosen.
         var pubFile = find(prFiles, "supplierFileId", prPublishedFile);
         prAppliedRuns.forEach(function (x, i) {
@@ -1058,7 +1086,143 @@
     return [200, { ok: true, page: page }];
   }
 
-  var realFetch = window.fetch ? window.fetch.bind(window) : null;
+  // ---------- Demo mode (build.py --demo). Everything here runs only when window.__DEMO__ is true.
+  // The data below replaces the preview's Pricing data with the demo story's: Dyce's own supplier names
+  // (Voltx, Yu, Jellyfish) and invented file names, margins, rates and people. None of it is a real price.
+  // Answers are stateful: band_sets_save makes new versions, bundle_save adds bundles, apply moves the
+  // file to Applying and, after __stub.buildMs (4 seconds in the demo), to Live, marks the older file of
+  // the same supplier and fuel Replaced, leaves every other supplier alone and puts invented rows in the
+  // live book and in book_rows. The state is kept in sessionStorage, so it lasts for the browser tab.
+  var DEMO_KEY = "dyce.demo.state", DEMO_STARTED = "dyce.demo.started";
+  var prPending = [], prRunSeq = 0;
+  var prSettle = function () {
+    var t = Date.now(), due = prPending.filter(function (p) { return p.at <= t; });
+    if (!due.length) return;
+    prPending = prPending.filter(function (p) { return p.at > t; });
+    due.forEach(function (p) {
+      var f = prFiles.filter(function (x) { return x.supplierFileId === p.fileId; })[0];
+      if (!f) return;
+      f.state = "live";
+      var gone = {};
+      prFiles.forEach(function (o) {
+        if (o !== f && o.supplierId === f.supplierId && o.fuel === f.fuel && o.loadedAt < f.loadedAt && (o.state === "live" || o.state === "awaiting_bandings")) { o.state = "replaced"; gone[o.supplierFileId] = true; }
+      });
+      prLive = prLive.filter(function (x) { return !gone[x.supplier_file_id]; });
+      p.runs.forEach(function (r) {
+        var id = pid(600 + (prRunSeq++)), types = r.saleType === "all" ? ["acquisition", "renewal"] : [r.saleType];
+        prRuns[id] = { supplierId: f.supplierId, fuel: f.fuel, product: r.product, saleType: r.saleType };
+        // One live run per supplier, fuel, product and sale type: a newer run takes the place of an older one.
+        prLive = prLive.filter(function (x) { return !(x.supplier_id === f.supplierId && x.fuel === f.fuel && x.product === r.product && types.indexOf(x.sale_type) >= 0); });
+        types.forEach(function (st) {
+          prLive.push({ supplier_id: f.supplierId, fuel: f.fuel, product: r.product, sale_type: st, price_run_id: id, published_by: PERSONA.demo, published_at: now(), engine_version: "20261116130000", supplier_file_id: f.supplierFileId, source_filename: f.sourceFilename, row_count: 12, publishing_runs: 0 });
+        });
+      });
+    });
+  };
+  var prSave = function () {
+    try {
+      sessionStorage.setItem(DEMO_KEY, JSON.stringify({ files: prFiles, failures: prLoadFailures, named: prNamed, bundles: prBundles, seq: prSeq, ladder: prLadder, splits: prSplits,
+        live: prLive, problems: prProblems, recorded: prRecorded, runs: prRuns, runSeq: prRunSeq, pending: prPending, lastPreview: prLastPreview, applied: prAppliedRuns, builtAt: prBuiltAt, published: prPublishedFile }));
+    } catch (e) { /* the demo still works until the tab is closed */ }
+  };
+  var prCall = function (body) {
+    if (!DEMO) return prAnswer(body);
+    prSettle();
+    var res = prAnswer(body);
+    if (body.op === "apply" && res[0] === 200) prPending.push({ fileId: body.fileId, at: prBuiltAt, runs: copy(prAppliedRuns) });
+    prSave();
+    return res;
+  };
+  if (DEMO) {
+    var DF = { voltxElec: pid(101), yuElec: pid(102), yuGas: pid(103), jfOld: pid(104), jfNew: pid(105) };
+    prSuppliers = [
+      { supplier_id: "voltx", supplier_name: "Voltx", panel_status: "active" },
+      { supplier_id: "yu", supplier_name: "Yu", panel_status: "active" },
+      { supplier_id: "jellyfish", supplier_name: "Jellyfish", panel_status: "active" }
+    ];
+    prFiles = [
+      { supplierFileId: DF.voltxElec, supplierId: "voltx", fuel: "electricity", fileFormat: "voltx_elec_v1", sourceFilename: "Voltx_electricity_demo_12112026.xlsx", loadedAt: "2026-11-12T16:20:00+00:00", quoteValidFrom: "2026-11-13", quoteValidUntil: "2026-11-27", rowCountSource: 40320, rowCountLoaded: 40320, refusedCount: 0, state: "live" },
+      { supplierFileId: DF.yuElec, supplierId: "yu", fuel: "electricity", fileFormat: "yu_elec_v1", sourceFilename: "Yu_electricity_demo_13112026.xlsx", loadedAt: "2026-11-13T15:10:00+00:00", quoteValidFrom: "2026-11-16", quoteValidUntil: "2026-11-30", rowCountSource: 162708, rowCountLoaded: 162700, refusedCount: 8, state: "awaiting_bandings" },
+      { supplierFileId: DF.yuGas, supplierId: "yu", fuel: "gas", fileFormat: "yu_gas_v1", sourceFilename: "Yu_gas_demo_13112026.xlsx", loadedAt: "2026-11-13T15:40:00+00:00", quoteValidFrom: "2026-11-16", quoteValidUntil: "2026-11-30", rowCountSource: 9000, rowCountLoaded: 9000, refusedCount: 0, state: "awaiting_bandings" },
+      { supplierFileId: DF.jfOld, supplierId: "jellyfish", fuel: "gas", fileFormat: "jellyfish_gas_v1", sourceFilename: "Jellyfish_gas_demo_06112026.xlsx", loadedAt: "2026-11-06T11:00:00+00:00", quoteValidFrom: "2026-11-07", quoteValidUntil: "2026-11-20", rowCountSource: 7800, rowCountLoaded: 7800, refusedCount: 0, state: "replaced" },
+      { supplierFileId: DF.jfNew, supplierId: "jellyfish", fuel: "gas", fileFormat: "jellyfish_gas_v1", sourceFilename: "Jellyfish_gas_demo_13112026.xlsx", loadedAt: "2026-11-13T09:30:00+00:00", quoteValidFrom: "2026-11-16", quoteValidUntil: "2026-11-30", rowCountSource: 7950, rowCountLoaded: 7950, refusedCount: 0, state: "awaiting_bandings" }
+    ];
+    prLoadFailures = [{ driveItemId: "demo-drive-item-1", sourcePath: "Partner Sales/Voltx/Voltx_gas_demo_13112026.xlsx", supplierId: "voltx", fuel: "gas", reason: "The sheet named Rates was not found (invented reason for the demo).", seenAt: "2026-11-13T07:30:00+00:00" }];
+    prProblems = [];
+    var swapNames = function (o) {
+      return JSON.parse(JSON.stringify(o).replace(/"alpha"/g, '"yu"').replace(/"beta"/g, '"voltx"').replace(/Alpha_electricity_example_12112026\.xlsx/g, "Yu_electricity_demo_13112026.xlsx").replace(/Beta_electricity_example_10112026\.xlsx/g, "Voltx_electricity_demo_12112026.xlsx"));
+    };
+    prSplits = swapNames(prSplits);
+    prSolved = swapNames(prSolved);
+    // The live book starts with Voltx's electricity file only.
+    var liveRow = function (product, st, run) {
+      return { supplier_id: "voltx", fuel: "electricity", product: product, sale_type: st, price_run_id: run, published_by: PERSONA.demo, published_at: "2026-11-12T17:05:00+00:00", engine_version: "20261116130000", supplier_file_id: DF.voltxElec, source_filename: "Voltx_electricity_demo_12112026.xlsx", row_count: 12, publishing_runs: 0 };
+    };
+    prLive = [liveRow("Standard", "acquisition", R(4)), liveRow("Standard", "renewal", R(4)), liveRow("Gold", "acquisition", R(5)), liveRow("Gold", "renewal", R(5))];
+    prRuns = {};
+    prRuns[R(4)] = { supplierId: "voltx", fuel: "electricity", product: "Standard", saleType: "all" };
+    prRuns[R(5)] = { supplierId: "voltx", fuel: "electricity", product: "Gold", saleType: "all" };
+    prRecorded = {};
+    [R(4), R(5)].forEach(function (id) { prRecorded[id] = [{ layout: "broker", path: "outputs/" + id + "/broker.xlsx", sha256: "c".repeat(64) }, { layout: "ud_upload", path: "outputs/" + id + "/ud_upload.xlsx", sha256: "c".repeat(64) }]; });
+    // The default sets give each fuel its Standard and Gold; the demo adds Silver and Advanced Saver to gas.
+    addNamed("gas", "Gas Silver", "Silver", 800, [320, 280, 245, 215, 185], [0, 0, 0, 0, 0], prLadder.gas.bands, 2);
+    addNamed("gas", "Gas Advanced Saver", "Advanced Saver", 900, [380, 340, 300, 270, 240], [0, 0, 0, 0, 0], prLadder.gas.bands, 2);
+    prBundles.forEach(function (b) { if (b.name === "Gas range") b.members = ["Gas Standard", "Gas Gold", "Gas Silver"]; });
+    // A tab that has already been used carries on from where it was.
+    try {
+      var saved = JSON.parse(sessionStorage.getItem(DEMO_KEY) || "null");
+      if (saved) {
+        prFiles = saved.files; prLoadFailures = saved.failures; prNamed = saved.named; prBundles = saved.bundles; prSeq = saved.seq; prLadder = saved.ladder; prSplits = saved.splits;
+        prLive = saved.live; prProblems = saved.problems; prRecorded = saved.recorded; prRuns = saved.runs; prRunSeq = saved.runSeq; prPending = saved.pending; prLastPreview = saved.lastPreview;
+        prAppliedRuns = saved.applied; prBuiltAt = saved.builtAt; prPublishedFile = saved.published;
+      }
+    } catch (e) { /* start from the beginning */ }
+    // Signed in already, and straight into Pricing > Supplier files on a fresh tab. The token starts
+    // with "stub", which prAnswer honours for the demo person.
+    try {
+      localStorage.setItem("dyce.hub.token", "stubdemo");
+      if (!sessionStorage.getItem(DEMO_STARTED)) {
+        localStorage.setItem("dyce.hub.where", JSON.stringify({ tool: "pricing", item: "files" }));
+        sessionStorage.setItem(DEMO_STARTED, "1");
+      }
+    } catch (e) { /* without storage the page cannot keep its sign-in */ }
+  }
+  var demoReset = function () {
+    try { sessionStorage.removeItem(DEMO_KEY); sessionStorage.removeItem(DEMO_STARTED); localStorage.removeItem("dyce.hub.where"); } catch (e) { /* nothing to clear */ }
+    if (typeof location !== "undefined" && location.replace) location.replace(location.pathname + location.search);
+  };
+  // The page's Download buttons open a window and send it to a stored file's link. In the demo the
+  // link is never followed: the file is made here from the run's invented rows and saved.
+  var demoDownload = function (u) {
+    var m = /object\/sign\/pricing-files\/outputs\/([^/]+)\/([a-z_]+)\.xlsx/.exec(String(u));
+    if (!m || typeof PR_EXPORTS === "undefined" || typeof PR_XLSX === "undefined") return;
+    var info = prRuns[m[1]] || {}, bytes = PR_EXPORTS.workbookFor(PR_XLSX, m[2], prBookRows(m[1]));
+    var url = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    var a = document.createElement("a");
+    a.href = url; a.download = "Demo_" + (info.supplierId || "run") + "_" + (info.product || "").replace(/\s+/g, "") + "_" + m[2] + ".xlsx";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+  };
+  if (DEMO && typeof document !== "undefined" && document.body) {
+    window.open = function () { return { opener: null, close: function () {}, location: { replace: demoDownload } }; };
+    document.title = "DNA Hub Pricing demo (invented prices)";
+    var demoStyle = document.createElement("style");
+    demoStyle.textContent = "#demobar{position:sticky;top:0;z-index:60;height:44px;display:flex;align-items:center;gap:16px;padding:0 16px;background:#D8D9DB;color:#0F2A34;font:400 14px/20px Montserrat,Calibri,'Segoe UI',system-ui,Arial,sans-serif;white-space:nowrap;overflow:hidden}" +
+      "#demobar strong{font-weight:800}#demobar .note{flex:1;overflow:hidden;text-overflow:ellipsis}#demobar a{color:#0F2A34;font-weight:800;text-decoration:underline;cursor:pointer}" +
+      "#signOutBtn{display:none!important}@media (min-width:761px){.rail{top:44px!important;height:calc(100vh - 44px)!important}}@media (max-width:760px){#demobar .note{display:none}}";
+    document.head.appendChild(demoStyle);
+    var demoBar = document.createElement("div");
+    demoBar.id = "demobar"; demoBar.setAttribute("role", "status");
+    var demoLabel = document.createElement("strong"); demoLabel.textContent = "Demo: invented prices";
+    var demoNote = document.createElement("span"); demoNote.className = "note"; demoNote.textContent = "Every name, file and price here is invented. Nothing is saved to Dyce or sent to anyone.";
+    var demoLink = document.createElement("a"); demoLink.textContent = "Reset demo"; demoLink.setAttribute("href", "#"); demoLink.setAttribute("role", "button");
+    demoLink.addEventListener("click", function (e) { e.preventDefault(); demoReset(); });
+    demoBar.append(demoLabel, demoNote, demoLink);
+    document.body.insertBefore(demoBar, document.body.firstChild);
+  }
+
+  // In the demo no call ever leaves the page: an address the stub does not answer is refused here.
+  var realFetch = !DEMO && window.fetch ? window.fetch.bind(window) : null;
   window.fetch = function (url, init) {
     var u = String(url);
     if (u.indexOf(PR_UPLOAD) === 0 && init && init.method === "PUT") {
@@ -1073,7 +1237,7 @@
     if (u !== ENDPOINT && u !== DV_ENDPOINT && u !== PR_ENDPOINT && u !== CE_ENDPOINT) return realFetch ? realFetch(url, init) : Promise.reject(new Error("no fetch"));
     var body = {};
     try { body = JSON.parse((init && init.body) || "{}"); } catch (e) { body = {}; }
-    var res = u === DV_ENDPOINT ? dvAnswer(body) : u === PR_ENDPOINT ? prAnswer(body) : u === CE_ENDPOINT ? ceAnswer(body) : answer(body);
+    var res = u === DV_ENDPOINT ? dvAnswer(body) : u === PR_ENDPOINT ? prCall(body) : u === CE_ENDPOINT ? ceAnswer(body) : answer(body);
     // A dna-viewer, dna-pricing or commission-engine call has no args: its fields (all but the token) are listed in their place.
     var dvArgs = function () { var o = copy(body); delete o.token; delete o.op; delete o.action; return o; };
     calls.push({ op: body.op, action: body.action || null, args: body.args ? copy(body.args) : (u === DV_ENDPOINT || u === PR_ENDPOINT || u === CE_ENDPOINT ? dvArgs() : null), status: res[0], answer: copy(res[1]) });
@@ -1087,7 +1251,7 @@
     as: as,
     calls: calls,
     delay: delay,
-    buildMs: 15000,
+    buildMs: DEMO ? 4000 : 15000,
     endSession: function () { Object.keys(sessions).forEach(function (k) { delete sessions[k]; ended[k] = true; }); },
     untick: function (code) {
       Object.keys(sessions).forEach(function (k) { var p = person(sessions[k]); if (p) p.grants = p.grants.filter(function (c) { return c !== code; }); });

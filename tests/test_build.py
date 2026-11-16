@@ -92,6 +92,43 @@ class BuildTests(unittest.TestCase):
         self.assertLess(out.index("var STUB = 42;"), out.index("var page = 1;"))
         self.assertNotIn("{{", out)
 
+    DEMO_HUB = (
+        "<html><head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; connect-src https://x.test; font-src https://fonts.gstatic.com\">"
+        "<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n"
+        "<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Montserrat\">\n"
+        "</head><body><img src=\"{{LOGO_INV}}\"><script>var page = 1;</script></body></html>"
+    )
+
+    def test_demo_builds_one_page_with_the_stub_in_demo_mode(self):
+        (self.tmp / "hub.src.html").write_text(self.DEMO_HUB, encoding="utf-8")
+        (self.tmp / "tools").mkdir()
+        (self.tmp / "tools" / "preview-stub.js").write_text("var STUB = 42;", encoding="utf-8")
+        r = run_build(self.tmp, "--demo")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = (self.tmp / "demo" / "pricing-demo.html").read_text(encoding="utf-8")
+        self.assertIn("<script>window.__DEMO__ = true;\nvar STUB = 42;</script>", out)
+        self.assertLess(out.index("var STUB = 42;"), out.index("var page = 1;"))
+        # No other host: the web font link, the preconnect and the policy's font and connection allowances are gone.
+        self.assertNotIn("fonts.g", out)
+        self.assertNotIn("connect-src", out)
+        self.assertNotIn("{{", out)
+        # The regular preview is not turned into a demo.
+        r = run_build(self.tmp, "--preview")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("__DEMO__", (self.tmp / "preview" / "hub.html").read_text(encoding="utf-8"))
+
+    def test_demo_needs_the_hub_source_and_the_stub(self):
+        r = run_build(self.tmp, "--demo")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("hub.src.html", r.stderr)
+        (self.tmp / "hub.src.html").write_text(self.DEMO_HUB, encoding="utf-8")
+        r = run_build(self.tmp, "--demo")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("preview-stub.js", r.stderr)
+
+    def test_demo_is_git_ignored(self):
+        self.assertIn("demo/", (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines())
+
     def test_spaced_placeholder_fails(self):
         (self.tmp / "fixture.src.html").write_text(FIXTURE + "<p>{{ LOGO_ORIG }}</p>", encoding="utf-8")
         r = run_build(self.tmp)
@@ -647,3 +684,29 @@ class CommittedPagesTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DemoPageTests(unittest.TestCase):
+    def test_the_built_demo_labels_every_screen_and_never_reaches_a_real_endpoint(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        shutil.copytree(ASSETS, tmp / "assets")
+        shutil.copytree(ROOT / "parts", tmp / "parts")
+        (tmp / "tools").mkdir()
+        shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
+        shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
+        copy_pricing_code(tmp)
+        r = run_build(tmp, "--demo")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = (tmp / "demo" / "pricing-demo.html").read_text(encoding="utf-8")
+        self.assertIn("Demo: invented prices", out)
+        self.assertIn("Reset demo", out)
+        self.assertNotIn(chr(0x2014), out)
+        # No request to any host: the policy allows none, there is no web font link, and the stub
+        # replaces fetch so that in demo mode no address falls through to the page's own fetch.
+        self.assertNotIn("connect-src", out)
+        self.assertNotIn("fonts.googleapis", out)
+        self.assertIn("var realFetch = !DEMO && window.fetch", out)
+        self.assertIn("PR_ENDPOINT ? prCall(body)", out)
+        # The regular preview and the published page have no demo.
+        self.assertNotIn("__DEMO__ = true", (ROOT / "hub.src.html").read_text(encoding="utf-8"))
