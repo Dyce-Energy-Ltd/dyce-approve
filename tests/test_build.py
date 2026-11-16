@@ -289,6 +289,47 @@ class CommittedPagesTests(unittest.TestCase):
                 failed = [c for c in result["results"] if not c["ok"]]
                 self.assertEqual(failed, [], json.dumps(failed, indent=1, ensure_ascii=False))
 
+    def test_rail_preview_in_a_browser(self):
+        # The preview hub, signed in through the stub and starting in Broker Emails, driven by
+        # tools/rail-preview-check.js in a headless Chromium: the open tool's menu folds away and
+        # comes back, another tool opens with its menu, and a tool with no items has nothing to fold.
+        browser = next((b for b in BROWSERS if b and Path(b).is_file()), None)
+        if browser is None:
+            self.skipTest("no Chromium browser found (set DV_BROWSER to one)")
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        shutil.copytree(ASSETS, tmp / "assets")
+        shutil.copytree(ROOT / "parts", tmp / "parts")
+        shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
+        (tmp / "tools").mkdir()
+        shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
+        r = run_build(tmp, "--preview")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        preview = (tmp / "preview" / "hub.html").read_text(encoding="utf-8")
+        signed_in = ("<script>localStorage.clear(); localStorage.setItem('dyce.hub.token', 'stubcheck');"
+                     " localStorage.setItem('dyce.hub.where', JSON.stringify({tool: 'broker_emails', item: 'new'}));</script>")
+        check = (ROOT / "tools" / "rail-preview-check.js").read_text(encoding="utf-8").replace("</", "<\\/")
+        i = preview.index("<script")
+        page = preview[:i] + signed_in + preview[i:]
+        j = page.rindex("</body>")
+        page = page[:j] + "<script>" + check + "</script>" + page[j:]
+        (tmp / "check.html").write_text(page, encoding="utf-8")
+        for query in ("as=admin", "as=approveonly"):
+            with self.subTest(query=query):
+                r = subprocess.run(
+                    [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+                     "--user-data-dir=" + str(tmp / ("profile-" + re.sub(r"\W", "-", query))),
+                     "--virtual-time-budget=20000", "--dump-dom", (tmp / "check.html").as_uri() + "?" + query],
+                    capture_output=True, text=True, encoding="utf-8", timeout=120)
+                found = re.findall(r'<pre id="result">(.*?)</pre>', r.stdout, re.S)
+                self.assertTrue(found and found[-1], "the check wrote no result: %s" % r.stderr[-500:])
+                result = json.loads(html.unescape(found[-1]))
+                if os.environ.get("RAIL_CHECK_REPORT"):
+                    print(json.dumps(result, indent=1, ensure_ascii=False))
+                self.assertTrue(result["results"], "no checks ran")
+                failed = [c for c in result["results"] if not c["ok"]]
+                self.assertEqual(failed, [], json.dumps(failed, indent=1, ensure_ascii=False))
+
     def test_send_html_only_forwards_to_the_hub(self):
         page = (ROOT / "send.html").read_text(encoding="utf-8")
         self.assertIn('<meta http-equiv="refresh" content="0; url=hub.html">', page)

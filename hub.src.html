@@ -56,7 +56,10 @@ body { margin: 0; background: var(--surface); color: var(--ink); font-family: va
 .tab::after { content: "+"; }
 .tab:hover { background: var(--surface-raised); color: var(--ink); }
 .tab[aria-current="true"] { color: var(--ink); }
-.tab[aria-current="true"]::after { content: "\2212"; }
+/* + when the tool's menu is folded away or the tool is not open, minus when its menu shows,
+   nothing for a tool with no menu items. */
+.tab[aria-expanded="true"]::after { content: "\2212"; }
+.tab:not([aria-expanded])::after { content: ""; }
 .who { display: grid; gap: 10px; justify-items: start; padding: 14px 22px 22px; border-top: 1px solid var(--hairline); font-size: 13px; line-height: 20px; color: var(--muted); }
 .who .addr { overflow-wrap: anywhere; }
 .rail button:focus-visible, .rail select:focus-visible, .rail input:focus-visible { outline: 3px solid var(--brand-magenta); outline-offset: 2px; }
@@ -689,14 +692,26 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
   const visibleTools = () => TOOLS.filter((t) => t.allowed(ticks()));
 
   // The rail: a button per tool, with the side menu (#sidemenu, kept as one element because the
-  // tools draw into it) moved in under the open tool's name.
+  // tools draw into it) moved in under the open tool's name. Clicking another tool's name opens
+  // that tool with its menu showing; clicking the open tool's name folds its menu away or brings it
+  // back, leaving the page as it is (Phil Brook, 16/11/2026). A tool with no menu items for the
+  // person (Broker Emails with Approve alone) has nothing to fold.
+  let menuOpen = true;
+  const hasItems = (t) => t.items.some((x) => !x.need || ticks().includes(x.need));
   function renderTabs() {
     const bar = $("tabs"), menu = $("sidemenu");
     bar.textContent = "";
     for (const t of visibleTools()) {
-      const on = t.id === where.tool;
-      const b = el("button", { type: "button", class: "tab", "data-tool": t.id, "aria-current": on ? "true" : null, text: t.label });
-      b.addEventListener("click", () => showTool(t.id, undefined, "tab"));
+      const on = t.id === where.tool, folds = hasItems(t);
+      const b = el("button", { type: "button", class: "tab", "data-tool": t.id, "aria-current": on ? "true" : null,
+        "aria-expanded": folds ? String(on && menuOpen) : null, text: t.label });
+      b.addEventListener("click", () => {
+        if (!(on && folds)) { showTool(t.id, undefined, "tab"); return; }
+        menuOpen = !menuOpen;
+        menu.hidden = !menuOpen;
+        b.setAttribute("aria-expanded", String(menuOpen));
+        glow();
+      });
       bar.append(b);
       if (on) bar.append(menu);
     }
@@ -724,9 +739,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     bar.style.setProperty("--glow-y", Math.round(r.top - top + r.height / 2) + "px");
   }
   // The deepest current item wins: a Dashboard Pool board or a DNA Viewer account section sits
-  // below the menu item that holds it.
+  // below the menu item that holds it. With the menu folded away, the glow sits behind the tool.
   function glow() {
-    const bar = $("tabs"), cur = bar.querySelectorAll("#sidemenu [aria-current]");
+    const bar = $("tabs"), cur = [...bar.querySelectorAll("#sidemenu [aria-current]")].filter((n) => !n.closest("[hidden]"));
     glowAt(cur[cur.length - 1] || bar.querySelector('button[data-tool][aria-current="true"]'));
   }
   $("tabs").addEventListener("mouseover", (e) => { const b = e.target.closest("button"); if (b) glowAt(b); });
@@ -769,10 +784,12 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     }
     const items = t.items.filter((x) => !x.need || ticks().includes(x.need));
     const it = items.find((x) => x.id === item) || items[0] || null;
+    // Moving to another tool opens its menu; staying in the same tool keeps it as folded or open.
+    if (t.id !== where.tool) menuOpen = true;
     where = { tool: t.id, item: it ? it.id : "" };
     putStored(WHERE_KEY, JSON.stringify(where));
     renderTabs(); setCrumb(t, it);
-    menu.hidden = !items.length;
+    menu.hidden = !items.length || !menuOpen;
     let group = null;
     for (const x of items) {
       if (x.group && x.group !== group) { group = x.group; menu.append(el("div", { class: "menu-group", text: group })); }
