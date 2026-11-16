@@ -29,6 +29,15 @@ FIXTURE = (
 )
 
 
+def copy_pricing_code(folder):
+    # The files {{XLSX_LIB}}, {{PRICING_ADAPTERS}} and {{PRICING_EXPORTS}} in hub.src.html read.
+    (folder / "vendor").mkdir(exist_ok=True)
+    (folder / "pricing").mkdir(exist_ok=True)
+    shutil.copy(ROOT / "vendor" / "xlsx.full.min.js", folder / "vendor" / "xlsx.full.min.js")
+    for name in ("adapters.js", "exports.js"):
+        shutil.copy(ROOT / "pricing" / name, folder / "pricing" / name)
+
+
 def run_build(folder, *args):
     return subprocess.run(
         [sys.executable, str(BUILD), "--root", str(folder), *args],
@@ -118,6 +127,57 @@ class BuildTests(unittest.TestCase):
         self.assertIn("parts/pool-screen.js", r.stderr)
         self.assertFalse((self.tmp / "fixture.html").exists())
 
+    def test_code_placeholders_inline_wrapped_and_ascii(self):
+        # Both modules keep a private LAYOUTS: each is wrapped in its own function, its export
+        # keywords are stripped, and only the exports come out.
+        (self.tmp / "pricing").mkdir()
+        (self.tmp / "vendor").mkdir()
+        (self.tmp / "pricing" / "adapters.js").write_text(
+            "export const FORMATS = ['a'];\nconst LAYOUTS = { a: 1 };\n"
+            "export function parseSupplierFile() { return LAYOUTS.a; }\n", encoding="utf-8")
+        (self.tmp / "pricing" / "exports.js").write_text(
+            "const LAYOUTS = { b: 2 };\nexport function workbookFor() { return LAYOUTS.b + 'café \u2014'; }\n",
+            encoding="utf-8")
+        (self.tmp / "vendor" / "xlsx.full.min.js").write_text(
+            "var XLSX = {}; XLSX.note = 'a \u2014 b \U0001F600';", encoding="utf-8")
+        (self.tmp / "fixture.src.html").write_text(
+            "<script>const X = {{XLSX_LIB}}; const A = {{PRICING_ADAPTERS}}; const E = {{PRICING_EXPORTS}};</script>",
+            encoding="utf-8")
+        r = run_build(self.tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = (self.tmp / "fixture.html").read_text(encoding="utf-8")
+        self.assertNotRegex(out, r"(?m)^export\b")
+        self.assertNotIn("\u2014", out)
+        self.assertTrue(out.isascii())
+        self.assertIn("return { FORMATS, parseSupplierFile };", out)
+        self.assertIn("return { workbookFor };", out)
+        self.assertIn("a \\u2014 b \\ud83d\\ude00", out)
+        node = shutil.which("node")
+        if node:
+            script = out[out.index("<script>") + 8: out.index("</script>")]
+            check = subprocess.run(
+                [node, "-e", script + "; console.log(JSON.stringify([X.note, A.parseSupplierFile(), "
+                 "E.workbookFor(), Object.keys(A), Object.keys(E)]))"],
+                capture_output=True, text=True, encoding="utf-8")
+            self.assertEqual(check.returncode, 0, check.stderr)
+            self.assertEqual(json.loads(check.stdout),
+                             ["a \u2014 b \U0001F600", 1, "2café \u2014", ["FORMATS", "parseSupplierFile"], ["workbookFor"]])
+
+    def test_code_placeholder_with_missing_file_fails(self):
+        (self.tmp / "fixture.src.html").write_text("<script>const X = {{XLSX_LIB}};</script>", encoding="utf-8")
+        r = run_build(self.tmp)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("vendor/xlsx.full.min.js", r.stderr)
+        self.assertFalse((self.tmp / "fixture.html").exists())
+
+    def test_code_with_script_end_fails(self):
+        (self.tmp / "pricing").mkdir()
+        (self.tmp / "pricing" / "exports.js").write_text("export const A = '</script>';", encoding="utf-8")
+        (self.tmp / "fixture.src.html").write_text("<script>const E = {{PRICING_EXPORTS}};</script>", encoding="utf-8")
+        r = run_build(self.tmp)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("</script", r.stderr)
+
     def test_no_src_files_does_nothing(self):
         (self.tmp / "fixture.src.html").unlink()
         r = run_build(self.tmp)
@@ -131,7 +191,10 @@ class CommittedPagesTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         shutil.copytree(ASSETS, tmp / "assets")
         shutil.copytree(ROOT / "parts", tmp / "parts")
+        shutil.copytree(ROOT / "vendor", tmp / "vendor")
+        shutil.copytree(ROOT / "pricing", tmp / "pricing")
         shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
+        copy_pricing_code(tmp)
         r = run_build(tmp)
         self.assertEqual(r.returncode, 0, r.stderr)
         # Line endings are normalised first: a checkout with core.autocrlf=true (and no
@@ -146,7 +209,10 @@ class CommittedPagesTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         shutil.copytree(ASSETS, tmp / "assets")
         shutil.copytree(ROOT / "parts", tmp / "parts")
+        shutil.copytree(ROOT / "vendor", tmp / "vendor")
+        shutil.copytree(ROOT / "pricing", tmp / "pricing")
         shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
+        copy_pricing_code(tmp)
         (tmp / "tools").mkdir()
         shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
         r = run_build(tmp, "--preview")
@@ -258,6 +324,8 @@ class CommittedPagesTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         shutil.copytree(ASSETS, tmp / "assets")
         shutil.copytree(ROOT / "parts", tmp / "parts")
+        shutil.copytree(ROOT / "vendor", tmp / "vendor")
+        shutil.copytree(ROOT / "pricing", tmp / "pricing")
         shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
         (tmp / "tools").mkdir()
         shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
@@ -300,6 +368,8 @@ class CommittedPagesTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         shutil.copytree(ASSETS, tmp / "assets")
         shutil.copytree(ROOT / "parts", tmp / "parts")
+        shutil.copytree(ROOT / "vendor", tmp / "vendor")
+        shutil.copytree(ROOT / "pricing", tmp / "pricing")
         shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
         (tmp / "tools").mkdir()
         shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
@@ -329,6 +399,73 @@ class CommittedPagesTests(unittest.TestCase):
                 self.assertTrue(result["results"], "no checks ran")
                 failed = [c for c in result["results"] if not c["ok"]]
                 self.assertEqual(failed, [], json.dumps(failed, indent=1, ensure_ascii=False))
+
+    def test_pricing_tab_is_in_the_built_hub(self):
+        page = (ROOT / "hub.html").read_text(encoding="utf-8")
+        src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        self.assertIn('id: "pricing", label: "Pricing"', page)
+        self.assertIn('allowed: (t) => t.some((c) => c.startsWith("pricing."))', page)
+        for item in ("files", "bands", "splits", "runs", "book"):
+            self.assertIn('{ id: "%s"' % item, page)
+        self.assertIn("/functions/v1/dna-pricing", page)
+        # The three inlined modules: the spreadsheet library, the adapters and the exports.
+        self.assertIn("SheetJS", page)
+        self.assertIn("function parseSupplierFile(", page)
+        self.assertIn("return { FORMATS, ROW_KEYS, parseSupplierFile };", page)
+        self.assertIn("function workbookFor(", page)
+        self.assertIn("return { BROKER_SHEET, UD_SHEET, BROKER_HEADER, UD_HEADER, brokerSheet, udUploadSheet, workbookFor };", page)
+        self.assertNotIn("{{", page)
+        # The source holds the placeholders; the build holds the code.
+        for key in ("XLSX_LIB", "PRICING_ADAPTERS", "PRICING_EXPORTS"):
+            self.assertIn("{{%s}}" % key, src)
+        self.assertNotRegex(page, r"(?m)^export\b")
+
+    def test_no_em_dash_in_the_built_hub(self):
+        # The inlined library holds em dashes; they are written as escapes, so none is in the page.
+        self.assertNotIn("\u2014", (ROOT / "hub.html").read_text(encoding="utf-8"))
+        self.assertNotIn("\u2014", (ROOT / "hub.src.html").read_text(encoding="utf-8"))
+
+    def test_pricing_never_says_activate_and_keeps_no_data_in_storage(self):
+        # R15: the page never activates a file. Browser storage holds only the hub's two keys.
+        src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
+        self.assertNotIn("activate", mine.lower())
+        for word in ("localStorage", "sessionStorage", "indexedDB", "innerHTML", "getStored", "putStored"):
+            self.assertNotIn(word, mine, word)
+        self.assertEqual(set(re.findall(r"dyce\.hub\.[a-z]+", src)), {"dyce.hub.token", "dyce.hub.where"})
+
+    def test_pricing_stub_answers_every_op_with_four_ticks(self):
+        stub = (ROOT / "tools" / "preview-stub.js").read_text(encoding="utf-8")
+        ops = ("overview band_set_get split_list run_set preview book_live book_rows file_start file_rows "
+               "file_finish file_reject band_set_new band_set_copy band_set_save band_set_approve band_set_retire "
+               "split_save split_publish run_set_prepare publish publish_abandon output_upload_url output_record "
+               "output_link").split()
+        for op in ops:
+            self.assertIn('"%s"' % op, stub, op)
+        for tick in ("pricing.view", "pricing.load", "pricing.set", "pricing.publish"):
+            self.assertIn('"%s"' % tick, stub, tick)
+        self.assertIn("pricing:", stub)
+
+    def test_pricing_page_shows_the_database_figures(self):
+        # R31: the preview shows the figures pricing.preview_run works out at the usage typed (I1),
+        # the load report the rows the database holds (M7), and a set can be prepared again (I3).
+        src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
+        self.assertIn("sell_annual_pence", mine)
+        self.assertIn("margin_annual_pence", mine)
+        self.assertNotIn("sell_tac_pence", mine)
+        self.assertNotIn("margin_pence)", mine)
+        self.assertIn("rep.row_count_loaded", mine)
+        self.assertNotIn('"Rows loaded: " + comma(added)', mine)
+        self.assertEqual(mine.count('call("run_set_prepare"'), 2, "on the set screen and after Abandon")
+        self.assertIn("Prepare again", mine)
+        stub = (ROOT / "tools" / "preview-stub.js").read_text(encoding="utf-8")
+        self.assertIn("sell_annual_pence", stub)
+        self.assertIn("row_count_loaded", stub)
+
+    def test_this_file_holds_no_em_dash(self):
+        # M6: the em dashes this file tests for are written as escapes.
+        self.assertNotIn("\u2014", Path(__file__).read_text(encoding="utf-8"))
 
     def test_send_html_only_forwards_to_the_hub(self):
         page = (ROOT / "send.html").read_text(encoding="utf-8")

@@ -393,6 +393,51 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #pool .pool-who select { font: inherit; font-size: 14px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; width: 100%; padding: 6px 8px; }
 @media (max-width: 760px) { .pool-list { max-height: 50vh; overflow-y: auto; } }
 
+/* Pricing: Dashboard mode on the hub's tokens. The status colours are the Dyce dashboard tokens, used
+   only for state badges, each with its word beside it. Headlines of 24px and up take the magenta
+   accent; nothing else does. */
+#pr {
+  --status-ok: #187244; --status-ok-wash: #E2F3E9; --status-ok-edge: #A5CCB8;
+  --status-warn: #8A5A00; --status-warn-wash: #FDEFCF; --status-warn-edge: #DAC291;
+  --status-critical: #B5281F; --status-critical-wash: #FBE0DD; --status-critical-edge: #E6A9A4;
+  --status-info: #1F5FAE; --status-info-wash: #E2ECF9; --status-info-edge: #A8C2E2;
+  --status-neutral: #5B6B72; --status-neutral-wash: #ECEFF1; --status-neutral-edge: #C0C7CB;
+  padding-bottom: 22px;
+}
+#pr h2.sect { margin: 34px 0 10px; }
+#pr .card { background: var(--surface-raised); border-radius: var(--r-card); padding: 18px 22px; margin-top: 22px; display: grid; gap: 14px; }
+#pr .card.white { background: var(--surface); box-shadow: var(--shadow-card); }
+#pr .card.problem { border-left: 4px solid var(--status-critical); }
+#pr .card > h2 { margin: 0; }
+#pr .card p { margin: 0; }
+#pr h3.sub { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); margin: 6px 0 0; }
+#pr input[type="number"], #pr select { font: inherit; font-size: 15px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; padding: 9px 12px; width: 100%; }
+#pr table.prt input[type="number"], #pr table.prt select { font-size: 13px; padding: 6px 8px; min-width: 96px; }
+#pr input[disabled], #pr select[disabled] { background: var(--surface-raised); color: var(--muted); }
+#pr input[type="checkbox"] { accent-color: var(--brand-magenta); width: 18px; height: 18px; margin: 0; cursor: pointer; }
+#pr .prwide { overflow-x: auto; margin-top: 8px; }
+#pr table.prt { border-collapse: collapse; width: 100%; font-size: 13px; line-height: 20px; font-variant-numeric: tabular-nums; }
+#pr .prt th, #pr .prt td { padding: 8px 14px 8px 0; border-bottom: 1px solid var(--hairline); text-align: left; vertical-align: top; overflow-wrap: break-word; }
+#pr .prt th { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+#pr .badge { font: 800 10px/14px var(--font); letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; border: 1px solid; white-space: nowrap; display: inline-block; }
+#pr .badge.ok { color: var(--status-ok); background: var(--status-ok-wash); border-color: var(--status-ok-edge); }
+#pr .badge.warn { color: var(--status-warn); background: var(--status-warn-wash); border-color: var(--status-warn-edge); }
+#pr .badge.critical { color: var(--status-critical); background: var(--status-critical-wash); border-color: var(--status-critical-edge); }
+#pr .badge.info { color: var(--status-info); background: var(--status-info-wash); border-color: var(--status-info-edge); }
+#pr .badge.neutral { color: var(--status-neutral); background: var(--status-neutral-wash); border-color: var(--status-neutral-edge); }
+#pr ul.plain { margin: 6px 0 0; padding-left: 20px; font-size: 14px; line-height: 22px; }
+#pr ol.steps { margin: 0; padding-left: 22px; display: grid; gap: 6px; font-size: 14px; line-height: 22px; }
+#pr ol.steps li { padding-left: 4px; }
+#pr ol.steps li .badge { margin-left: 10px; }
+#pr .attn { border-left: 4px solid var(--status-warn); padding: 6px 0 6px 14px; margin-top: 14px; }
+#pr .attn .t { font-weight: 800; font-size: 14px; }
+#pr .tickrow { display: flex; gap: 10px; align-items: center; }
+#pr .tickrow label { font-size: 15px; font-weight: 800; cursor: pointer; }
+#pr .draftbox, #pr .solvedbox { border: 1px solid var(--hairline); border-radius: 10px; padding: 12px 14px; display: grid; gap: 6px; }
+#pr .draftform { display: grid; gap: 14px; border-top: 1px solid var(--hairline); padding-top: 14px; }
+#pr .inline { display: inline-flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+#pr .foot { margin-top: 34px; }
+
 @media (max-width: 760px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .rail { position: static; height: auto; overflow: visible; }
@@ -603,6 +648,13 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 {{POOL_SCREEN_JS}}
 </script>
 <script>
+// The Pricing tab's three inlined modules, put here by build.py: the spreadsheet library (SheetJS),
+// the supplier file adapters and the Broker and UD Upload file makers. Each is one expression.
+const PR_XLSX = {{XLSX_LIB}};
+const PR_ADAPTERS = {{PRICING_ADAPTERS}};
+const PR_EXPORTS = {{PRICING_EXPORTS}};
+</script>
+<script>
 (() => {
   const ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/comms-web";
   const TOKEN_KEY = "dyce.hub.token";
@@ -666,6 +718,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
   const REQUEST = "broker_emails.request", RENEWALS = "broker_emails.renewals";
   const DV_VIEW = "dna_viewer.view", DV_REVIEW = "dna_viewer.review", DV_ORIGINALS = "dna_viewer.originals";
   const POOL_REVIEW = "dashboard_pool.review";
+  const PR_VIEW = "pricing.view";
   const TOOLS = [
     { id: "broker_emails", label: "Broker Emails", allowed: (t) => t.some((c) => c.startsWith("broker_emails.")),
       items: [{ id: "new", label: "New email", group: "Price emails", need: REQUEST },
@@ -684,6 +737,11 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     { id: "dashboard_pool", label: "Dashboard Pool", allowed: (t) => t.includes(POOL_REVIEW) || !!(me && me.is_decider === true),
       items: [{ id: "boards", label: "Boards" }, { id: "summary", label: "Summary" }],
       render: renderPool },
+    { id: "pricing", label: "Pricing", allowed: (t) => t.some((c) => c.startsWith("pricing.")),
+      items: [{ id: "files", label: "Supplier files", need: PR_VIEW }, { id: "bands", label: "Band sets", need: PR_VIEW },
+              { id: "splits", label: "Splits", need: PR_VIEW }, { id: "runs", label: "Runs and publishing", need: PR_VIEW },
+              { id: "book", label: "Live price book", need: PR_VIEW }],
+      render: renderPricing },
     { id: "dna_admin", label: "DNA Admin", allowed: (t) => t.includes("dna_admin.admin"),
       items: [{ id: "people", label: "People and access" }, { id: "signins", label: "Who may sign in" },
               { id: "history", label: "Sign-in history" }, { id: "changes", label: "Changes made here" }], render: renderAdmin },
@@ -803,6 +861,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     if (back) back.focus();
   }
   window.showTool = showTool;
+
+  // The Pricing tab: its screens are PR.show(item), below.
+  function renderPricing(item, g) { PR.show(item, g); }
 
   // ---------- Broker Emails. With Approve alone there is no menu item: approving is done from
   // the approval email's link.
@@ -2191,6 +2252,902 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     return { show, reset };
   })();
 
+  // BEGIN PRICING
+  // ---------- Pricing: Supplier files, Band sets, Splits, Runs and publishing, Live price book.
+  // It talks to the dna-pricing function, which checks the hub session and the tick for every op;
+  // hiding a screen or a button here is tidiness, not the gate. Four ticks: pricing.view (look),
+  // pricing.load (load supplier files), pricing.set (band sets and splits), pricing.publish.
+  // The supplier workbook is read in this browser by the adapters in PR_ADAPTERS (SheetJS in
+  // PR_XLSX), and the Broker and UD Upload workbooks are made here by PR_EXPORTS; the three are
+  // put into the page by build.py. Nothing is kept in browser storage. The page only loads and
+  // publishes: what happens to a loaded file when its set is published is decided inside the
+  // database (ruling R15), and no screen offers any other step.
+  // prGen is bumped on sign-out (reset) and on every move inside the tab, as DV's dvGen: an
+  // answer that arrives after either is dropped, not drawn. A load or a publish that is under way
+  // is tied to epoch instead, which only sign-out changes, so moving to another screen does not
+  // stop it; it carries on and its progress shows again nowhere, so the person is told to stay.
+  const PR = (() => {
+    const PR_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/dna-pricing";
+    // Signed links to store a file are made by the function on the file store of the same project.
+    const STORAGE = "https://rlpnbwjppylhcpybpqim.supabase.co/storage/v1/";
+    const MAX_BODY = 900000;                    // bytes of JSON in one request that carries rows
+    const POLL_MS = 10000, POLL_MAX_MS = 300000; // the book is checked every 10 seconds for 5 minutes
+    const BOOK_PAGE = 5000;
+    const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    const CONTENT_TYPE = { xlsx: XLSX_TYPE, xls: "application/vnd.ms-excel", csv: "text/csv" };
+    const T = { load: "pricing.load", set: "pricing.set", publish: "pricing.publish" };
+    const FORMAT_LABEL = {
+      voltx_elec_v1: "Voltx electricity (Excel)", yu_elec_v1: "Yu electricity (Excel)", yu_gas_v1: "Yu gas (Excel)",
+      jellyfish_elec_v1: "Jellyfish electricity (CSV)", jellyfish_gas_v1: "Jellyfish gas (CSV)",
+    };
+    const FUEL = { electricity: "Electricity", gas: "Gas" };
+    const SALE = { all: "Acquisition and renewal", acquisition: "Acquisition", renewal: "Renewal" };
+    const STRUCTURE = { day_night: "Day and night", evening_weekend: "Evening and weekend", evening_weekend_night: "Evening, weekend and night", hh: "Half-hourly" };
+    const SPLIT_KEYS = { day_night: ["day", "night"], hh: ["day", "night"], evening_weekend: ["day", "ew"], evening_weekend_night: ["day", "ew", "night"] };
+    const KEY_LABEL = { day: "Day", night: "Night", ew: "Evening and weekend" };
+    const LAYOUT_LABEL = { broker: "Broker", ud_upload: "UD Upload" };
+    const STATE = { published: "ok", approved: "ok", active: "ok", live: "ok", draft: "info", loaded: "info", failed: "critical", publishing: "warn", unfinished: "warn", rejected: "neutral", retired: "neutral", replaced: "neutral" };
+    const GBP = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
+    let prGen = 0, hubGen = -1, root = null, epoch = 0, uid = 0;
+
+    const can = (c) => ticks().includes(c);
+    // ---------- the function. A signedOut answer, to any op, ends the session as api() does.
+    async function call(op, fields, ms) {
+      const t = token;
+      let res, j;
+      try {
+        res = await fetch(PR_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ op, token: t, ...fields }), signal: AbortSignal.timeout(ms || 30000) });
+        j = await res.json();
+      } catch { throw { message: "The server did not answer. Check your connection and try again." }; }
+      if (!j || typeof j !== "object") throw { message: "Unexpected answer from the server." };
+      if (res.status === 401 && j.signedOut) { if (t && token === t) showSignIn("Your session has ended. Sign in again."); throw { signedOut: true, message: "Your session has ended. Sign in again." }; }
+      if (!j.ok) throw { message: j.error || "Something went wrong." };
+      return j;
+    }
+    const still = (n) => n === prGen && hubGen === gen && !!me && !!root && root.isConnected;
+    const onStorage = (u) => typeof u === "string" && u.startsWith(STORAGE);
+    const fail = (n, msg, err) => { if (still(n) && !(err && err.signedOut)) say(msg, explain(err), true); };
+    const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+    const byteLen = (s) => new TextEncoder().encode(s).length;
+    const comma = (v) => (v == null || v === "") ? "–" : Number(v).toLocaleString("en-GB");
+
+    // ---------- drawing helpers. Every server value goes in as text.
+    const pounds = (pence) => { const n = Number(pence); return (pence == null || pence === "" || !Number.isFinite(n)) ? "–" : GBP.format(n / 100); };
+    const words = (s) => String(s == null ? "" : s).replace(/_/g, " ");
+    const pctText = (fraction) => String(Math.round(Number(fraction) * 10000) / 100) + "%";
+    const badge = (status) => el("span", { class: "badge " + (STATE[status] || "neutral"), text: words(status) });
+    const btn = (text, on, cls) => el("button", { type: "button", class: "btn " + (cls || ""), text, onclick: on });
+    function field(label, input, hint) {
+      const id = "pr-f" + (++uid); input.id = id;
+      return el("div", { class: "field" }, el("label", { for: id, text: label }), input, hint ? el("div", { class: "hint", text: hint }) : null);
+    }
+    const select = (options, value) => {
+      const s = el("select", {}, ...options.map(([v, t]) => el("option", { value: v, text: t })));
+      if (value != null) s.value = value;
+      return s;
+    };
+    function table(heads, rows) {
+      return el("div", { class: "prwide" }, el("table", { class: "prt" },
+        el("thead", {}, el("tr", {}, ...heads.map((h) => el("th", { scope: "col", text: h })))),
+        el("tbody", {}, ...rows.map((r) => el("tr", {}, ...r.map((c) => el("td", {}, c)))))));
+    }
+    function head(a, b, stand) {
+      const msg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
+      root.append(el("h1", {}, a, el("em", { text: b })), el("p", { class: "stand", text: stand }), msg);
+      return msg;
+    }
+    const foot = () => root.append(el("p", { class: "foot", text: "Data class: Amber. Prices and margins are read from dyce-prod through the dna-pricing function and are not kept in this page. Costs and margins are for staff only." }));
+    const lock = (box, on) => { for (const b of box.querySelectorAll("button, input, select, textarea")) b.disabled = on; };
+    // A list of steps in the order they happen, each with a state in words.
+    function steps(parent) {
+      const ol = el("ol", { class: "steps" }); parent.append(ol);
+      return (text, state) => {
+        const li = el("li", { class: state || "" }, el("span", { text }), state ? el("span", { class: "badge " + ({ done: "ok", working: "info", failed: "critical", waiting: "warn" }[state] || "neutral"), text: state === "done" ? "Done" : state === "working" ? "Working" : state === "failed" ? "Failed" : "Waiting" }) : null);
+        ol.append(li);
+        return (t2, s2) => {
+          li.textContent = ""; li.className = s2 || "";
+          li.append(el("span", { text: t2 }), s2 ? el("span", { class: "badge " + ({ done: "ok", working: "info", failed: "critical", waiting: "warn" }[s2] || "neutral"), text: s2 === "done" ? "Done" : s2 === "working" ? "Working" : s2 === "failed" ? "Failed" : "Waiting" }) : null);
+        };
+      };
+    }
+
+    async function sha256(bytes) {
+      const d = await crypto.subtle.digest("SHA-256", bytes);
+      return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    }
+    // Rows in parts whose JSON request body stays under MAX_BODY bytes. fixed is the bytes of the
+    // request with no rows in it; each row costs its own JSON plus a comma.
+    function splitRows(rows, fixed) {
+      const parts = []; let cur = [], size = fixed;
+      for (const r of rows) {
+        const b = byteLen(JSON.stringify(r)) + 1;
+        if (cur.length && size + b > MAX_BODY) { parts.push(cur); cur = []; size = fixed; }
+        cur.push(r); size += b;
+      }
+      if (cur.length) parts.push(cur);
+      return parts;
+    }
+    async function putFile(url, body, type, ms) {
+      if (!onStorage(url)) throw { message: "Unexpected answer from the server." };
+      let res;
+      try { res = await fetch(url, { method: "PUT", headers: { "Content-Type": type, "x-upsert": "true" }, body, signal: AbortSignal.timeout(ms || 300000) }); }
+      catch { throw { message: "The file could not be stored. Check your connection and try again." }; }
+      if (!res.ok) throw { message: "The file could not be stored. Try again." };
+    }
+    // R30: open a stored output file through its 60-second link. The window is opened on the click
+    // (so the browser allows it) and sent to the link when it comes; a refusal closes it and shows here.
+    function download(layout, runId, msgEl) {
+      const w = window.open("", "_blank");
+      if (!w) { say(msgEl, "The browser stopped the new window. Allow pop-ups for this page and try again.", true); return; }
+      try { w.opener = null; } catch { /* the link still opens */ }
+      say(msgEl, "");
+      call("output_link", { priceRunId: runId, layout }).then((r) => {
+        if (!onStorage(r.url)) throw { message: "Unexpected answer from the server." };
+        w.location.replace(r.url);
+      }).catch((err) => {
+        try { w.close(); } catch { /* already closed */ }
+        if (me && !(err && err.signedOut)) say(msgEl, explain(err), true);
+      });
+    }
+    const downloadButtons = (runId, layouts, msgEl) => layouts.map((l) => btn("Download " + (LAYOUT_LABEL[l] || l), () => download(l, runId, msgEl), "ghost small"));
+    // A file made in the page, offered to save. The link is made and dropped at once.
+    function saveBytes(bytes, name) {
+      const url = URL.createObjectURL(new Blob([bytes], { type: XLSX_TYPE }));
+      const a = el("a", { href: url, download: name }); document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+    const fileName = (layout, run) => ("Dyce_" + (layout === "broker" ? "Broker" : "UD_Upload") + "_" + run.supplier + "_" + run.product + "_" + run.sales.join("-") + "_" + day(run.publishedAt).replace(/\//g, "")).replace(/[^A-Za-z0-9_-]+/g, "_") + ".xlsx";
+    const supplierNames = (ov) => new Map(ov.suppliers.map((s) => [s.supplier_id, s.supplier_name]));
+
+    function show(item, g) {
+      hubGen = g; prGen++;
+      root = el("div", { id: "pr" }); $("main").append(root);
+      const n = prGen;
+      ({ files, bands, splits, runs, book }[item] || files)(n);
+    }
+
+    // =====================================================================================
+    // Supplier files
+    // =====================================================================================
+    async function files(n) {
+      const msg = head("Supplier ", "files", "Load a supplier's price file. The file is read here, in your browser, and only its rows are sent. Loading a file publishes nothing: you publish from Runs and publishing.");
+      let ov;
+      try { ov = await call("overview"); } catch (err) { fail(n, msg, err); return; }
+      if (!still(n)) return;
+      const names = supplierNames(ov);
+      const report = el("div");
+      if (can(T.load)) root.append(loadCard(ov, report, msg));
+      root.append(report, el("h2", { class: "sect", text: "Files loaded" }));
+      if (!ov.files.length) root.append(el("div", { class: "empty", text: "No files have been loaded yet." }));
+      else root.append(table(["File", "Supplier", "Fuel", "Format", "Status", "Production date", "Quotes valid", "Rows in file", "Rows loaded", "Refused", "Loaded"],
+        ov.files.map((f) => [f.source_filename, names.get(f.supplier_id) || f.supplier_id, FUEL[f.fuel] || f.fuel, FORMAT_LABEL[f.file_format] || f.file_format,
+          f.finished ? badge(f.status) : badge("unfinished"), f.production_date ? day(f.production_date) : "–",
+          f.quote_valid_from || f.quote_valid_until ? day(f.quote_valid_from) + " to " + day(f.quote_valid_until) : "–",
+          comma(f.row_count_source), comma(f.row_count_loaded), f.finished ? comma(f.refused_count) : "–", f.loaded_at ? when(f.loaded_at) + ", " + (f.loaded_by || "") : "–"])));
+      root.append(el("p", { class: "hint", text: "A file shown as unfinished did not complete its load. Nothing is published from it. Loading the same file again starts clean." }));
+      foot();
+    }
+
+    function loadCard(ov, report, msg) {
+      const supplier = select(ov.suppliers.map((s) => [s.supplier_id, s.supplier_name]));
+      const fuel = select([["electricity", "Electricity"], ["gas", "Gas"]]);
+      const format = select([]);
+      const input = el("input", { type: "file", accept: ".xlsx,.xls,.csv" });
+      const dates = { production: el("input", { type: "date" }), from: el("input", { type: "date" }), until: el("input", { type: "date" }) };
+      const summary = el("div"), progress = el("div");
+      let staged = null;
+      const fill = () => {
+        const want = fuel.value === "gas" ? "_gas_" : "_elec_";
+        format.textContent = "";
+        for (const f of PR_ADAPTERS.FORMATS.filter((x) => x.includes(want))) format.append(el("option", { value: f, text: FORMAT_LABEL[f] || f }));
+      };
+      const clear = () => { staged = null; summary.textContent = ""; };
+      fuel.addEventListener("change", () => { fill(); clear(); });
+      for (const c of [supplier, format, input]) c.addEventListener("change", clear);
+      fill();
+      const read = btn("Read the file", () => readFile(), "");
+      const card = el("div", { class: "card" },
+        el("h2", { text: "Load a file" }),
+        el("div", { class: "fields" }, field("Supplier", supplier), field("Fuel", fuel), field("File format", format), field("File", input, "Excel (.xlsx or .xls) or CSV, as the format says.")),
+        el("div", { class: "fields" }, field("Production date (optional)", dates.production), field("Quotes valid from (optional)", dates.from), field("Quotes valid until (optional)", dates.until)),
+        el("div", { class: "actions" }, read), summary, progress);
+
+      async function readFile() {
+        const file = input.files && input.files[0];
+        if (!file) { say(msg, "Choose a file first.", true); return; }
+        const ext = ((file.name.match(/\.([A-Za-z0-9]+)$/) || [])[1] || "").toLowerCase();
+        if (!CONTENT_TYPE[ext]) { say(msg, "Choose an Excel (.xlsx, .xls) or CSV file.", true); return; }
+        clear(); say(msg, "Reading the file. A large file can take a minute. Keep this page open."); read.disabled = true;
+        await pause(40);
+        try {
+          const buf = await file.arrayBuffer();
+          const wb = ext === "csv" ? PR_XLSX.read(new TextDecoder("utf-8").decode(buf), { type: "string", raw: true }) : PR_XLSX.read(new Uint8Array(buf), { type: "array" });
+          const parsed = PR_ADAPTERS.parseSupplierFile(format.value, wb);
+          staged = { file, ext, buf, parsed, supplierId: supplier.value, fuel: fuel.value, format: format.value };
+          say(msg, "");
+          drawSummary(parsed);
+        } catch (err) {
+          say(msg, "The file could not be read as " + (FORMAT_LABEL[format.value] || format.value) + ". " + (err && err.message ? err.message : "Check the supplier, fuel and format.") + " Nothing has been sent.", true);
+        } finally { read.disabled = false; }
+      }
+
+      function drawSummary(p) {
+        summary.textContent = "";
+        const reasons = new Map();
+        for (const r of p.refused) reasons.set(r.reason, (reasons.get(r.reason) || 0) + 1);
+        const refusedBytes = byteLen(JSON.stringify(p.refused));
+        const blocked = !p.rows.length ? "No row could be used, so there is nothing to load." : refusedBytes > MAX_BODY - 2000 ? "Too many rows were refused to report in one go. Check that the supplier, fuel and format match the file." : "";
+        summary.append(
+          el("h3", { class: "sub", text: "What the page read" }),
+          el("ul", { class: "plain" },
+            el("li", { text: "Rows in the file: " + comma(p.rowCountSource) }),
+            el("li", { text: "Rows that can be loaded: " + comma(p.rows.length) }),
+            el("li", { text: "Rows refused: " + comma(p.refused.length) })));
+        if (reasons.size) summary.append(table(["Reason refused", "Rows"], [...reasons].sort((a, b) => b[1] - a[1]).map(([r, c]) => [r, comma(c)])),
+          el("p", { class: "hint", text: "First rows refused: " + p.refused.slice(0, 8).map((r) => "row " + r.row).join(", ") + (p.refused.length > 8 ? " and others." : ".") }));
+        if (p.assumptions.length) summary.append(el("h3", { class: "sub", text: "What this format assumes" }), el("ul", { class: "plain" }, ...p.assumptions.map((a) => el("li", { text: a }))));
+        if (blocked) { summary.append(el("p", { class: "msg refused", text: blocked })); return; }
+        summary.append(el("div", { class: "actions" }, btn("Load this file", () => doLoad(), ""),
+          el("span", { class: "hint", text: "Stay on this page until the load report appears." })));
+      }
+
+      async function doLoad() {
+        const st = staged; if (!st) return;
+        const my = epoch, alive = () => my === epoch && !!me;
+        lock(card, true); progress.textContent = ""; report.textContent = "";
+        const line = steps(progress);
+        let cur = null, curText = "", added = 0;
+        const go = (text) => { curText = text; cur = line(text, "working"); };
+        const done = (text) => { cur(text || curText, "done"); };
+        try {
+          go("Checking the file");
+          const sha = await sha256(st.buf);
+          done(); go("Starting the load");
+          const opt = (c) => c.value ? c.value : null;
+          const s = await call("file_start", { supplierId: st.supplierId, fuel: st.fuel, format: st.format, filename: st.file.name, sha256: sha, extension: st.ext,
+            productionDate: opt(dates.production), validFrom: opt(dates.from), validUntil: opt(dates.until), rowCount: st.parsed.rowCountSource });
+          if (!alive()) return;
+          done(); go("Storing the original file");
+          await putFile(s.uploadUrl, st.file, CONTENT_TYPE[st.ext]);
+          if (!alive()) return;
+          done();
+          const fixed = byteLen(JSON.stringify({ op: "file_rows", token, fileId: s.fileId, rows: [] })) + 200;
+          const parts = splitRows(st.parsed.rows, fixed);
+          go("Sending the rows, " + parts.length + (parts.length === 1 ? " part" : " parts"));
+          for (let i = 0; i < parts.length; i++) {
+            cur("Sending the rows: part " + (i + 1) + " of " + parts.length + " (" + comma(added) + " of " + comma(st.parsed.rows.length) + " rows sent)", "working");
+            if (byteLen(JSON.stringify({ op: "file_rows", token, fileId: s.fileId, rows: parts[i] })) > 990000) throw { message: "A part of the rows is too large to send." };
+            let r;
+            try { r = await call("file_rows", { fileId: s.fileId, rows: parts[i] }, 90000); }
+            catch (err) { if (err && err.signedOut) return; throw { message: "Part " + (i + 1) + " of " + parts.length + " could not be sent: " + explain(err) + " The file is not finished and nothing is published from it. Load the same file again to start clean." }; }
+            if (!alive()) return;
+            added += Number(r.added) || 0;
+          }
+          done("Sending the rows: " + comma(added) + " rows sent in " + parts.length + (parts.length === 1 ? " part" : " parts"));
+          go("Finishing the load and preparing the runs");
+          let f;
+          try { f = await call("file_finish", { fileId: s.fileId, refused: st.parsed.refused }, 120000); }
+          catch (err) { if (err && err.signedOut) return; throw { message: "The load could not be finished: " + explain(err) + " Nothing is published from it. Load the same file again to start clean." }; }
+          if (!alive()) return;
+          done();
+          say(msg, "");
+          drawReport(report, f.report || {}, st, added);
+          staged = null; summary.textContent = ""; input.value = "";
+        } catch (err) {
+          if (err && err.signedOut) return;
+          if (cur) cur(curText, "failed");
+          say(msg, explain(err), true);
+        } finally { if (alive()) lock(card, false); }
+      }
+      return card;
+    }
+
+    // R20: the load report, as the database gave it, with what the page sent beside it.
+    function drawReport(box, rep, st, added) {
+      box.textContent = "";
+      const by = rep.by_reason && typeof rep.by_reason === "object" ? Object.entries(rep.by_reason) : [];
+      const card = el("div", { class: "card white" }, el("h2", { text: "Load report" }),
+        el("p", { class: "hint", text: st.file.name }),
+        el("ul", { class: "plain" },
+          el("li", { text: "Rows in the file: " + comma(st.parsed.rowCountSource) }),
+          el("li", { text: "Rows loaded: " + comma(rep.row_count_loaded) }),
+          el("li", { text: "Rows refused: " + comma(rep.refused_count) }),
+          el("li", { text: "Runs prepared: " + comma(rep.runs_prepared) })));
+      // The count is the database's (finish_supplier_file). A difference from what this page sent
+      // means a part went missing on the way; publishing such a file is refused.
+      if (rep.row_count_loaded != null && Number(rep.row_count_loaded) !== added) {
+        card.append(el("p", { class: "msg refused", text: "This page sent " + comma(added) + " rows but the database holds " + comma(rep.row_count_loaded) + ". Load the same file again to start clean." }));
+      }
+      if (by.length) card.append(table(["Reason refused", "Rows"], by.sort((a, b) => b[1] - a[1]).map(([r, c]) => [r, comma(c)])));
+      const lines = st.parsed.assumptions || [];
+      if (lines.length) card.append(el("h3", { class: "sub", text: "What this format assumes" }), el("ul", { class: "plain" }, ...lines.map((a) => el("li", { text: a }))));
+      if (rep.prepare_problem) {
+        card.append(el("p", { class: "msg refused", text: "The runs could not be prepared: " + rep.prepare_problem }),
+          el("p", { class: "hint", text: "The file is loaded. Publish the missing split in Splits and the runs are prepared for this supplier." }),
+          el("div", { class: "actions" }, btn("Open Splits", () => showTool("pricing", "splits", "menu"), "ghost small")));
+      } else {
+        card.append(el("div", { class: "actions" }, btn("Open Runs and publishing", () => showTool("pricing", "runs", "menu"), "ghost small")));
+      }
+      box.append(card);
+    }
+
+    // =====================================================================================
+    // Band sets
+    // =====================================================================================
+    async function bands(n) {
+      const msg = head("Band ", "sets", "A band set holds the margin for each consumption band of one supplier, fuel, product and sale type, and the cost per meter. Only a draft can be edited. To change an approved set, copy it.");
+      const body = el("div"); root.append(body);
+      const list = async (note) => {
+        body.textContent = ""; say(msg, note || "");
+        let ov;
+        try { ov = await call("overview"); } catch (err) { fail(n, msg, err); return; }
+        if (!still(n)) return;
+        drawBandList(ov);
+      };
+      function drawBandList(ov) {
+        body.textContent = "";
+        const names = supplierNames(ov);
+        const panel = el("div");
+        if (can(T.set)) body.append(newCard(ov, names));
+        body.append(el("h2", { class: "sect", text: "Band sets" }));
+        if (!ov.bandSets.length) body.append(el("div", { class: "empty", text: "No band sets yet." }));
+        else body.append(table(["Supplier", "Fuel", "Product", "Sale type", "Version", "Name", "Status", "Bands", "Cost per meter", ""],
+          ov.bandSets.map((b) => [names.get(b.supplier_id) || b.supplier_id, FUEL[b.fuel] || b.fuel, b.product, SALE[b.sale_type] || b.sale_type, String(b.version), b.name, badge(b.status), String(b.band_count), pounds(b.cost_per_meter_pence),
+            el("div", { class: "actions" }, btn(b.status === "draft" && can(T.set) ? "Edit" : "View", () => edit(b.price_config_id), "ghost small"),
+              can(T.set) ? btn("Copy", () => copyPanel(ov, names, b, panel), "ghost small") : null)])));
+        body.append(panel);
+        foot();
+      }
+      function newCard(ov, names) {
+        const sup = select(ov.suppliers.map((s) => [s.supplier_id, s.supplier_name])), fuel = select([["electricity", "Electricity"], ["gas", "Gas"]]);
+        const prod = select(ov.products.filter((p) => p.active).map((p) => [p.product, p.product])), sale = select(Object.entries(SALE));
+        const nm = el("input", { type: "text", maxlength: "80", autocomplete: "off" });
+        const card = el("div", { class: "card" }, el("h2", { text: "New band set" }),
+          el("div", { class: "fields" }, field("Supplier", sup), field("Fuel", fuel), field("Product", prod), field("Sale type", sale), field("Name", nm)),
+          el("div", { class: "actions" }, btn("Create a draft", async () => {
+            if (!nm.value.trim()) { say(msg, "Give the band set a name.", true); return; }
+            lock(card, true);
+            try { const r = await call("band_set_new", { supplierId: sup.value, fuel: fuel.value, product: prod.value, saleType: sale.value, name: nm.value.trim() }); if (still(n)) edit(r.priceConfigId); }
+            catch (err) { fail(n, msg, err); } finally { lock(card, false); }
+          }, "")));
+        return card;
+      }
+      function copyPanel(ov, names, b, panel) {
+        panel.textContent = "";
+        const sup = select(ov.suppliers.map((s) => [s.supplier_id, s.supplier_name]), b.supplier_id);
+        const prod = select(ov.products.filter((p) => p.active).map((p) => [p.product, p.product]), b.product), sale = select(Object.entries(SALE), b.sale_type);
+        const card = el("div", { class: "card white" }, el("h2", { text: "Copy " + b.name }),
+          el("p", { class: "hint", text: "The copy is a new draft, independent of this one. Fuel stays " + (FUEL[b.fuel] || b.fuel).toLowerCase() + "." }),
+          el("div", { class: "fields" }, field("To supplier", sup), field("Product", prod), field("Sale type", sale)),
+          el("div", { class: "actions" }, btn("Make the copy", async () => {
+            lock(card, true);
+            try { const r = await call("band_set_copy", { fromId: b.price_config_id, supplierId: sup.value, product: prod.value, saleType: sale.value }); if (still(n)) edit(r.priceConfigId); }
+            catch (err) { fail(n, msg, err); lock(card, false); }
+          }, ""), btn("Cancel", () => { panel.textContent = ""; }, "ghost")));
+        panel.append(card); card.scrollIntoView({ block: "nearest" });
+      }
+
+      async function edit(id) {
+        body.textContent = ""; say(msg, "Loading…");
+        let d;
+        try { d = await call("band_set_get", { priceConfigId: id }); } catch (err) { fail(n, msg, err); return; }
+        if (!still(n)) return;
+        say(msg, "");
+        drawEditor(d.bandSet, d.bands);
+      }
+      function drawEditor(bs, stored) {
+        body.textContent = "";
+        const editable = bs.status === "draft" && can(T.set);
+        const rows = stored.map((b) => ({
+          min: String(b.eac_min_kwh), max: String(b.eac_max_kwh),
+          unit: b.target_margin_pct_of_cost != null ? "pct" : "p",
+          value: b.target_margin_pct_of_cost != null ? String(Number(b.target_margin_pct_of_cost)) : b.target_margin_milli_pence_per_kwh != null ? String(Number(b.target_margin_milli_pence_per_kwh) / 1000) : "",
+          share: b.standing_share_pct == null ? "" : String(Number(b.standing_share_pct)),
+        }));
+        let dirty = false;
+        const cost = el("input", { type: "number", min: "0", step: "0.01", value: String((Number(bs.cost_per_meter_pence) || 0) / 100) });
+        const tbody = el("tbody");
+        const approve = btn("Approve", () => doApprove(), ""), save = btn("Save", () => doSave(), "");
+        const markDirty = () => { dirty = true; approve.disabled = true; approve.title = "Save your changes first."; };
+        const draw = () => {
+          tbody.textContent = "";
+          rows.forEach((r, i) => {
+            const mk = (key, attrs) => { const inp = el("input", { type: "number", step: "any", min: "0", value: r[key], disabled: !editable || null, ...attrs }); inp.addEventListener("input", () => { r[key] = inp.value; markDirty(); }); return inp; };
+            const unit = select([["p", "pence per kWh"], ["pct", "% of cost"]], r.unit); unit.disabled = !editable;
+            unit.addEventListener("change", () => { r.unit = unit.value; markDirty(); });
+            const lab = (t, c) => { c.setAttribute("aria-label", t + ", band " + (i + 1)); return c; };
+            tbody.append(el("tr", {},
+              el("td", { text: String(i + 1) }), el("td", {}, lab("Minimum kWh", mk("min", { step: "1" }))), el("td", {}, lab("Maximum kWh", mk("max", { step: "1" }))),
+              el("td", {}, lab("Target margin", mk("value"))), el("td", {}, lab("Margin unit", unit)), el("td", {}, lab("Standing charge share %", mk("share", { max: "100" }))),
+              el("td", {}, editable ? btn("Remove", () => { rows.splice(i, 1); markDirty(); draw(); }, "ghost small") : null)));
+          });
+        };
+        draw();
+        const msgEd = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
+        const card = el("div", { class: "card white" },
+          el("h2", { text: bs.name }),
+          el("p", { class: "hint" }, badge(bs.status), " " + (FUEL[bs.fuel] || bs.fuel) + ", " + bs.product + ", " + (SALE[bs.sale_type] || bs.sale_type) + ", " + bs.supplier_id + ", version " + bs.version + "."),
+          editable ? null : el("p", { class: "hint", text: bs.status === "draft" ? "You can look at this band set but not change it." : "Only a draft can be edited. To change this band set, copy it." }),
+          el("div", { class: "fields" }, field("Cost per meter (£ a year)", cost, "Saved in pence.")),
+          el("div", { class: "prwide" }, el("table", { class: "prt bands" },
+            el("thead", {}, el("tr", {}, ...["Band", "Minimum", "Maximum", "Target margin", "Unit", "Standing share", ""].map((h) => el("th", { scope: "col", text: h })))), tbody)),
+          editable ? el("div", { class: "actions" }, btn("Add a band", () => { const last = rows[rows.length - 1]; rows.push({ min: last ? last.max : "0", max: "", unit: last ? last.unit : "p", value: "", share: last ? last.share : "" }); markDirty(); draw(); }, "ghost small")) : null,
+          msgEd);
+        cost.disabled = !editable; cost.addEventListener("input", markDirty);
+        const acts = el("div", { class: "actions" }, btn("Back to the band sets", () => list(), "ghost"));
+        if (editable) acts.append(save, approve);
+        if (can(T.set) && bs.status !== "retired") acts.append(retirePanel());
+        card.append(acts);
+        body.append(card); foot();
+
+        function problem() {
+          if (!rows.length) return "A band set needs at least one band.";
+          for (let i = 0; i < rows.length; i++) {
+            const r = rows[i], k = "Band " + (i + 1) + ": ";
+            if (r.min === "" || r.max === "" || !Number.isInteger(Number(r.min)) || !Number.isInteger(Number(r.max))) return k + "the minimum and maximum kWh must be whole numbers.";
+            if (Number(r.min) < 0 || Number(r.max) <= Number(r.min)) return k + "the maximum must be above the minimum.";
+            if (r.value === "" || !(Number(r.value) >= 0)) return k + "give the target margin, zero or more.";
+            if (r.share === "" || !(Number(r.share) >= 0 && Number(r.share) <= 100)) return k + "the standing charge share must be between 0 and 100.";
+          }
+          if (cost.value === "" || !(Number(cost.value) >= 0)) return "The cost per meter must be zero or more.";
+          return "";
+        }
+        async function doSave() {
+          const p = problem(); if (p) { say(msgEd, p, true); return; }
+          lock(card, true);
+          try {
+            await call("band_set_save", { priceConfigId: bs.price_config_id, costPerMeterPence: Math.round(Number(cost.value) * 100),
+              bands: rows.map((r, i) => ({ band_index: i + 1, eac_min_kwh: Number(r.min), eac_max_kwh: Number(r.max),
+                target_margin_milli_pence_per_kwh: r.unit === "p" ? Math.round(Number(r.value) * 1000) : null,
+                target_margin_pct_of_cost: r.unit === "pct" ? Number(r.value) : null, standing_share_pct: Number(r.share) })) });
+            if (!still(n)) return;
+            dirty = false; say(msgEd, "Saved. A draft takes no part in prices until it is approved.");
+          } catch (err) { fail(n, msgEd, err); } finally { lock(card, false); if (dirty) approve.disabled = true; }
+        }
+        async function doApprove() {
+          lock(card, true);
+          try {
+            const r = await call("band_set_approve", { priceConfigId: bs.price_config_id });
+            if (!still(n)) return;
+            await edit(bs.price_config_id);
+            say(msg, "Approved. " + comma(r.runsPrepared) + (Number(r.runsPrepared) === 1 ? " run" : " runs") + " prepared. They are drafts until published from Runs and publishing.");
+          } catch (err) { fail(n, msgEd, err); lock(card, false); }
+        }
+        function retirePanel() {
+          const wrap = el("div", { class: "inline" });
+          const reason = el("input", { type: "text", maxlength: "200", placeholder: "Reason" });
+          reason.hidden = true;
+          const go = btn("Retire this band set", () => {
+            if (reason.hidden) { reason.hidden = false; go.textContent = "Confirm retire"; reason.focus(); return; }
+            if (!reason.value.trim()) { say(msgEd, "Give a reason for retiring it.", true); return; }
+            lock(card, true);
+            call("band_set_retire", { priceConfigId: bs.price_config_id, reason: reason.value.trim() })
+              .then(() => { if (still(n)) list("Retired."); }, (err) => { fail(n, msgEd, err); lock(card, false); });
+          }, "ghost");
+          wrap.append(go, reason);
+          return wrap;
+        }
+      }
+      list();
+    }
+
+    // =====================================================================================
+    // Splits
+    // =====================================================================================
+    async function splits(n) {
+      const msg = head("Consumption ", "splits", "How each supplier splits a customer's use between day, night and evening and weekend rates. A run cannot be prepared for a structure until one split is published for that supplier. The split solved from the latest file is a starting point to check with the supplier, not a figure the supplier has given.");
+      const body = el("div"); root.append(body);
+      const extra = [];
+      const load = async (note) => {
+        let ov, sl;
+        try { [ov, sl] = await Promise.all([call("overview"), call("split_list")]); } catch (err) { fail(n, msg, err); return; }
+        if (!still(n)) return;
+        say(msg, note || "");
+        draw(ov, sl);
+      };
+      function draw(ov, sl) {
+        body.textContent = "";
+        const names = supplierNames(ov);
+        const pairs = new Map();
+        const add = (s, st) => pairs.set(s + "|" + st, [s, st]);
+        sl.splits.forEach((x) => add(x.supplier_id, x.rate_structure)); sl.solved.forEach((x) => add(x.supplier_id, x.rate_structure)); extra.forEach(([s, st]) => add(s, st));
+        if (can(T.set)) {
+          const sup = select(ov.suppliers.map((s) => [s.supplier_id, s.supplier_name])), st = select(Object.entries(STRUCTURE));
+          body.append(el("div", { class: "card" }, el("h2", { text: "Add a split" }),
+            el("div", { class: "fields" }, field("Supplier", sup), field("Rate structure", st)),
+            el("div", { class: "actions" }, btn("Show it", () => { extra.push([sup.value, st.value]); draw(ov, sl); }, ""))));
+        }
+        if (!pairs.size) body.append(el("div", { class: "empty", text: "No splits yet." }));
+        const list = [...pairs.values()].sort((a, b) => (names.get(a[0]) || a[0]).localeCompare(names.get(b[0]) || b[0]) || Object.keys(STRUCTURE).indexOf(a[1]) - Object.keys(STRUCTURE).indexOf(b[1]));
+        for (const [s, st] of list) body.append(card(s, st, names.get(s) || s, sl));
+        foot();
+      }
+      const figures = (split, keys) => keys.map((k) => KEY_LABEL[k] + " " + pctText(split[k])).join(", ");
+      function card(supplierId, structure, name, sl) {
+        const keys = SPLIT_KEYS[structure];
+        const mine = sl.splits.filter((x) => x.supplier_id === supplierId && x.rate_structure === structure).sort((a, b) => b.version - a.version);
+        const published = mine.find((x) => x.status === "published"), draft = mine.find((x) => x.status === "draft" && (!published || x.version > published.version));
+        const solved = sl.solved.find((x) => x.supplier_id === supplierId && x.rate_structure === structure);
+        const c = el("div", { class: "card white" }, el("h2", { text: name + ": " + (STRUCTURE[structure] || structure) }));
+        const saidText = (x) => (x.supplier_said ? "The supplier said: " + x.supplier_said : "No note of what the supplier said.") + (x.supplier_said_on ? " (" + day(x.supplier_said_on) + ")" : "");
+        c.append(published
+          ? el("div", {}, el("p", {}, badge("published"), " " + figures(published.split, keys)), el("p", { class: "hint", text: "Version " + published.version + ". " + saidText(published) + " Published " + when(published.published_at) + (published.published_by ? " by " + published.published_by : "") + "." }))
+          : el("p", { class: "hint", text: "No published split. Runs cannot be prepared for this structure until one is published." }));
+        const msgC = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
+        if (draft) {
+          const pub = can(T.set) ? btn("Publish this draft", async () => {
+            lock(c, true);
+            try {
+              const r = await call("split_publish", { supplierSplitId: draft.supplier_split_id });
+              if (!still(n)) return;
+              await load();
+              say(msg, "Published. " + comma(r.runsPrepared) + (Number(r.runsPrepared) === 1 ? " run" : " runs") + " prepared for " + name + "." + (r.prepareProblem ? " " + r.prepareProblem : ""), !!r.prepareProblem);
+            } catch (err) { fail(n, msgC, err); lock(c, false); }
+          }, "small") : null;
+          c.append(el("div", { class: "draftbox" }, el("p", {}, badge("draft"), " " + figures(draft.split, keys)), el("p", { class: "hint", text: "Version " + draft.version + ". " + saidText(draft) }), pub ? el("div", { class: "actions" }, pub) : null));
+        }
+        const inputs = {};
+        if (solved) {
+          const useIt = can(T.set) ? btn("Use these figures", () => {
+            // Each figure to 2 decimal places, then the last one takes the difference so the total is exactly 100.00.
+            const cents = keys.map((k) => Math.round(Number(solved.split[k]) * 10000));
+            cents[cents.length - 1] += 10000 - cents.reduce((a, b) => a + b, 0);
+            keys.forEach((k, i) => { inputs[k].value = (cents[i] / 100).toFixed(2); });
+            saidIn.value = "Solved from " + solved.source_filename + " of " + day(solved.loaded_at) + "; to be confirmed with the supplier.";
+            saidOn.value = ""; total();
+            say(msgC, "The figures are in the form below. Check them with the supplier, then save a draft.");
+          }, "ghost small") : null;
+          c.append(el("div", { class: "solvedbox" }, el("p", {}, el("b", { text: "Solved from the latest file: " }), figures(solved.split, keys)),
+            el("p", { class: "hint", text: solved.source_filename + " of " + day(solved.loaded_at) + ", " + comma(solved.pairs_matched) + " rate pairs matched. This is worked out from the file's prices, not stated by the supplier." }), useIt ? el("div", { class: "actions" }, useIt) : null));
+        }
+        const saidIn = el("input", { type: "text", maxlength: "300", placeholder: "What the supplier said, for example by email or on a call" });
+        const saidOn = el("input", { type: "date" });
+        const totalEl = el("div", { class: "hint" });
+        const total = () => { const t = keys.reduce((a, k) => a + (Number(inputs[k].value) || 0), 0); totalEl.textContent = "Total: " + (Math.round(t * 100) / 100).toFixed(2) + "%. It must be 100.00%."; return t; };
+        if (can(T.set)) {
+          for (const k of keys) { inputs[k] = el("input", { type: "number", min: "0", max: "100", step: "0.01", value: published ? String(Math.round(Number(published.split[k]) * 10000) / 100) : "" }); inputs[k].addEventListener("input", total); }
+          total();
+          c.append(el("div", { class: "draftform" }, el("h3", { class: "sub", text: "New draft" }),
+            el("div", { class: "fields" }, ...keys.map((k) => field(KEY_LABEL[k] + " (%)", inputs[k])), field("What the supplier said", saidIn), field("Said on (optional)", saidOn)),
+            totalEl,
+            el("div", { class: "actions" }, btn("Save as a draft", async () => {
+              const pcts = keys.map((k) => inputs[k].value === "" ? NaN : Number(inputs[k].value));
+              if (pcts.some((p) => !(p >= 0 && p <= 100))) { say(msgC, "Give every figure, between 0 and 100.", true); return; }
+              if (Math.abs(pcts.reduce((a, b) => a + b, 0) - 100) > 0.0001) { say(msgC, "The figures must total 100%.", true); return; }
+              const split = {}; keys.forEach((k, i) => { split[k] = Math.round(pcts[i] * 100) / 10000; });
+              lock(c, true);
+              try {
+                await call("split_save", { supplierId, rateStructure: structure, split, supplierSaid: saidIn.value.trim() || null, supplierSaidOn: saidOn.value || null });
+                if (!still(n)) return;
+                await load("Saved as a draft for " + name + ". Publish it to use it.");
+              } catch (err) { fail(n, msgC, err); lock(c, false); }
+            }, "small"))));
+        }
+        c.append(msgC);
+        return c;
+      }
+      load();
+    }
+
+    // =====================================================================================
+    // Runs and publishing
+    // =====================================================================================
+    async function runs(n) {
+      const msg = head("Runs and ", "publishing", "A run is the prices from one file for one band set. Check the items needing attention and preview the prices against the live book, then publish the set. Publishing makes the whole set the live price book for that supplier and fuel.");
+      const body = el("div"); root.append(body);
+      const list = async () => {
+        body.textContent = ""; say(msg, "");
+        let ov;
+        try { ov = await call("overview"); } catch (err) { fail(n, msg, err); return; }
+        if (!still(n)) return;
+        const names = supplierNames(ov);
+        body.append(el("h2", { class: "sect", text: "Sets of runs" }));
+        if (!ov.runSets.length) body.append(el("div", { class: "empty", text: "No runs yet. Load a file and approve a band set to prepare them." }));
+        else body.append(table(["File", "Supplier", "Fuel", "Draft", "Approved", "Being built", "Published", ""],
+          ov.runSets.map((r) => [r.source_filename, names.get(r.supplier_id) || r.supplier_id, FUEL[r.fuel] || r.fuel, String(r.draft), String(r.approved), String(r.publishing), String(r.published),
+            btn("Open", () => open(r, names.get(r.supplier_id) || r.supplier_id), "ghost small")])));
+        foot();
+      };
+      async function open(set, supplierName) {
+        body.textContent = ""; say(msg, "Loading…");
+        let d;
+        try { d = await call("run_set", { fileId: set.supplier_file_id }); } catch (err) { fail(n, msg, err); return; }
+        if (!still(n)) return;
+        say(msg, "");
+        drawSet(set, supplierName, d);
+      }
+      function drawSet(set, supplierName, d) {
+        body.textContent = "";
+        const N = Number(d.attentionCount) || 0, drafts = d.runs.filter((r) => r.status === "draft");
+        const label = (r) => r.product + ", " + (SALE[r.sale_type] || r.sale_type);
+        const runById = new Map(d.runs.map((r) => [r.price_run_id, r]));
+        body.append(el("div", { class: "actions" }, btn("Back to the sets", () => list(), "ghost small")),
+          el("h2", { class: "sect", text: supplierName + ", " + (FUEL[set.fuel] || set.fuel).toLowerCase() }), el("p", { class: "hint", text: set.source_filename }));
+        // the runs
+        const dlMsg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
+        if (!d.runs.length) body.append(el("div", { class: "empty", text: "This file has no runs yet." }));
+        else body.append(table(["Product", "Sale type", "Band set", "Status", "Prepared", "Engine version", "Files"],
+          d.runs.map((r) => [r.product, SALE[r.sale_type] || r.sale_type, r.band_set_name + " (version " + r.band_set_version + ")", badge(r.status), when(r.created_at) + (r.created_by ? ", " + r.created_by : ""), r.engine_version || "–",
+            Array.isArray(r.output_files) && r.output_files.length ? el("div", { class: "actions" }, ...downloadButtons(r.price_run_id, r.output_files.map((f) => f.layout).filter((l) => LAYOUT_LABEL[l]), dlMsg)) : "–"])));
+        body.append(dlMsg);
+        // attention
+        body.append(el("h2", { class: "sect", text: "Items needing attention" }));
+        if (!N) body.append(el("p", { class: "hint", text: "Nothing needs attention on the draft runs." }));
+        else {
+          body.append(el("p", { class: "hint", text: N + (N === 1 ? " item needs" : " items need") + " attention. These prices are not published as they are, or are left out. Read them before publishing." }));
+          const groups = new Map();
+          for (const a of d.attention) { if (!groups.has(a.price_run_id)) groups.set(a.price_run_id, []); groups.get(a.price_run_id).push(a); }
+          for (const [id, items] of groups) {
+            const r = runById.get(id);
+            body.append(el("div", { class: "attn" }, el("div", { class: "t", text: (r ? label(r) : "Run") + ": " + items.length + (items.length === 1 ? " item" : " items") }),
+              el("ul", { class: "plain" }, ...items.map((a) => el("li", { text: words(a.issue) + (a.range_min_kwh != null || a.range_max_kwh != null ? ", " + comma(a.range_min_kwh) + " to " + comma(a.range_max_kwh) + " kWh" : "") + (a.rate_count != null ? ", " + comma(a.rate_count) + (Number(a.rate_count) === 1 ? " rate" : " rates") : "") + (a.detail ? ". " + a.detail : "") })))));
+          }
+        }
+        body.append(previewCard(set, d, label));
+        if (can(T.set)) body.append(prepareCard(set, supplierName));
+        body.append(publishCard(set, supplierName, d, N, drafts.length));
+        foot();
+      }
+
+      // R31: the set made again from the band sets approved now. Needed after Abandon, and when a
+      // band set changed after the set was prepared (publishing then says to prepare it again).
+      function prepareCard(set, supplierName) {
+        const m = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
+        const card = el("div", { class: "card" }, el("h2", { text: "Prepare again" }),
+          el("p", { class: "hint", text: "Makes this file's runs again from the band sets approved now, and replaces the draft runs. Nothing published or live changes." }));
+        card.append(el("div", { class: "actions" }, btn("Prepare again", async () => {
+          lock(card, true); say(m, "Preparing…");
+          try {
+            const r = await call("run_set_prepare", { fileId: set.supplier_file_id });
+            if (!still(n)) return;
+            say(m, "");
+            await open(set, supplierName);
+            if (still(n)) say(msg, "Prepared again: " + comma(r.runsPrepared) + (Number(r.runsPrepared) === 1 ? " draft run." : " draft runs."));
+          } catch (err) { fail(n, m, err); lock(card, false); }
+        }, "ghost")), m);
+        return card;
+      }
+
+      // Preview: sell annual cost and margin of one run beside the live book's, per term.
+      function previewCard(set, d, label) {  // n is the screen in runs(n)
+        const pickable = d.runs.filter((r) => r.status === "draft").length ? d.runs.filter((r) => r.status === "draft") : d.runs;
+        const run = select(pickable.map((r) => [r.price_run_id, label(r)]));
+        const region = el("input", { type: "text", maxlength: "10", autocomplete: "off" });
+        const usages = el("input", { type: "text", value: "5000, 20000, 50000", autocomplete: "off" });
+        const out = el("div"), m = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
+        const card = el("div", { class: "card" }, el("h2", { text: "Preview" }),
+          el("p", { class: "hint", text: "Sell annual cost and margin for a customer using each amount below, in the region below, beside the live book's figures for the same product. Worked out at that usage on the rates to 2 decimal places; the margin is after the band set's cost per meter." }),
+          el("div", { class: "fields" }, field("Run", run), field(set.fuel === "gas" ? "Region (LDZ)" : "Region (DNO id)", region), field("Usages in kWh a year (up to 10, separated by commas)", usages)),
+          el("div", { class: "actions" }, btn("Preview", async () => {
+            const list = usages.value.split(/[\s,]+/).filter(Boolean).map(Number);
+            if (!region.value.trim()) { say(m, "Give the region.", true); return; }
+            if (!list.length || list.length > 10 || !list.every((u) => Number.isSafeInteger(u) && u > 0)) { say(m, "Give between 1 and 10 usages, each a whole number of kWh above zero.", true); return; }
+            lock(card, true); say(m, "Working it out…");
+            try {
+              const r = await call("preview", { priceRunId: run.value, region: region.value.trim(), usages: list });
+              if (!still(n)) return;
+              say(m, ""); drawPreview(out, r.rows);
+            } catch (err) { fail(n, m, err); } finally { lock(card, false); }
+          }, "")), m, out);
+        return card;
+      }
+      function drawPreview(out, rows) {
+        out.textContent = "";
+        if (!rows.length) { out.append(el("div", { class: "empty", text: "No prices match that region and those usages for this run." })); return; }
+        const k = new Map();
+        for (const r of rows) {
+          const key = r.usage_kwh + "|" + r.sale_type + "|" + r.term_months;
+          if (!k.has(key)) k.set(key, { usage: Number(r.usage_kwh), sale: r.sale_type, term: Number(r.term_months) });
+          k.get(key)[r.which] = r;
+        }
+        const sorted = [...k.values()].sort((a, b) => a.usage - b.usage || a.term - b.term || a.sale.localeCompare(b.sale));
+        out.append(table(["Usage kWh", "Sale type", "Term (months)", "Proposed sell annual cost", "Proposed margin", "Live sell annual cost", "Live margin"],
+          sorted.map((r) => [comma(r.usage), SALE[r.sale] || r.sale, String(r.term), pounds(r.proposed && r.proposed.sell_annual_pence), pounds(r.proposed && r.proposed.margin_annual_pence), pounds(r.live && r.live.sell_annual_pence), pounds(r.live && r.live.margin_annual_pence)])),
+          el("p", { class: "hint", text: "A dash means the book has no price for that case. Live figures are the live book's for the same supplier, fuel and product." }));
+      }
+
+      // R17: the person ticks that they have read the N items; Publish sends N and the list's fingerprint.
+      function publishCard(set, supplierName, d, N, draftCount) {
+        const card = el("div", { class: "card white" }, el("h2", { text: "Publish" }));
+        if (!can(T.publish)) { card.append(el("p", { class: "hint", text: "Publishing needs the Publish tick. Ask Phil Brook to add it in DNA Admin." })); return card; }
+        if (!draftCount) { card.append(el("p", { class: "hint", text: "There are no draft runs in this set to publish." })); return card; }
+        const m = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true }), prog = el("div");
+        const tick = el("input", { type: "checkbox", id: "prRead" });
+        const go = btn("Publish", () => doPublish(), "");
+        go.disabled = N > 0;
+        tick.addEventListener("change", () => { go.disabled = !tick.checked; });
+        card.append(el("p", { class: "hint", text: "Publishing makes these " + draftCount + (draftCount === 1 ? " run" : " runs") + " the live price book for " + supplierName + " " + (FUEL[set.fuel] || set.fuel).toLowerCase() + ". The old book stays live until the new one is built. For electricity the Broker and UD Upload files are made afterwards." }));
+        if (N > 0) card.append(el("div", { class: "tickrow" }, tick, el("label", { for: "prRead", text: "I have read the " + N + (N === 1 ? " item" : " items") + " needing attention" })));
+        card.append(el("div", { class: "actions" }, go), m, prog);
+
+        async function doPublish() {
+          go.disabled = true; tick.disabled = true; say(m, "");
+          const my = epoch, alive = () => my === epoch && !!me;
+          let before;
+          try {
+            before = await call("book_live");
+            await call("publish", { fileId: set.supplier_file_id, attentionSeen: N, fingerprint: d.fingerprint });
+          } catch (err) {
+            if (err && err.signedOut) return;
+            say(m, explain(err) + " Nothing was published. Open this set again to read the list as it is now.", true);
+            tick.disabled = false; go.disabled = N > 0 && !tick.checked; return;
+          }
+          if (!alive()) return;
+          afterPublish(set, before, prog, alive);
+        }
+        return card;
+      }
+      list();
+    }
+
+    // After Publish: wait for the book to be built, then make the files. If anything fails the book
+    // is still live and the files can be made again from the Live price book screen.
+    async function afterPublish(set, before, box, alive) {
+      box.textContent = "";
+      const line = steps(box);
+      line("Published. The runs are being built into the price book.", "done");
+      const wait = line("Waiting for the price book to be built", "working");
+      const known = new Set(before.live.filter((x) => x.supplier_file_id === set.supplier_file_id).map((x) => x.price_run_id));
+      const knownProblem = (before.problems.find((p) => p.supplier === set.supplier_id && p.fuel === set.fuel) || {}).when;
+      const started = Date.now(); let checks = 0, fresh = null;
+      for (;;) {
+        let r;
+        try { r = await call("book_live"); } catch (err) { if (err && err.signedOut) return; wait("Could not check the book: " + explain(err) + " Look at the Live price book screen.", "failed"); return; }
+        if (!alive()) return;
+        checks += 1;
+        const problem = r.problems.find((p) => p.supplier === set.supplier_id && p.fuel === set.fuel && p.when !== knownProblem);
+        if (problem) { wait("The build failed: " + problem.message + " Open the Live price book to abandon this set.", "failed"); return; }
+        const mine = r.live.filter((x) => x.supplier_file_id === set.supplier_file_id && !known.has(x.price_run_id));
+        if (mine.length && mine.every((x) => Number(x.publishing_runs) === 0)) { fresh = mine; break; }
+        if (Date.now() - started >= POLL_MAX_MS) { wait("The book is not live after 5 minutes. Look at the Live price book screen later; if a problem appears there you can abandon the set.", "failed"); return; }
+        wait("Waiting for the price book to be built. Checked " + checks + (checks === 1 ? " time" : " times") + ", again in 10 seconds.", "working");
+        await pause(POLL_MS);
+        if (!alive()) return;
+      }
+      wait("The price book is live.", "done");
+      const runsLive = new Map();
+      for (const x of fresh) {
+        if (!runsLive.has(x.price_run_id)) runsLive.set(x.price_run_id, { id: x.price_run_id, fuel: x.fuel, product: x.product, supplier: x.supplier_id, publishedAt: x.published_at, sales: [] });
+        runsLive.get(x.price_run_id).sales.push(x.sale_type);
+      }
+      const electricity = [...runsLive.values()].filter((x) => x.fuel === "electricity");
+      if (!electricity.length) { line("There are no Broker or UD Upload files for gas yet, so none are made.", "done"); return; }
+      await makeFiles(electricity, box, alive);
+    }
+
+    // The Broker and UD Upload files for live electricity runs: read the book, make both workbooks
+    // here, store each, record them. A run's book is read in pages of BOOK_PAGE rows.
+    async function makeFiles(runList, box, alive) {
+      const line = steps(box);
+      const failed = (set, err) => { set("The files could not be made: " + explain(err) + " The price book is live. Make the files again from the Live price book screen.", "failed"); };
+      for (const run of runList) {
+        const tag = run.product + ", " + run.sales.map((s) => (SALE[s] || s).toLowerCase()).join(" and ");
+        const set = line("Reading the price book for " + tag, "working");
+        let rows = [];
+        try {
+          let after = null;
+          do {
+            const r = await call("book_rows", { priceRunId: run.id, after, limit: BOOK_PAGE }, 60000);
+            if (!alive()) return;
+            for (const x of r.rows) rows.push(x);
+            after = r.next;
+            set("Reading the price book for " + tag + ": " + comma(rows.length) + " rows", "working");
+          } while (after);
+          set("Reading the price book for " + tag + ": " + comma(rows.length) + " rows", "done");
+        } catch (err) { if (err && err.signedOut) return; failed(set, err); return; }
+        const made = [], recorded = [];
+        for (const layout of ["broker", "ud_upload"]) {
+          const s = line("Making the " + LAYOUT_LABEL[layout] + " file for " + tag, "working");
+          try {
+            await pause(20);
+            const bytes = PR_EXPORTS.workbookFor(PR_XLSX, layout, rows);
+            const u = await call("output_upload_url", { priceRunId: run.id, layout });
+            if (!alive()) return;
+            await putFile(u.uploadUrl, bytes, XLSX_TYPE);
+            recorded.push({ layout, path: u.path, sha256: await sha256(bytes) });
+            made.push([layout, bytes]);
+            s("The " + LAYOUT_LABEL[layout] + " file for " + tag + " is made and stored.", "done");
+          } catch (err) { if (err && err.signedOut) return; failed(s, err); return; }
+        }
+        const rec = line("Recording the files for " + tag, "working");
+        try { await call("output_record", { priceRunId: run.id, files: recorded }); rec("The files for " + tag + " are recorded on the run.", "done"); }
+        catch (err) { if (err && err.signedOut) return; failed(rec, err); return; }
+        rows = null;
+        box.append(el("div", { class: "actions" }, ...made.map(([layout, bytes]) => btn("Save the " + LAYOUT_LABEL[layout] + " file for " + tag, () => saveBytes(bytes, fileName(layout, run)), "ghost small"))));
+      }
+    }
+
+    // =====================================================================================
+    // Live price book
+    // =====================================================================================
+    async function book(n) {
+      const msg = head("Live price ", "book", "The runs that are live now, one row for each supplier, fuel, product and sale type. A build that failed shows here with the reason.");
+      const body = el("div"); root.append(body);
+      const load = async (note) => {
+        let ov, b;
+        try { [ov, b] = await Promise.all([call("overview"), call("book_live")]); } catch (err) { fail(n, msg, err); return; }
+        if (!still(n)) return;
+        say(msg, note || "");
+        draw(ov, b);
+      };
+      // R31: after Abandon, the abandoned files' sets are made again from the band sets approved now.
+      function prepareAgainCard(fileIds) {
+        const m = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
+        const card = el("div", { class: "card" }, el("h2", { text: "Prepare the set again" }),
+          el("p", { class: "hint", text: "The abandoned runs are rejected. Prepare the set again to make new draft runs from the band sets approved now, then read and publish them in Runs and publishing." }));
+        card.append(el("div", { class: "actions" }, btn("Prepare again", async () => {
+          lock(card, true); say(m, "Preparing…");
+          try {
+            let prepared = 0;
+            for (const fileId of fileIds) prepared += Number((await call("run_set_prepare", { fileId })).runsPrepared) || 0;
+            if (!still(n)) return;
+            await load("Prepared again: " + comma(prepared) + (prepared === 1 ? " draft run" : " draft runs") + ". Read and publish them in Runs and publishing.");
+          } catch (err) { fail(n, m, err); lock(card, false); }
+        }, "ghost"), btn("Open Runs and publishing", () => showTool("pricing", "runs", "menu"), "ghost small")), m);
+        return card;
+      }
+      function draw(ov, b) {
+        body.textContent = "";
+        const names = supplierNames(ov);
+        // R25: a build problem, with the way out.
+        for (const p of b.problems) {
+          const set = ov.runSets.filter((r) => r.supplier_id === p.supplier && r.fuel === p.fuel && Number(r.publishing) > 0);
+          const reason = el("input", { type: "text", maxlength: "200", placeholder: "Reason" }); reason.hidden = true;
+          const m = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
+          const card = el("div", { class: "card problem" }, el("h2", { text: "A build has a problem" }),
+            el("p", {}, badge("failed"), " " + (names.get(p.supplier) || p.supplier) + ", " + (FUEL[p.fuel] || p.fuel).toLowerCase() + ". Last failed " + when(p.when) + "."),
+            el("p", { class: "msg", text: p.message }),
+            el("p", { class: "hint", text: "The old book stays live. Abandoning this set rejects its runs so they can be prepared again." }));
+          if (can(T.publish)) {
+            const go = btn("Abandon this set", async () => {
+              if (reason.hidden) { reason.hidden = false; go.textContent = "Confirm: abandon this set"; reason.focus(); return; }
+              if (!reason.value.trim()) { say(m, "Give a reason for abandoning it.", true); return; }
+              if (!set.length) { say(m, "No set in building was found for this supplier and fuel. Refresh the page and try again.", true); return; }
+              lock(card, true);
+              try {
+                let abandoned = 0;
+                for (const s of set) abandoned += Number((await call("publish_abandon", { fileId: s.supplier_file_id, reason: reason.value.trim() })).abandoned) || 0;
+                if (!still(n)) return;
+                await load("Abandoned. " + comma(abandoned) + (abandoned === 1 ? " run" : " runs") + " rejected.");
+                if (still(n) && can(T.set)) body.prepend(prepareAgainCard(set.map((s) => s.supplier_file_id)));
+              } catch (err) { fail(n, m, err); lock(card, false); }
+            }, "ghost");
+            card.append(el("div", { class: "actions" }, go, reason));
+          }
+          card.append(m);
+          body.append(card);
+        }
+        body.append(el("h2", { class: "sect", text: "Live runs" }));
+        if (!b.live.length) body.append(el("div", { class: "empty", text: "Nothing is live yet." }));
+        const seen = new Set(), rows = [];
+        const filesBox = el("div"), dlMsg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
+        for (const r of b.live) {
+          const first = !seen.has(r.price_run_id); seen.add(r.price_run_id);
+          rows.push([names.get(r.supplier_id) || r.supplier_id, FUEL[r.fuel] || r.fuel, r.product, SALE[r.sale_type] || r.sale_type, r.source_filename, when(r.published_at) + (r.published_by ? ", " + r.published_by : ""), comma(r.row_count), r.engine_version || "–",
+            Number(r.publishing_runs) > 0 ? badge("publishing") : badge("live"),
+            first && r.fuel === "electricity" ? el("div", { class: "actions" }, ...downloadButtons(r.price_run_id, ["broker", "ud_upload"], dlMsg),
+              can(T.publish) ? btn("Make the files again", (e) => remake(e.currentTarget, r, filesBox, b), "ghost small") : null) : null]);
+        }
+        if (b.live.length) body.append(table(["Supplier", "Fuel", "Product", "Sale type", "File", "Published", "Rows", "Engine version", "State", ""], rows));
+        body.append(dlMsg, filesBox, el("p", { class: "hint", text: "Download opens a file already made for that run; it says so if none has been recorded. Make the files again builds the Broker and UD Upload files from the live book here in the page, stores them and records them on the run. Gas has no Broker or UD Upload layout yet." }));
+        foot();
+      }
+      function remake(button, r, box, b) {
+        const my = epoch, alive = () => my === epoch && !!me;
+        button.disabled = true; box.textContent = "";
+        box.append(el("h3", { class: "sub", text: "Making the files for " + r.product }));
+        makeFiles([{ id: r.price_run_id, fuel: r.fuel, product: r.product, supplier: r.supplier_id, publishedAt: r.published_at, sales: b.live.filter((x) => x.price_run_id === r.price_run_id).map((x) => x.sale_type) }], box, alive).finally(() => { button.disabled = false; });
+      }
+      load();
+    }
+
+    // On sign-out nothing from the tab stays in the page: showSignIn has emptied #main and the side
+    // menu; answers on their way are dropped and a load or publish under way stops at its next step.
+    function reset() { prGen++; epoch++; root = null; }
+    return { show, reset };
+  })();
+  // END PRICING
+
   // ---------- Dashboard Pool. Reviewers vote Keep, Maybe or Drop (or the quiet Pass) on each
   // candidate board, with audiences on Keep and Maybe and an optional note; Phil Brook decides.
   // The registry and figures (pool_content) and the votes and decisions (pool_state) are read
@@ -2896,7 +3853,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
     gen++; token = null; me = null; dropStored(TOKEN_KEY);
     // The side menu lives inside the rail's tool list, so it is emptied and kept, not cleared away.
     const side = $("sidemenu"); side.textContent = ""; side.hidden = true; $("tabs").replaceChildren(side); setCrumb(null);
-    clearMain(); BE.reset(); DV.reset(); POOL.reset();
+    clearMain(); BE.reset(); DV.reset(); POOL.reset(); PR.reset();
     $("app").hidden = true; $("signin").hidden = false; $("who").hidden = true; $("conn").textContent = "";
     $("emailStep").hidden = false; $("codeStep").hidden = true; $("retryStep").hidden = true; $("siCode").value = "";
     setMsg(message || "");

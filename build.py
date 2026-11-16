@@ -6,6 +6,15 @@ and inlining the parts/ files named in INCLUDES.
                                inlined before the page's first <script>
 
 --root DIR builds in another folder (used by the tests).
+
+Three more placeholders put the Pricing tab's code into the page, each as one expression:
+  {{XLSX_LIB}}            vendor/xlsx.full.min.js, wrapped in a function that returns XLSX
+  {{PRICING_ADAPTERS}}    pricing/adapters.js, as an object of its exports
+  {{PRICING_EXPORTS}}     pricing/exports.js, as an object of its exports
+The two modules are ES modules for the Node tests. Here their `export` keywords are stripped and
+the source is wrapped in a function that returns the exported names, so the two files' private
+names (both have a LAYOUTS) cannot clash. Every non-ASCII character is written as a unicode
+escape, so the built page is plain ASCII there (the library holds thousands, em dashes among them).
 """
 import argparse
 import base64
@@ -23,10 +32,60 @@ INCLUDES = {
     "POOL_SCREEN_CSS": "parts/pool-screen.css",
 }
 PLACEHOLDER = re.compile(r"\{\{([A-Za-z0-9_]+)\}\}")
+# placeholder -> (source file, "lib" for a script that makes the global XLSX, "module" for an ES module)
+CODE = {
+    "XLSX_LIB": ("vendor/xlsx.full.min.js", "lib"),
+    "PRICING_ADAPTERS": ("pricing/adapters.js", "module"),
+    "PRICING_EXPORTS": ("pricing/exports.js", "module"),
+}
+EXPORT = re.compile(r"^export\s+(?:const|let|function|class)\s+([A-Za-z_$][\w$]*)", re.M)
+BACKSLASH_BEFORE_NON_ASCII = re.compile("\\\\[^\u0000-\u007f]")
 
 
 def data_uri(path):
     return "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
+
+
+def ascii_only(code):
+    # Inside a string, a regular expression or a comment, a unicode escape means what the character
+    # meant. A backslash before a non-ASCII character (an identity escape) would change meaning
+    # once escaped, so that is refused rather than guessed at.
+    if BACKSLASH_BEFORE_NON_ASCII.search(code):
+        raise SystemExit("inlined code has a backslash before a non-ASCII character; cannot escape it safely")
+    out = []
+    for ch in code:
+        n = ord(ch)
+        if n < 128:
+            out.append(ch)
+        elif n < 0x10000:
+            out.append("\\u%04x" % n)
+        else:
+            n -= 0x10000
+            out.append("\\u%04x\\u%04x" % (0xD800 + (n >> 10), 0xDC00 + (n & 0x3FF)))
+    return "".join(out)
+
+
+def code_expression(root, key):
+    rel, kind = CODE[key]
+    path = root / rel
+    if not path.is_file():
+        raise SystemExit("{{%s}} needs %s, which is missing" % (key, rel))
+    src = path.read_text(encoding="utf-8")
+    if "</script" in src.lower():
+        raise SystemExit("%s contains </script, which would end the page's script early" % rel)
+    if kind == "lib":
+        # A UMD file: as a plain script it makes the global XLSX; inside this function it finds no
+        # module or exports, so it does the same, and the function hands the object back.
+        expr = "(function () {\n" + src + "\n;return XLSX;\n})()"
+    else:
+        names = EXPORT.findall(src)
+        if not names:
+            raise SystemExit("%s exports nothing" % rel)
+        body = EXPORT.sub(lambda m: m.group(0)[len("export"):].lstrip(), src)
+        if re.search(r"^\s*(export|import)\b", body, re.M):
+            raise SystemExit("%s uses export or import in a form build.py does not strip" % rel)
+        expr = "(function () {\n" + body + "\n;return { " + ", ".join(names) + " };\n})()"
+    return ascii_only(expr)
 
 
 def render(text, root, name):
@@ -39,6 +98,8 @@ def render(text, root, name):
             if not path.is_file():
                 raise SystemExit("%s: {{%s}} needs %s, which is missing" % (name, key, INCLUDES[key]))
             return path.read_text(encoding="utf-8")
+        if key in CODE:
+            return code_expression(root, key)
         if key not in LOGOS:
             raise SystemExit("%s: unknown placeholder {{%s}}" % (name, key))
         return data_uri(assets / LOGOS[key])
