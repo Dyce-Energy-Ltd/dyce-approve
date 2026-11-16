@@ -10,7 +10,8 @@
 // to one view and its matching column, asking nothing of the function, and clearing it brings the
 // list back; a view picked in the menu draws its table, "No description yet" in the muted grey for
 // the undescribed column, and the description that looks like HTML as text, moving the menu mark
-// and asking nothing; a view's name in All views opens it too; opening the tab again asks again; a
+// and asking nothing; the same search box sits at the top of a view page, finds a column in another
+// view, and clearing it returns to the view; a view's name in All views opens it too; opening the tab again asks again; a
 // failed or malformed answer shows the load failure sentence; an answer that arrives after a move to
 // another tool is dropped; nothing new is stored and the address does not change; with the tick
 // removed on the server side, opening again shows the refusal sentence; with the session ended,
@@ -69,8 +70,8 @@
     check("one call, the dictionary op with the token alone", calls().length === 1 && JSON.stringify(calls()[0].args) === "{}" && calls()[0].status === 200, JSON.stringify(calls()));
 
     // All views: the search box at the top, then each view with its first line.
-    const body = $("#sd .sd-body");
-    check("the search box comes first", body && body.firstElementChild && body.firstElementChild.querySelector("input[type=search]"));
+    const atTop = () => { const f = $("#sd") && $("#sd").firstElementChild; return !!(f && !f.hidden && f.querySelector("input[type=search]")); };
+    check("the search box comes first", atTop());
     check("the search box has its label", $("#sd input[type=search]") && $("#sd input[type=search]").labels.length === 1 && $("#sd input[type=search]").labels[0].textContent === "Search all columns", $("#sd input[type=search]") && $("#sd input[type=search]").labels[0] && $("#sd input[type=search]").labels[0].textContent);
     const rows = $$("#sd .sd-views .row").map((r) => [r.querySelector(".t").textContent, r.querySelector(".d").textContent]);
     check("All views lists the three with their first lines", JSON.stringify(rows) === JSON.stringify(NAMES.map((n, i) => [n, FIRST[i]])), JSON.stringify(rows));
@@ -115,6 +116,23 @@
     check("the menu mark moves to the view", JSON.stringify(marked()) === '["Example broker"]', JSON.stringify(marked()));
     check("the line above the content names the view", text("#crumb") === "Spine Dictionary / Views / Example broker", text("#crumb"));
     check("picking a view asks nothing of the function", calls().length === 1, calls().length);
+
+    // The same search box at the top of a view page: it searches every view, and clearing it
+    // returns to the view the person was on, asking nothing of the function.
+    check("a view page has the search box at the top", atTop() && $("#sd input[type=search]").value === "");
+    type("ldz");
+    check("searching from a view finds a column in another view", groups().length === 1 && text("#sd .sd-match h2") === "Example postcode ldz" && JSON.stringify(cols()) === '["ldz"]', groups().map((g) => g.textContent).join(" | "));
+    check("the matches replace the view's table", !$("#sd .sd-first") && $$("#sd table").length === 1);
+    type("");
+    const back = $$("#sd table tbody tr").map((r) => r.cells[0].textContent);
+    check("clearing the search returns to the view", text("#sd h1") === "Example broker" && text("#sd .sd-first") === FIRST[0] && JSON.stringify(back) === '["broker_id","broker_name","added_on"]' && groups().length === 0, text("#sd h1") + " " + JSON.stringify(back));
+    check("the view stays marked and named above the content", JSON.stringify(marked()) === '["Example broker"]' && text("#crumb") === "Spine Dictionary / Views / Example broker", JSON.stringify(marked()) + " " + text("#crumb"));
+    type("space");
+    $("#sd .sd-match h2 button").click();
+    await until(() => text("#sd h1") === "Example postcode ldz");
+    check("a match's view name opens that view and empties the box", text("#sd h1") === "Example postcode ldz" && $("#sd input[type=search]").value === "" && JSON.stringify(marked()) === '["Example postcode ldz"]', text("#sd h1"));
+    viewButton("Example broker").click();
+    check("searching from a view asks nothing of the function", calls().length === 1, calls().length);
     viewButton("Example postcode ldz").click();
     await until(() => text("#sd h1") === "Example postcode ldz");
     check("another view, without asking again", text("#sd h1") === "Example postcode ldz" && JSON.stringify(marked()) === '["Example postcode ldz"]' && calls().length === 1, text("#sd h1") + " " + calls().length);

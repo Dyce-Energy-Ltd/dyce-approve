@@ -4,7 +4,9 @@
    (--muted, #5B6B72, 5.5:1 on white), and magenta stays on the 32px heading and the focus ring. */
 #sd h1:focus { outline: none; }
 #sd > .msg { margin: 6px 0 0; }
-#sd .sd-search { max-width: 640px; margin: 22px 0 0; }
+/* The search box sits at the top of every page of the tab, above the heading. */
+#sd .sd-search { max-width: 640px; margin: 34px 0 0; }
+#sd .sd-search + h1 { margin-top: 22px; }
 #sd .sd-views { margin-top: 22px; }
 #sd .sd-first { margin: 0 0 4px; }
 /* A search match: the view's name (a button that opens it), its first line, its matching columns. */

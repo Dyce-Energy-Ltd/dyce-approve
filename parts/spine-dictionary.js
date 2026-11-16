@@ -3,7 +3,8 @@
   // the tab opens (no copy is kept between opens). The function answers {ok, views: [{name,
   // description, columns: [{name, description}]}]}, views by name and columns in table order. The
   // views go in the side menu under "Views" after it answers, as DNA Viewer adds an account's
-  // sections; picking one draws it from this module's memory without asking again. Every value
+  // sections; picking one draws it from this module's memory without asking again. The search box
+  // sits at the top of every page of the tab and searches every view. Every value
   // from the function goes into the page as text (el's text, textContent), never as HTML. Nothing
   // goes into storage or the address bar: the hub keeps only the tool and menu item
   // (dyce.hub.where). sdGen is bumped on sign-out (reset) and on every opening, so an answer that
@@ -16,7 +17,8 @@
     const SD_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/spine-dictionary";
     const FAILED = "The dictionary could not be loaded. Try again shortly.";
     const { friendly, firstLine, search } = SpineDictLib;
-    let sdGen = 0, hubGen = -1, root = null, parts = null, views = null;
+    // current: the view shown, or null for All views.
+    let sdGen = 0, hubGen = -1, root = null, parts = null, views = null, current = null;
 
     // ---------- the function. A signedOut answer ends the session as api() does. A refusal (403)
     // shows the function's own sentence; anything else is the one load failure sentence.
@@ -45,19 +47,23 @@
             .map((c) => ({ name: c.name, description: text(c.description) })) }));
     }
 
-    // ---------- the tab: the heading, a message line, the page, the footer
+    // ---------- the tab: the search box at the top (shown once the views have come), the heading,
+    // a message line, the page, the footer
     function build() {
+      const box = el("input", { type: "search", id: "sdSearch", autocomplete: "off", spellcheck: "false" });
+      const find = el("div", { class: "field sd-search", hidden: true }, el("label", { for: "sdSearch", text: "Search all columns" }), box);
       const h1 = el("h1", { tabindex: "-1" }, "Spine ", el("em", { text: "Dictionary" }));
       const msg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
       const body = el("section", { class: "sd-body" });
-      const r = el("div", { id: "sd" }, h1, msg, body,
+      const r = el("div", { id: "sd" }, find, h1, msg, body,
         el("footer", { class: "foot", text: "Data class: Amber. The descriptions come from Phil Brook's spine files." }));
-      parts = { h1, msg, body };
+      box.addEventListener("input", drawPage);
+      parts = { find, box, h1, msg, body };
       return r;
     }
 
     async function show(item, g) {
-      hubGen = g; views = null;
+      hubGen = g; views = null; current = null;
       const n = ++sdGen;
       root = build(); $("main").append(root);
       say(parts.msg, "Loading…"); root.setAttribute("aria-busy", "true");
@@ -69,7 +75,8 @@
         views = v;
         say(parts.msg, "");
         drawMenu();
-        drawAll();
+        parts.find.hidden = false;
+        drawPage();
       } catch (err) {
         if (still(n) && !(err && err.signedOut)) say(parts.msg, (err && err.message) || FAILED, true);
       } finally { if (still(n)) root.removeAttribute("aria-busy"); }
@@ -98,25 +105,30 @@
       return b;
     };
 
-    // ---------- All views: the search box, then each view's name and first line; while the box
-    // holds a search, the matches grouped under their view instead.
+    // ---------- what the page shows: while the search box holds a search, the matches across every
+    // view grouped under their view; otherwise the view the person is on (current), or All views.
+    // Clearing the search returns to that page. Nothing is asked of the function.
+    function drawPage() {
+      if (!views || !parts) return;
+      const query = parts.box.value;
+      if (query.trim()) drawResults(query);
+      else if (current) drawView(views.find((x) => x.name === current));
+      else drawAll();
+    }
+    function title() { parts.h1.replaceChildren("Spine ", el("em", { text: "Dictionary" })); }
+    // All views: each view's name and first line.
     function drawAll() {
       const { body } = parts;
-      body.textContent = "";
-      const box = el("input", { type: "search", id: "sdSearch", autocomplete: "off", spellcheck: "false" });
-      const results = el("div", { class: "sd-results" });
-      box.addEventListener("input", () => drawResults(results, box.value));
-      body.append(el("div", { class: "field sd-search" }, el("label", { for: "sdSearch", text: "Search all columns" }), box), results);
-      drawResults(results, "");
+      title(); body.textContent = "";
+      if (!views.length) { body.append(el("p", { class: "empty", text: "There are no views yet." })); return; }
+      body.append(el("div", { class: "list sd-views" }, ...views.map((v) =>
+        el("div", { class: "row" }, el("div", {}, nameButton(v, "t"), el("div", { class: "d", text: firstLine(v.description) }))))));
     }
-    function drawResults(results, query) {
-      results.textContent = "";
-      if (!query.trim()) {
-        if (!views.length) { results.append(el("p", { class: "empty", text: "There are no views yet." })); return; }
-        results.append(el("div", { class: "list sd-views" }, ...views.map((v) =>
-          el("div", { class: "row" }, el("div", {}, nameButton(v, "t"), el("div", { class: "d", text: firstLine(v.description) }))))));
-        return;
-      }
+    function drawResults(query) {
+      const { body } = parts;
+      title(); body.textContent = "";
+      const results = el("div", { class: "sd-results" });
+      body.append(results);
       const found = search(views, query);
       if (!found.length) { results.append(el("p", { class: "empty", text: "Nothing matches that search." })); return; }
       for (const { view, columns } of found) {
@@ -127,19 +139,25 @@
       }
     }
 
-    // ---------- a view: its name, its first line, then each column and what it means
+    // ---------- a view: its name, its first line, then each column and what it means. Picking one
+    // (from the menu or a name on the page) empties the search box.
     function pick(name, byLink) {
       const v = views && views.find((x) => x.name === name);
       if (!v || !root || !root.isConnected) return;
+      current = v.name;
+      parts.box.value = "";
+      drawView(v);
+      mark(v.name);
+      setCrumb(TOOLS.find((x) => x.id === "spine_dictionary"), { label: friendly(v.name), group: "Views" });
+      if (byLink) { parts.h1.focus({ preventScroll: true }); if (root.getBoundingClientRect().top < 0) root.scrollIntoView(); }
+    }
+    function drawView(v) {
       const { body, h1 } = parts;
       h1.textContent = friendly(v.name);
       body.textContent = "";
       const first = firstLine(v.description);
       if (first) body.append(el("p", { class: "stand sd-first", text: first }));
       body.append(v.columns.length ? table(v.columns) : el("p", { class: "empty", text: "This view has no columns." }));
-      mark(v.name);
-      setCrumb(TOOLS.find((x) => x.id === "spine_dictionary"), { label: friendly(v.name), group: "Views" });
-      if (byLink) { h1.focus({ preventScroll: true }); if (root.getBoundingClientRect().top < 0) root.scrollIntoView(); }
     }
     function table(columns) {
       return el("div", { class: "grid-wrap" }, el("table", { class: "ticks sd-table" },
@@ -151,6 +169,6 @@
 
     // On sign-out nothing from the function stays: showSignIn has emptied #main and the side menu,
     // and answers on their way are dropped.
-    function reset() { sdGen++; root = null; parts = null; views = null; }
+    function reset() { sdGen++; root = null; parts = null; views = null; current = null; }
     return { show, reset };
   })();
