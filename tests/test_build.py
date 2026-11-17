@@ -33,11 +33,11 @@ FIXTURE = (
 
 
 def copy_pricing_code(folder):
-    # The files {{XLSX_LIB}}, {{PRICING_ADAPTERS}} and {{PRICING_EXPORTS}} in hub.src.html read.
+    # The files {{XLSX_LIB}}, {{PRICING_ADAPTERS}}, {{PRICING_EXPORTS}} and {{PRICING_GRID}} in hub.src.html read.
     (folder / "vendor").mkdir(exist_ok=True)
     (folder / "pricing").mkdir(exist_ok=True)
     shutil.copy(ROOT / "vendor" / "xlsx.full.min.js", folder / "vendor" / "xlsx.full.min.js")
-    for name in ("adapters.js", "exports.js"):
+    for name in ("adapters.js", "exports.js", "grid.js"):
         shutil.copy(ROOT / "pricing" / name, folder / "pricing" / name)
 
 
@@ -91,6 +91,43 @@ class BuildTests(unittest.TestCase):
         self.assertIn("<script>var STUB = 42;</script>", out)
         self.assertLess(out.index("var STUB = 42;"), out.index("var page = 1;"))
         self.assertNotIn("{{", out)
+
+    DEMO_HUB = (
+        "<html><head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; connect-src https://x.test; font-src https://fonts.gstatic.com\">"
+        "<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n"
+        "<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Montserrat\">\n"
+        "</head><body><img src=\"{{LOGO_INV}}\"><script>var page = 1;</script></body></html>"
+    )
+
+    def test_demo_builds_one_page_with_the_stub_in_demo_mode(self):
+        (self.tmp / "hub.src.html").write_text(self.DEMO_HUB, encoding="utf-8")
+        (self.tmp / "tools").mkdir()
+        (self.tmp / "tools" / "preview-stub.js").write_text("var STUB = 42;", encoding="utf-8")
+        r = run_build(self.tmp, "--demo")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = (self.tmp / "demo" / "pricing-demo.html").read_text(encoding="utf-8")
+        self.assertIn("<script>window.__DEMO__ = true;\nvar STUB = 42;</script>", out)
+        self.assertLess(out.index("var STUB = 42;"), out.index("var page = 1;"))
+        # No other host: the web font link, the preconnect and the policy's font and connection allowances are gone.
+        self.assertNotIn("fonts.g", out)
+        self.assertNotIn("connect-src", out)
+        self.assertNotIn("{{", out)
+        # The regular preview is not turned into a demo.
+        r = run_build(self.tmp, "--preview")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("__DEMO__", (self.tmp / "preview" / "hub.html").read_text(encoding="utf-8"))
+
+    def test_demo_needs_the_hub_source_and_the_stub(self):
+        r = run_build(self.tmp, "--demo")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("hub.src.html", r.stderr)
+        (self.tmp / "hub.src.html").write_text(self.DEMO_HUB, encoding="utf-8")
+        r = run_build(self.tmp, "--demo")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("preview-stub.js", r.stderr)
+
+    def test_demo_is_git_ignored(self):
+        self.assertIn("demo/", (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines())
 
     def test_spaced_placeholder_fails(self):
         (self.tmp / "fixture.src.html").write_text(FIXTURE + "<p>{{ LOGO_ORIG }}</p>", encoding="utf-8")
@@ -414,8 +451,13 @@ class CommittedPagesTests(unittest.TestCase):
         src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
         self.assertIn('id: "pricing", label: "Pricing"', page)
         self.assertIn('allowed: (t) => t.some((c) => c.startsWith("pricing."))', page)
-        for item in ("files", "bands", "splits", "runs", "book"):
+        for item in ("files", "bands", "book"):
             self.assertIn('{ id: "%s"' % item, page)
+        # Band sets and splits is one screen: the separate Splits item is gone.
+        self.assertIn('{ id: "bands", label: "Band sets and splits", need: PR_VIEW }', page)
+        self.assertNotIn('{ id: "splits"', page)
+        # Runs and publishing is gone: files are priced from the Supplier files workspace.
+        self.assertNotIn('{ id: "runs", label: "Runs and publishing"', page)
         self.assertIn("/functions/v1/dna-pricing", page)
         # The three inlined modules: the spreadsheet library, the adapters and the exports.
         self.assertIn("SheetJS", page)
@@ -423,9 +465,11 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("return { FORMATS, ROW_KEYS, parseSupplierFile };", page)
         self.assertIn("function workbookFor(", page)
         self.assertIn("return { BROKER_SHEET, UD_SHEET, BROKER_HEADER, UD_HEADER, brokerSheet, udUploadSheet, workbookFor };", page)
+        self.assertIn("function selectionProblem(", page)
+        self.assertIn("return { parseMargin,", page)
         self.assertNotIn("{{", page)
         # The source holds the placeholders; the build holds the code.
-        for key in ("XLSX_LIB", "PRICING_ADAPTERS", "PRICING_EXPORTS"):
+        for key in ("XLSX_LIB", "PRICING_ADAPTERS", "PRICING_EXPORTS", "PRICING_GRID"):
             self.assertIn("{{%s}}" % key, src)
         self.assertNotRegex(page, r"(?m)^export\b")
 
@@ -445,32 +489,82 @@ class CommittedPagesTests(unittest.TestCase):
 
     def test_pricing_stub_answers_every_op_with_four_ticks(self):
         stub = (ROOT / "tools" / "preview-stub.js").read_text(encoding="utf-8")
-        ops = ("overview band_set_get split_list run_set preview book_live book_rows file_start file_rows "
-               "file_finish file_reject band_set_new band_set_copy band_set_save band_set_approve band_set_retire "
-               "split_save split_publish run_set_prepare publish publish_abandon output_upload_url output_record "
-               "output_link").split()
+        ops = ("overview split_list book_live book_rows file_start file_rows "
+               "file_finish file_reject band_set_retire "
+               "split_save split_publish apply publish_abandon output_upload_url output_record "
+               "output_link band_sets band_set_history band_sets_save bundle_save bundle_retire ladder_save "
+               "file_regions preview_selection").split()
         for op in ops:
             self.assertIn('"%s"' % op, stub, op)
         for tick in ("pricing.view", "pricing.load", "pricing.set", "pricing.publish"):
             self.assertIn('"%s"' % tick, stub, tick)
         self.assertIn("pricing:", stub)
+        # Ops no screen calls any more have no stub answer (task 9).
+        mine = stub[stub.index("// ---------- Pricing: the dna-pricing"): stub.index("// ---------- Commission Engine")]
+        for gone in ("run_set", "run_set_prepare", "preview", "band_set_get", "band_set_new", "band_set_copy", "band_set_save", "band_set_approve", "publish"):
+            self.assertNotIn('"%s"' % gone, mine, gone)
 
-    def test_pricing_page_shows_the_database_figures(self):
-        # R31: the preview shows the figures pricing.preview_run works out at the usage typed (I1),
-        # the load report the rows the database holds (M7), and a set can be prepared again (I3).
+    def test_band_sets_and_splits_screen_calls_the_v2_ops(self):
         src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
         mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
-        self.assertIn("sell_annual_pence", mine)
-        self.assertIn("margin_annual_pence", mine)
+        for op in ("band_sets", "band_set_history", "band_sets_save", "band_set_retire", "bundle_save",
+                   "bundle_retire", "ladder_save", "split_list", "split_save", "split_publish"):
+            self.assertIn('"%s"' % op, mine, op)
+        for gone in ("band_set_new", "band_set_copy", "band_set_save", "band_set_approve", "function drawEditor", "async function splits("):
+            self.assertNotIn(gone, mine, gone)
+        # Publishing a split no longer reprices anything, so the page does not say it did.
+        self.assertNotIn("r.runsPrepared", mine[mine.index("// Band sets and splits (spec 4.4)"): mine.index("// After Publish: wait for the book")])
+        self.assertIn("G.toSavePayload(", mine)
+        self.assertIn("return { show, reset, drawGrid };", mine)
+
+    def test_pricing_page_shows_the_database_figures(self):
+        # The load report shows the rows the database holds (M7); the hand-load card no longer reports runs
+        # prepared; the preview shows the figures the function works out (sellAnnualPence, marginAnnualPence).
+        src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
+        self.assertIn("sellAnnualPence", mine)
+        self.assertIn("marginAnnualPence", mine)
         self.assertNotIn("sell_tac_pence", mine)
-        self.assertNotIn("margin_pence)", mine)
         self.assertIn("rep.row_count_loaded", mine)
         self.assertNotIn('"Rows loaded: " + comma(added)', mine)
-        self.assertEqual(mine.count('call("run_set_prepare"'), 2, "on the set screen and after Abandon")
-        self.assertIn("Prepare again", mine)
+        self.assertNotIn("runs_prepared", mine)
+        self.assertNotIn("run_set_prepare", mine)
+        self.assertIn('"Load a file by hand (until the SharePoint loader runs)"', mine)
         stub = (ROOT / "tools" / "preview-stub.js").read_text(encoding="utf-8")
-        self.assertIn("sell_annual_pence", stub)
+        self.assertIn("sellAnnualPence", stub)
         self.assertIn("row_count_loaded", stub)
+        self.assertNotIn("runs_prepared", stub)
+
+    def test_price_this_file_workspace_calls_the_v2_ops(self):
+        src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
+        for op in ("overview", "file_regions", "preview_selection", "apply", "band_sets", "band_sets_save", "bundle_save", "book_live", "publish_abandon"):
+            self.assertIn('"%s"' % op, mine, op)
+        for gone in ('call("run_set"', 'call("preview"', 'call("publish"', "async function runs(", "function previewCard(", "function prepareCard("):
+            self.assertNotIn(gone, mine, gone)
+        # The three states of a file the list shows, and the one sentence for a stale band set.
+        self.assertIn("Price this file", mine)
+        self.assertIn("f.canApply", mine)
+        self.assertIn("was saved against an older band ladder. Open it on the margins screen and save it again.", mine)
+        self.assertIn("Same for acquisition and renewal", mine)
+        self.assertIn("Also save this choice as a bundle", mine)
+        self.assertIn("G.selectionProblem(", mine)
+        self.assertIn("G.toPreviewItems(", mine)
+        # Attention items are keyed by product and sale type (ruling P8), in camelCase, in the page and the stub.
+        stub = (ROOT / "tools" / "preview-stub.js").read_text(encoding="utf-8")
+        self.assertIn("attention.push({ product: it.product, saleType: it.saleType, issue:", stub)
+        self.assertIn("rangeMinKwh:", stub)
+        self.assertIn("rateCount:", stub)
+        self.assertNotIn("range_min_kwh", mine)
+        self.assertNotIn("a.label ||", mine)
+        self.assertIn("a.rangeMinKwh", mine)
+        # Edits are kept unless something was actually saved before a refusal.
+        self.assertIn("if (savedSomething) {", mine)
+        self.assertNotIn("afterSave", mine)
+        self.assertIn("afterPublish(", mine)
+        self.assertIn("makeFiles(", mine)
+        # afterPublish and makeFiles are not inside a removed screen.
+        self.assertIn("async function afterPublish(set, before, box, alive)", mine)
 
     def test_this_file_holds_no_em_dash(self):
         # M6: the em dashes this file tests for are written as escapes.
@@ -590,3 +684,29 @@ class CommittedPagesTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DemoPageTests(unittest.TestCase):
+    def test_the_built_demo_labels_every_screen_and_never_reaches_a_real_endpoint(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        shutil.copytree(ASSETS, tmp / "assets")
+        shutil.copytree(ROOT / "parts", tmp / "parts")
+        (tmp / "tools").mkdir()
+        shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
+        shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
+        copy_pricing_code(tmp)
+        r = run_build(tmp, "--demo")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = (tmp / "demo" / "pricing-demo.html").read_text(encoding="utf-8")
+        self.assertIn("Demo: invented prices", out)
+        self.assertIn("Reset demo", out)
+        self.assertNotIn(chr(0x2014), out)
+        # No request to any host: the policy allows none, there is no web font link, and the stub
+        # replaces fetch so that in demo mode no address falls through to the page's own fetch.
+        self.assertNotIn("connect-src", out)
+        self.assertNotIn("fonts.googleapis", out)
+        self.assertIn("var realFetch = !DEMO && window.fetch", out)
+        self.assertIn("PR_ENDPOINT ? prCall(body)", out)
+        # The regular preview and the published page have no demo.
+        self.assertNotIn("__DEMO__ = true", (ROOT / "hub.src.html").read_text(encoding="utf-8"))
