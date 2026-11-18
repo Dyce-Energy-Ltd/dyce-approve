@@ -451,11 +451,12 @@ class CommittedPagesTests(unittest.TestCase):
         src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
         self.assertIn('id: "pricing", label: "Pricing"', page)
         self.assertIn('allowed: (t) => t.some((c) => c.startsWith("pricing."))', page)
-        for item in ("files", "bands", "book"):
+        for item in ("files", "bands", "splits", "book"):
             self.assertIn('{ id: "%s"' % item, page)
-        # Band sets and splits is one screen: the separate Splits item is gone.
-        self.assertIn('{ id: "bands", label: "Band sets and splits", need: PR_VIEW }', page)
-        self.assertNotIn('{ id: "splits"', page)
+        # Margins and Splits are two screens (plain-words change, 18/11/2026), margins first.
+        self.assertIn('{ id: "bands", label: "Margins", need: PR_VIEW }', page)
+        self.assertIn('{ id: "splits", label: "Splits", need: PR_VIEW }', page)
+        self.assertLess(page.index('{ id: "bands"'), page.index('{ id: "splits"'))
         # Runs and publishing is gone: files are priced from the Supplier files workspace.
         self.assertNotIn('{ id: "runs", label: "Runs and publishing"', page)
         self.assertIn("/functions/v1/dna-pricing", page)
@@ -489,7 +490,7 @@ class CommittedPagesTests(unittest.TestCase):
 
     def test_pricing_stub_answers_every_op_with_four_ticks(self):
         stub = (ROOT / "tools" / "preview-stub.js").read_text(encoding="utf-8")
-        ops = ("overview split_list book_live book_rows file_start file_rows "
+        ops = ("overview split_list book_live book_rows book_check file_start file_rows "
                "file_finish file_reject band_set_retire "
                "split_save split_publish apply publish_abandon output_upload_url output_record "
                "output_link band_sets band_set_history band_sets_save bundle_save bundle_retire ladder_save "
@@ -513,7 +514,7 @@ class CommittedPagesTests(unittest.TestCase):
         for gone in ("band_set_new", "band_set_copy", "band_set_save", "band_set_approve", "function drawEditor", "async function splits("):
             self.assertNotIn(gone, mine, gone)
         # Publishing a split no longer reprices anything, so the page does not say it did.
-        self.assertNotIn("r.runsPrepared", mine[mine.index("// Band sets and splits (spec 4.4)"): mine.index("// After Publish: wait for the book")])
+        self.assertNotIn("r.runsPrepared", mine[mine.index("// Band sets and splits (spec 4.4)"): mine.index("// After Apply: wait for the book")])
         self.assertIn("G.toSavePayload(", mine)
         self.assertIn("return { show, reset, drawGrid };", mine)
 
@@ -529,7 +530,7 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertNotIn('"Rows loaded: " + comma(added)', mine)
         self.assertNotIn("runs_prepared", mine)
         self.assertNotIn("run_set_prepare", mine)
-        self.assertIn('"Load a file by hand (until the SharePoint loader runs)"', mine)
+        self.assertIn('"Load a file by hand"', mine)
         stub = (ROOT / "tools" / "preview-stub.js").read_text(encoding="utf-8")
         self.assertIn("sellAnnualPence", stub)
         self.assertIn("row_count_loaded", stub)
@@ -543,11 +544,11 @@ class CommittedPagesTests(unittest.TestCase):
         for gone in ('call("run_set"', 'call("preview"', 'call("publish"', "async function runs(", "function previewCard(", "function prepareCard("):
             self.assertNotIn(gone, mine, gone)
         # The three states of a file the list shows, and the one sentence for a stale band set.
-        self.assertIn("Price this file", mine)
+        self.assertIn('btn(f.state === "live" ? "Reprice" : "Price"', mine)
         self.assertIn("f.canApply", mine)
-        self.assertIn("was saved against an older band ladder. Open it on the margins screen and save it again.", mine)
+        self.assertIn("was made on an older ladder. Open it on Margins and save it again.", mine)
         self.assertIn("Same for acquisition and renewal", mine)
-        self.assertIn("Also save this choice as a bundle", mine)
+        self.assertIn("Save these band sets as a bundle", mine)
         self.assertIn("G.selectionProblem(", mine)
         self.assertIn("G.toPreviewItems(", mine)
         # Attention items are keyed by product and sale type (ruling P8), in camelCase, in the page and the stub.
@@ -565,6 +566,22 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("makeFiles(", mine)
         # afterPublish and makeFiles are not inside a removed screen.
         self.assertIn("async function afterPublish(set, before, box, alive)", mine)
+
+    def test_pricing_plain_words_and_usability(self):
+        # The plain-words change (18/11/2026): the preview as a table of annual cost by usage and
+        # term, Manage and a save bar on Margins, Check a price on the Live price book, region names,
+        # and the database's attention codes as sentences.
+        src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
+        for text in ("function drawPivot(", '"All rates and margins"', '"Check before applying"', 'class: "savebar"',
+                     '"Manage band sets"', "async function splitsPage(n)", '"Check a price"', 'call("book_check"',
+                     "const ISSUE_TEXT = {", "const regionText = ", "const personName = ", '"Rebuild files"', '"Abandon update"'):
+            self.assertIn(text, mine, text)
+        for gone in ('"Engine version"', '"Proposed sell annual cost"', '"Make the files again"', '"Band sets to price with"',
+                     '"Rows loaded of source"', '"Apply this choice"', "Nothing is saved until", '"Show it"'):
+            self.assertNotIn(gone, mine, gone)
+        # A grid item holding a wide table does not push the page sideways.
+        self.assertIn("#pr .card > * { min-width: 0; }", src)
 
     def test_this_file_holds_no_em_dash(self):
         # M6: the em dashes this file tests for are written as escapes.

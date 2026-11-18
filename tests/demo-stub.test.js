@@ -161,3 +161,16 @@ test("the state lasts for the tab: a reload from the same session storage carrie
   const fresh = demoPage();
   assert.ok(!(await fresh.call({ op: "band_sets", fuel: "electricity" })).body.bundles.some((b) => b.name === "Kept bundle"));
 });
+
+test("the price check answers a live run's prices by term and sale type, and nothing for a run that is not live", async () => {
+  const d = demoPage();
+  const live = (await d.call({ op: "book_live" })).body.live;
+  const run = live[0].price_run_id, sales = live.filter((x) => x.price_run_id === run).map((x) => x.sale_type).sort();
+  const r = await d.call({ op: "book_check", priceRunId: run, region: "23", usages: [10000] });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual([...new Set(r.body.rows.map((x) => x.termMonths))], [12, 24, 36]);
+  assert.deepEqual([...new Set(r.body.rows.map((x) => x.saleType))].sort(), sales);
+  assert.ok(r.body.rows.every((x) => x.sellAnnualPence === Math.round(x.unitRatePence2dp * 10000 + x.standingChargePence2dp * 365)));
+  assert.deepEqual((await d.call({ op: "book_check", priceRunId: "00000000-0000-4000-8000-000000000000", region: "23", usages: [10000] })).body.rows, []);
+  assert.equal((await d.call({ op: "book_check", priceRunId: run, region: "23", usages: [0] })).status, 400);
+});
