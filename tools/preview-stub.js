@@ -42,6 +42,9 @@
 // A publish answers at once; the book then shows as being built until __stub.buildMs (default
 // 15000) has passed, so the page's 10 second poll sees it go live. Loading a file for the supplier
 // "Gamma Example" answers with a load report whose runs could not be prepared (no published split).
+// Gas has no band sets and no bundles, as in dyce-prod on 19/11/2026, and Gamma Example's gas file
+// of 06/11/2026 is ready to price: Price on it shows the gas ladder with no band sets, for New band
+// set, Save (which changes no price) and Apply.
 // The Commission Engine's answers (the commission-engine function's page op) are its pages as its
 // own views draw them over invented values, copied in by tools/ce-preview-pages.mjs; they are
 // gated as its core.ts gates them (commission.view, then one of its seven paths, else the refusal;
@@ -721,7 +724,9 @@
     { supplierFileId: F1, supplierId: "alpha", fuel: "electricity", fileFormat: "yu_elec_v1", sourceFilename: "Alpha_electricity_example_12112026.xlsx", loadedAt: "2026-11-12T16:20:00+00:00", quoteValidFrom: "2026-11-16", quoteValidUntil: "2026-11-30", rowCountSource: 162708, rowCountLoaded: 162700, refusedCount: 8, state: "awaiting_bandings" },
     { supplierFileId: F2, supplierId: "beta", fuel: "electricity", fileFormat: "voltx_elec_v1", sourceFilename: "Beta_electricity_example_10112026.xlsx", loadedAt: "2026-11-10T14:05:00+00:00", quoteValidFrom: "2026-11-11", quoteValidUntil: "2026-11-25", rowCountSource: 40320, rowCountLoaded: 40320, refusedCount: 0, state: "live" },
     { supplierFileId: F3, supplierId: "gamma", fuel: "gas", fileFormat: "yu_gas_v1", sourceFilename: "Gamma_gas_example_09112026.xlsx", loadedAt: "2026-11-09T16:00:00+00:00", quoteValidFrom: null, quoteValidUntil: null, rowCountSource: 9000, rowCountLoaded: 4500, refusedCount: 0, state: "loading" },
-    { supplierFileId: pid(105), supplierId: "beta", fuel: "electricity", fileFormat: "voltx_elec_v1", sourceFilename: "Beta_electricity_example_03112026.xlsx", loadedAt: "2026-11-03T09:40:00+00:00", quoteValidFrom: "2026-11-04", quoteValidUntil: "2026-11-18", rowCountSource: 40100, rowCountLoaded: 40100, refusedCount: 0, state: "replaced" }
+    { supplierFileId: pid(105), supplierId: "beta", fuel: "electricity", fileFormat: "voltx_elec_v1", sourceFilename: "Beta_electricity_example_03112026.xlsx", loadedAt: "2026-11-03T09:40:00+00:00", quoteValidFrom: "2026-11-04", quoteValidUntil: "2026-11-18", rowCountSource: 40100, rowCountLoaded: 40100, refusedCount: 0, state: "replaced" },
+    // The newest finished gas file (the 09/11 one is still loading), so it can be priced.
+    { supplierFileId: pid(106), supplierId: "gamma", fuel: "gas", fileFormat: "yu_gas_v1", sourceFilename: "Gamma_gas_example_06112026.xlsx", loadedAt: "2026-11-06T10:15:00+00:00", quoteValidFrom: "2026-11-07", quoteValidUntil: "2026-11-21", rowCountSource: 8800, rowCountLoaded: 8800, refusedCount: 0, state: "awaiting_bandings" }
   ];
   var prLoadFailures = [{ driveItemId: "invented-drive-item-1", sourcePath: "Pricing/Inbox/Gamma_gas_example_13112026.xlsx", supplierId: "gamma", fuel: "gas", reason: "The sheet named Rates was not found (invented reason for the preview).", seenAt: "2026-11-13T07:30:00+00:00" }];
   var prLastPreview = { attentionCount: -1, fingerprint: "" }, prAppliedRuns = [];
@@ -813,7 +818,8 @@
 
   // Pricing v2: the band ladder, band sets (with versions) and bundles of each fuel. Invented figures,
   // none of them a price. The "Gold renewal" set was saved against version 2 of the electricity
-  // ladder, so the page shows it carried to the current ladder.
+  // ladder, so the page shows it carried to the current ladder. Gas has a ladder and no band sets or
+  // bundles, as in dyce-prod on 19/11/2026: they are made on the Price screen or on Margins.
   var band2 = function (ladder, i, margin, share) { return { bandIndex: ladder[i].bandIndex, eacMinKwh: ladder[i].eacMinKwh, eacMaxKwh: ladder[i].eacMaxKwh, marginMilliPencePerKwh: margin, standingSharePct: share }; };
   var mkLadder = function (id, version, ranges) { return { ladderId: id, version: version, bands: ranges.map(function (r, i) { return { bandIndex: i + 1, eacMinKwh: r[0], eacMaxKwh: r[1] }; }) }; };
   var prLadder = {
@@ -834,11 +840,8 @@
   addNamed("electricity", "Silver", "Silver", 1400, [660, 580, 500, 450, 390, 330], [24, 21, 19, 17, 14, 12], prLadder.electricity.bands, 3);
   addNamed("electricity", "Advanced Saver", "Advanced Saver", 1600, [760, 680, 600, 540, 470, 400], [20, 18, 16, 14, 12, 10], prLadder.electricity.bands, 3);
   addNamed("electricity", "Gold renewal", "Gold", 1500, [640, 560, 480, 420, 330], [25, 22, 20, 15, 12], prLadderOld.bands, 2);
-  addNamed("gas", "Gas Standard", "Standard", 800, [300, 260, 230, 200, 170], [0, 0, 0, 0, 0], prLadder.gas.bands, 2);
-  addNamed("gas", "Gas Gold", "Gold", 800, [340, 300, 260, 230, 200], [0, 0, 0, 0, 0], prLadder.gas.bands, 2);
   prBundles.push({ bundleId: pid(851), fuel: "electricity", name: "Core range", members: ["Standard", "Gold", "Silver"] });
   prBundles.push({ bundleId: pid(852), fuel: "electricity", name: "Advanced range", members: ["Advanced Saver"] });
-  prBundles.push({ bundleId: pid(853), fuel: "gas", name: "Gas range", members: ["Gas Standard", "Gas Gold"] });
 
   // The database's rule (pricing.newest_finished_file): only the newest finished file of a supplier and
   // fuel can be priced, whatever its state, so a Live newest file can be priced again.
@@ -1211,10 +1214,8 @@
     prRuns[R(5)] = { supplierId: "voltx", fuel: "electricity", product: "Gold", saleType: "all" };
     prRecorded = {};
     [R(4), R(5)].forEach(function (id) { prRecorded[id] = [{ layout: "broker", path: "outputs/" + id + "/broker.xlsx", sha256: "c".repeat(64) }, { layout: "ud_upload", path: "outputs/" + id + "/ud_upload.xlsx", sha256: "c".repeat(64) }]; });
-    // The default sets give each fuel its Standard and Gold; the demo adds Silver and Advanced Saver to gas.
-    addNamed("gas", "Gas Silver", "Silver", 800, [320, 280, 245, 215, 185], [0, 0, 0, 0, 0], prLadder.gas.bands, 2);
-    addNamed("gas", "Gas Advanced Saver", "Advanced Saver", 900, [380, 340, 300, 270, 240], [0, 0, 0, 0, 0], prLadder.gas.bands, 2);
-    prBundles.forEach(function (b) { if (b.name === "Gas range") b.members = ["Gas Standard", "Gas Gold", "Gas Silver"]; });
+    // Gas starts with no band sets, as in dyce-prod: the demo's gas files are priced by making band
+    // sets on the Price screen (New band set), then Save or Apply.
     // A tab that has already been used carries on from where it was.
     try {
       var saved = JSON.parse(sessionStorage.getItem(DEMO_KEY) || "null");
