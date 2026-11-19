@@ -546,6 +546,10 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #pr .mk-seg { display: flex; padding-left: 1px; }
 #pr .segb { font: inherit; min-height: 40px; padding: 0 14px; border: 1px solid var(--hairline); background: var(--surface); color: var(--ink); font-size: 13px; line-height: 18px; font-weight: 400; cursor: pointer; margin-left: -1px; }
 #pr .segb[aria-pressed="true"] { background: var(--brand-navy); border-color: var(--brand-navy); color: var(--brand-white); font-weight: 800; }
+#pr .segb[disabled] { cursor: not-allowed; color: var(--muted); }
+#pr .segb[disabled][aria-pressed="true"] { background: var(--surface-raised); border-color: var(--hairline); color: var(--muted); }
+#pr .gridbar input[type="text"][disabled] { background: var(--surface-raised); color: var(--muted); cursor: not-allowed; }
+#pr .gridbar .btn.mk2[disabled] { background: var(--surface-raised); }
 #pr .mk-tail { margin-left: auto; align-self: flex-end; }
 #pr .btn.mk2, #pr .btn.mkp { min-height: 44px; padding: 0 14px; font-size: 13px; line-height: 18px; border-radius: 6px; }
 #pr .btn.mk2 { border: 1px solid var(--hairline); background: var(--surface); color: var(--ink); }
@@ -621,7 +625,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #pr table.grid td.cell.gap .cv { color: var(--muted); }
 #pr table.grid td.cell.sel { box-shadow: inset 0 0 0 2px var(--brand-magenta); }
 #pr table.grid td.cell .cellin { font: inherit; display: block; width: 100%; height: 35px; border: 0; border-radius: 0; background: var(--surface); color: var(--ink); text-align: right; padding: 0 8px; box-shadow: inset 0 0 0 2px var(--brand-navy); outline: none; }
-#pr table.grid.bare th[scope="row"] { padding: 0 10px; height: 44px; }
+#pr table.grid th.addh { min-width: 180px; height: 44px; padding: 6px 10px; border-bottom: 1px solid var(--hairline); border-right: 1px solid var(--hairline); text-align: left; }
+#pr table.grid td.cell.blank { min-width: 180px; cursor: default; }
+#pr table.grid th[scope="row"] .rowt { display: flex; align-items: center; min-height: 58px; padding: 0 10px; font-size: 13px; }
 #pr .gridwrap > .empty { padding: 14px 10px; }
 #pr aside.detail { flex: 1 1 300px; min-width: 0; background: var(--surface-raised); border-radius: var(--r-card); padding: 20px; display: flex; flex-direction: column; gap: 14px; }
 #pr aside.detail .dt-title { font-size: 17px; line-height: 23px; font-weight: 800; }
@@ -4712,7 +4718,7 @@ function reviewLines(grid, name) {
           drawChoosers(); changedSelection();
         });
         function chooser(title, set) {
-          const pick = select([["", "Choose a bundle"], ...bs.bundles.map((b) => [b.bundleId, b.name])]);
+          const pick = select([["", "Choose a product configuration"], ...bs.bundles.map((b) => [b.bundleId, b.name])]);
           const boxes = full.columns.map((c) => ({ c, cb: el("input", { type: "checkbox", checked: set.has(c.name) }) }));
           boxes.forEach((x) => { x.cb.checked = set.has(x.c.name); });
           pick.addEventListener("change", () => {
@@ -4722,7 +4728,7 @@ function reviewLines(grid, name) {
             changedSelection();
           });
           boxes.forEach((x) => x.cb.addEventListener("change", () => { if (x.cb.checked) set.add(x.c.name); else set.delete(x.c.name); pick.value = ""; changedSelection(); }));
-          return el("div", { class: "chooser" }, title ? el("h3", { class: "sub", text: title }) : null, field("Bundle", pick, "Choose a bundle, or tick band sets yourself."),
+          return el("div", { class: "chooser" }, title ? el("h3", { class: "sub", text: title }) : null, field("Product configuration", pick, "Choose a product configuration, or tick band sets yourself."),
             el("fieldset", { class: "members" }, el("legend", { text: title ? title + ": band sets" : "Band sets" }),
               ...(boxes.length ? boxes.map((x) => el("label", { class: "tickrow" }, x.cb, " " + x.c.name + (x.c.product !== x.c.name ? " (" + x.c.product + ")" : ""))) : [el("div", { class: "empty", text: noSetsText })])));
         }
@@ -4837,7 +4843,7 @@ function reviewLines(grid, name) {
           applyHint.textContent = lines.length ? lines[0] : wait ? wait : (lastPv ? "Puts these prices live for " + (names.get(file.supplierId) || file.supplierId) + " " + fuelWord + ". Today's prices stay live until the new ones are ready." : "Wait for the preview, then apply.") + (warn ? " " + warn : "");
           const sb = saveBlock();
           saveBtn.disabled = !!sb;
-          saveHint.textContent = sb || "Save keeps the band sets, and a bundle if you want one. No price changes.";
+          saveHint.textContent = sb || "Save keeps the band sets, and a product configuration if you want one. No price changes.";
         }
         if (!applies && !editable) {
           body.append(el("h2", { class: "sect", text: "Apply" }), el("div", { class: "card" }, el("p", { class: "hint", text: "You need the Publish tick to apply. Ask Phil Brook." })));
@@ -4874,7 +4880,7 @@ function reviewLines(grid, name) {
           // With no band sets for the fuel the grid still shows the ladder's bands, so there is no dead end.
           gridHint.hidden = g.columns.length > 0 || none;
           if (!g.columns.length && !none) { if (gridView) { gridView.destroy(); gridView = null; } note(); return; }
-          if (!gridView) gridView = drawGrid(gridHost, g, { editable, bundles: bs.bundles, onChange: afterEdit, fuelName: fuelWord, history: (name) => call("band_set_history", { fuel: file.fuel, name }), emptyText: noSets + (editable ? "Add one with New band set above." : "Someone with the Set tick can add one.") });
+          if (!gridView) gridView = drawGrid(gridHost, g, { editable, bundles: bs.bundles, onChange: afterEdit, fuelName: fuelWord, onNew: () => newSetPanel(), history: (name) => call("band_set_history", { fuel: file.fuel, name }), emptyText: noSets + (editable ? "Add one with New band set above." : "Someone with the Set tick can add one.") });
           else { gridView.setGrid(g); }
           note();
         }
@@ -4905,7 +4911,7 @@ function reviewLines(grid, name) {
             return { nm, c, ver, neu, nameIn };
           });
           const reason = el("input", { type: "text", maxlength: "200", autocomplete: "off" });
-          const bundleTick = el("input", { type: "checkbox", id: "prBundle" }), bundleName = el("input", { type: "text", maxlength: "60", autocomplete: "off", "aria-label": "Bundle name" });
+          const bundleTick = el("input", { type: "checkbox", id: "prBundle" }), bundleName = el("input", { type: "text", maxlength: "60", autocomplete: "off", "aria-label": "Product configuration name" });
           const readTick = el("input", { type: "checkbox", id: "prRead" });
           const dmsg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true }), prog = el("div");
           // What is applied, in one sentence: the names, then the sale type when every choice shares one.
@@ -4932,13 +4938,13 @@ function reviewLines(grid, name) {
             }
           }
           if (edited.length) card.append(el("div", { class: "fields" }, field("Reason for the change", reason)));
-          else if (!applying) card.append(el("p", { class: "hint", text: "No band set has changed. You can save these band sets as a bundle." }));
+          else if (!applying) card.append(el("p", { class: "hint", text: "No band set has changed. You can save these band sets as a product configuration." }));
           // The bundle name only when the box is ticked. Saving with nothing changed is for the bundle.
-          const bundleBox = el("div", { class: "fields" }, field("Bundle name", bundleName));
+          const bundleBox = el("div", { class: "fields" }, field("Product configuration name", bundleName));
           bundleTick.checked = !applying && !edited.length;
           bundleBox.hidden = !bundleTick.checked;
           bundleTick.addEventListener("change", () => { bundleBox.hidden = !bundleTick.checked; if (bundleTick.checked) bundleName.focus(); });
-          card.append(el("div", { class: "tickrow" }, bundleTick, el("label", { for: "prBundle", text: "Save these band sets as a bundle" })), bundleBox);
+          card.append(el("div", { class: "tickrow" }, bundleTick, el("label", { for: "prBundle", text: "Save these band sets as a product configuration" })), bundleBox);
           if (seen > 0) card.append(el("p", { class: "msg" , text: seen === 1 ? "1 thing will not go live as shown." : seen + " things will not go live as shown." }),
             el("div", { class: "tickrow" }, readTick, el("label", { for: "prRead", text: seen === 1 ? "I have checked the warning" : "I have checked the " + seen + " warnings" })));
           const go = btn(applying ? "Apply prices" : "Save band sets", () => (applying ? doApply() : doSave()), ""), cancel = btn("Cancel", () => { panel.textContent = ""; }, "ghost");
@@ -4954,7 +4960,7 @@ function reviewLines(grid, name) {
               if (m.neu.checked) {
                 const nm2 = m.nameIn.value.trim();
                 if (!nm2 || nm2.length > 60) { say(dmsg, "Name the new band set made from " + m.nm + " (1 to 60 characters).", true); return null; }
-                if (taken.has(nm2) || named.has(nm2)) { say(dmsg, "There is already a band set or bundle with that name.", true); return null; }
+                if (taken.has(nm2) || named.has(nm2)) { say(dmsg, "There is already a band set or product configuration with that name.", true); return null; }
                 named.add(nm2);
                 try { g2 = G.addColumn(g2, { name: nm2, product: m.c.product, costPerMeterPence: m.c.costPerMeterPence, fromName: m.nm }); } catch (err) { say(dmsg, err.message, true); return null; }
                 rename.set(m.nm, nm2); saveNames.push(nm2);
@@ -4962,9 +4968,9 @@ function reviewLines(grid, name) {
             }
             if (saveNames.length && !reason.value.trim()) { say(dmsg, "Give a reason for the changes.", true); return null; }
             const wantBundle = bundleTick.checked, bName = bundleName.value.trim();
-            if (wantBundle && (!bName || bName.length > 60)) { say(dmsg, "Name the bundle (1 to 60 characters).", true); return null; }
-            if (wantBundle && (taken.has(bName) || named.has(bName))) { say(dmsg, "There is already a band set or bundle with that name.", true); return null; }
-            if (!saveNames.length && !wantBundle) { say(dmsg, "Nothing to save. Change a margin, add a band set, or tick Save these band sets as a bundle.", true); return null; }
+            if (wantBundle && (!bName || bName.length > 60)) { say(dmsg, "Name the product configuration (1 to 60 characters).", true); return null; }
+            if (wantBundle && (taken.has(bName) || named.has(bName))) { say(dmsg, "There is already a band set or product configuration with that name.", true); return null; }
+            if (!saveNames.length && !wantBundle) { say(dmsg, "Nothing to save. Change a margin, add a band set, or tick Save these band sets as a product configuration.", true); return null; }
             const finalName = (nm) => rename.has(nm) ? rename.get(nm) : nm;
             return { g2, saveNames, rename, wantBundle, bName, ps2: ps.map((p) => ({ name: finalName(p.name), saleType: p.saleType })), ids: new Map(g.columns.map((c) => [c.name, c.priceConfigId])) };
           }
@@ -4984,10 +4990,10 @@ function reviewLines(grid, name) {
                 for (const s of [ui.acq, ui.ren]) for (const [o, nw] of p.rename) if (s.has(o)) { s.delete(o); s.add(nw); }
               }
               if (p.wantBundle) {
-                go2("Saving the bundle " + p.bName);
+                go2("Saving the product configuration " + p.bName);
                 await call("bundle_save", { fuel: file.fuel, name: p.bName, members: p.ps2.map((x) => x.name) });
                 if (!alive()) return null;
-                ok(); savedSomething = true; savedNote += "Bundle " + p.bName + " saved. ";
+                ok(); savedSomething = true; savedNote += "Product configuration " + p.bName + " saved. ";
               }
             } catch (err) { err = err || {}; err.savedNote = savedNote; err.savedSomething = savedSomething; throw err; }
             return savedNote;
@@ -5315,10 +5321,11 @@ function reviewLines(grid, name) {
       return svg("svg", { width: 28, height: 14, "aria-hidden": "true" }, svg("path", { class: "ln s" + slot, d: "M2 7H26" }), svg("path", { class: "mkr m" + slot, d: markPath(slot, 14, 7) }));
     }
     // A segmented switch with its small label above it: the mockup's Fuel, Columns and Showing.
-    function segCtl(label, options, current, on) {
+    // off: shown but greyed out (the grid's switches while a fuel has no band sets).
+    function segCtl(label, options, current, on, off) {
       return el("div", { class: "mk-ctl" }, el("span", { class: "lab", text: label }),
         el("div", { class: "mk-seg", role: "group", "aria-label": label }, ...options.map(([v, t]) =>
-          el("button", { type: "button", class: "segb", "aria-pressed": String(v === current), text: t, onclick: () => { if (v !== current) on(v); } }))));
+          el("button", { type: "button", class: "segb", "aria-pressed": String(v === current), disabled: !!off, text: t, onclick: () => { if (v !== current) on(v); } }))));
     }
     // What a person has edited (G.editedNames): leaving with these unsaved loses work. G.changedNames is
     // what the next Save saves: the edited sets and any set saved against an older ladder whose every
@@ -5337,7 +5344,7 @@ function reviewLines(grid, name) {
     // switches (Columns by bundle or by product, Showing margin or share), the selection bar and hint,
     // the chart card (up to four band sets, ticked in the grid's On chart row, points dragged to change
     // a margin), then the grid with the Cell detail beside it.
-    // opts: {editable, bundles, emptyText, fuelName, lead (an element before the switches, such as the
+    // opts: {editable, bundles, emptyText, onNew (New band set, offered in the empty grid with the Set tick), fuelName, lead (an element before the switches, such as the
     // Fuel switch), tail (an element at the end of their row), afterTop ([elements] under that row),
     // note (text before the hint), history(name) (a promise of the band_set_history answer, for the
     // versions in the cell detail), onChange(grid), onSelectCell({name, bandIndex})}. Returns
@@ -5424,9 +5431,11 @@ function reviewLines(grid, name) {
       function renderTop() {
         top.textContent = "";
         if (opts.lead) top.append(opts.lead);
-        if (grid.columns.length) top.append(
-          segCtl("Columns", [["bundle", "By bundle"], ["product", "By product"]], groupBy, (v) => { groupBy = v; editing = null; copyMode = false; render(); }),
-          segCtl("Showing", [["margin", LAYER_LABEL.margin], ["share", LAYER_LABEL.share]], layer, (v) => { layer = v; editing = null; render(); }));
+        // With no band sets the switches still show, greyed out, so the screen keeps its layout.
+        const none = !grid.columns.length;
+        top.append(
+          segCtl("Columns", [["bundle", "By product configuration"], ["product", "By product"]], groupBy, (v) => { groupBy = v; editing = null; copyMode = false; render(); }, none),
+          segCtl("Showing", [["margin", LAYER_LABEL.margin], ["share", LAYER_LABEL.share]], layer, (v) => { layer = v; editing = null; render(); }, none));
         if (opts.tail) { opts.tail.classList.add("mk-tail"); top.append(opts.tail); }
         top.hidden = !top.childNodes.length;
       }
@@ -5439,8 +5448,6 @@ function reviewLines(grid, name) {
       }
       function renderBar() {
         bar.textContent = "";
-        bar.hidden = !grid.columns.length;
-        if (bar.hidden) return;
         bar.append(el("span", { class: "selt", text: "Selected: " + selText() }));
         if (editable) {
           const id = "pr-v" + (++uid);
@@ -5472,6 +5479,8 @@ function reviewLines(grid, name) {
             copyBtn);
         }
         bar.append(btn("Select all", selectAll, "mk2"));
+        // With no band sets there is nothing to select or change: the bar shows, greyed out.
+        if (!grid.columns.length) for (const c of bar.querySelectorAll("button, input")) c.disabled = true;
       }
       function renderHint() {
         const strip = "The grey strip under each margin is the annual margin at the band midpoint: margin p/kWh × midpoint kWh ÷ 100.";
@@ -5479,7 +5488,7 @@ function reviewLines(grid, name) {
           ? " Changed cells are tinted and bold until saved. Click a cell, then Shift-click to select a block or Ctrl-click to add one. Click a column heading or a band to select it all. Double-click a cell, or select it and type, to change it. Paste a block copied from Excel into any cell and it fills across and down."
           : " Click a cell to see its detail. Click a column heading or a band to select it all.";
         const text = copyMode ? "Now click the heading of the band set to copy from. Its margins and shares go into every band set in your selection."
-          : (opts.note ? opts.note + (grid.columns.length ? " " : "") : "") + (grid.columns.length ? strip + how : "");
+          : (opts.note ? opts.note + " " : "") + strip + (grid.columns.length ? how : "");
         hint.textContent = text; hint.hidden = !text;
       }
 
@@ -5487,9 +5496,18 @@ function reviewLines(grid, name) {
       // a row per band with the margin (or share) and its annual margin at the midpoint in each cell.
       function renderTable() {
         wrap.textContent = "";
+        // No band sets for the fuel: the same grid with its corner cells and a row per band, and one
+        // empty column holding New band set (Set tick, opts.onNew) where the band sets will go.
         if (!cols.length) {
-          wrap.append(el("table", { class: "grid bare" }, el("thead", {}, el("tr", {}, el("th", { scope: "col", class: "corner2", text: "Band, kWh a year" }))),
-            el("tbody", {}, ...grid.bands.map((b) => el("tr", {}, el("th", { scope: "row", text: G.bandRange(b) }))))),
+          const add = editable && opts.onNew ? btn("New band set", opts.onNew, "mkp") : null;
+          wrap.append(el("table", { class: "grid", role: "grid" },
+            el("thead", {},
+              el("tr", {}, el("td", { class: "corner" }), el("th", { scope: "colgroup", class: "grp", text: "No band sets yet" })),
+              el("tr", { class: "onchart" }, el("th", { scope: "row", class: "corner3", text: "On chart (up to " + G.CHART_MAX + ")" }), el("td", { class: "chk gs" })),
+              el("tr", {}, el("th", { scope: "col", class: "corner2", text: "Band, kWh a year" }), el("th", { scope: "col", class: "addh gs" }, add))),
+            el("tbody", {}, ...grid.bands.map((b) => el("tr", {},
+              el("th", { scope: "row" }, el("span", { class: "rowt", text: G.bandRange(b) })),
+              el("td", { class: "cell blank gs" }, el("span", { class: "cv", text: "" }), el("span", { class: "strip", text: "" })))))),
             el("div", { class: "empty", text: opts.emptyText || "No band sets for this fuel yet." }));
           return;
         }
@@ -5503,7 +5521,7 @@ function reviewLines(grid, name) {
         const fullRow = (bi) => cols.every((c, ci) => selKeys.has(cellKey(cellAt(ci, bi))));
         let editInput = null;
         const head1 = el("tr", {}, el("td", { class: "corner" }),
-          ...groups.map((g) => el("th", { scope: "colgroup", colspan: g.n, class: "grp", text: g.label || (anyBundle ? "Not in a bundle" : "Band sets") })));
+          ...groups.map((g) => el("th", { scope: "colgroup", colspan: g.n, class: "grp", text: g.label || (anyBundle ? "Not in a product configuration" : "Band sets") })));
         const head2 = el("tr", { class: "onchart" }, el("th", { scope: "row", class: "corner3", text: "On chart (up to " + G.CHART_MAX + ")" }),
           ...cols.map((c, ci) => {
             const p = picks.find((x) => x.name === c.name);
@@ -5592,12 +5610,12 @@ function reviewLines(grid, name) {
       // chart row, with a crosshair and a readout line, and points that drag to change a margin.
       const CW = 960, CH = 210, PL = 70, PRT = 132, PT = 10, PB = 46, PW = CW - PL - PRT, PH = CH - PT - PB;
       function renderChart() {
+        // With no band sets the card still shows: its title, the axes over the fuel's bands, and a line
+        // saying to add a band set.
         chartBox.textContent = "";
-        chartBox.hidden = !grid.columns.length;
-        if (chartBox.hidden) return;
         const series = picks.map((p) => ({ slot: p.slot, c: colOf(p.name) })).filter((s) => s.c).sort((a, b) => a.slot - b.slot);
         const nb = grid.bands.length, xAt = (i) => nb === 1 ? PL + PW / 2 : PL + PW * i / (nb - 1);
-        const axis = G.chartAxis(series.flatMap((s) => s.c.margins), PH);
+        const axis = G.chartAxis(series.length ? series.flatMap((s) => s.c.margins) : [800], PH);
         const yAt = (v) => PT + axis.toY(Math.max(0, Math.min(v, axis.top)));
         const fuel = opts.fuelName || String(FUEL[grid.fuel] || grid.fuel || "").toLowerCase();
         const names = series.map((s) => s.c.name);
@@ -5687,7 +5705,8 @@ function reviewLines(grid, name) {
             el("div", { class: "ct-title", text: "Margin curve, " + fuel + ": p/kWh by band (kWh a year)" }),
             el("div", { class: "ct-sub", text: editable ? "Tick up to four columns in the On chart row. Drag a point up or down and the grid follows." : "Tick up to four columns in the On chart row." })),
           el("div", { class: "legend" }, ...(series.length ? series.map((s) => el("span", { class: "key" }, swatch(s.slot, true), s.c.name))
-            : [el("span", { class: "none", text: "Nothing plotted yet. Tick a column in the On chart row of the grid." })])),
+            : [el("span", { class: "none", text: grid.columns.length ? "Nothing plotted yet. Tick a column in the On chart row of the grid."
+              : editable ? "No band sets to plot yet. Add one with New band set." : "No band sets to plot yet. Someone with the Set tick can add one." })])),
           root2, readout);
         if (focusPoint) { const f = chartBox.querySelector('path.pt[data-name="' + CSS.escape(focusPoint.name) + '"][data-i="' + focusPoint.i + '"]'); if (f) f.focus(); focusPoint = null; }
       }
@@ -5700,8 +5719,6 @@ function reviewLines(grid, name) {
       function renderDetail() {
         const my = ++detailGen;
         aside.textContent = "";
-        aside.hidden = !grid.columns.length;
-        if (aside.hidden) return;
         const col = last ? colOf(last.name) : null, bi = last ? bandPos(last.bandIndex) : -1;
         if (!col || bi < 0) {
           aside.append(el("div", { class: "dt-title", text: "Cell detail" }),
@@ -5788,7 +5805,7 @@ function reviewLines(grid, name) {
         el("div", { class: "actions" }, btn("Add to the grid", () => {
           const nm = name.value.trim();
           if (!nm || nm.length > 60) { opts.say("Give the band set a name of 1 to 60 characters.", true); return; }
-          if (opts.bundles.some((b) => b.name === nm)) { opts.say("There is already a band set or bundle with that name.", true); return; }
+          if (opts.bundles.some((b) => b.name === nm)) { opts.say("There is already a band set or product configuration with that name.", true); return; }
           if (cost.value === "" || !(Number(cost.value) >= 0)) { opts.say("Give the cost per meter, zero or more.", true); return; }
           const spec = { name: nm, product: prod.value, costPerMeterPence: Math.round(Number(cost.value) * 100), fromName: from.value || undefined };
           let g2;
@@ -5848,23 +5865,23 @@ function reviewLines(grid, name) {
         }
         function bundlePanel(startId) {
           if (!clean()) return;
-          const pick = select([["", "New bundle"], ...bs.bundles.map((b) => [b.bundleId, b.name])], startId || "");
+          const pick = select([["", "New product configuration"], ...bs.bundles.map((b) => [b.bundleId, b.name])], startId || "");
           const name = el("input", { type: "text", maxlength: "60", autocomplete: "off" });
           const boxes = saved().map((nm) => ({ nm, cb: el("input", { type: "checkbox" }) }));
           const fill = () => { const b = bs.bundles.find((x) => x.bundleId === pick.value); name.value = b ? b.name : ""; boxes.forEach((x) => { x.cb.checked = !!b && b.members.includes(x.nm); }); };
           pick.addEventListener("change", fill); fill();
-          const card = el("div", { class: "card white" }, el("h2", { text: "Bundle" }),
-            el("p", { class: "hint", text: "A bundle ticks up to 10 band sets in one go. It does not change margins." }),
-            el("div", { class: "fields" }, field("Bundle", pick), field("Name", name)),
+          const card = el("div", { class: "card white" }, el("h2", { text: "Product configuration" }),
+            el("p", { class: "hint", text: "A product configuration ticks up to 10 band sets in one go. It does not change margins." }),
+            el("div", { class: "fields" }, field("Product configuration", pick), field("Name", name)),
             el("fieldset", { class: "members" }, el("legend", { text: "Members" }), ...boxes.map((x) => el("label", { class: "tickrow" }, x.cb, " " + x.nm))),
-            el("div", { class: "actions" }, btn("Save the bundle", async () => {
+            el("div", { class: "actions" }, btn("Save the product configuration", async () => {
               const members = boxes.filter((x) => x.cb.checked).map((x) => x.nm);
-              if (!name.value.trim() || name.value.trim().length > 60) { say(amsg, "Name the bundle (1 to 60 characters).", true); return; }
+              if (!name.value.trim() || name.value.trim().length > 60) { say(amsg, "Name the product configuration (1 to 60 characters).", true); return; }
               if (members.length < 1 || members.length > 10) { say(amsg, "Tick between 1 and 10 band sets.", true); return; }
               lock(card, true);
               try {
                 await call("bundle_save", { ...(pick.value ? { bundleId: pick.value } : {}), fuel: bsFuel, name: name.value.trim(), members });
-                if (still(n)) await load("Saved the bundle " + name.value.trim() + ".");
+                if (still(n)) await load("Saved the product configuration " + name.value.trim() + ".");
               } catch (err) { fail(n, amsg, err); lock(card, false); }
             }, ""), btn("Cancel", close, "ghost")));
           open(card);
@@ -5908,9 +5925,9 @@ function reviewLines(grid, name) {
           const isSet = kind === "set", list = isSet ? saved().map((x) => [x, x]) : bs.bundles.map((b) => [b.bundleId, b.name]);
           if (!list.length) { say(amsg, "There is nothing to retire.", true); return; }
           const pick = select(list), reason = el("input", { type: "text", maxlength: "200", autocomplete: "off" });
-          const card = el("div", { class: "card white" }, el("h2", { text: isSet ? "Retire a band set" : "Retire a bundle" }),
-            el("p", { class: "hint", text: isSet ? "A retired band set leaves the grid. Its versions are kept." : "Retiring a bundle does not retire its band sets." }),
-            el("div", { class: "fields" }, field(isSet ? "Band set" : "Bundle", pick), field("Reason", reason)),
+          const card = el("div", { class: "card white" }, el("h2", { text: isSet ? "Retire a band set" : "Retire a product configuration" }),
+            el("p", { class: "hint", text: isSet ? "A retired band set leaves the grid. Its versions are kept." : "Retiring a product configuration does not retire its band sets." }),
+            el("div", { class: "fields" }, field(isSet ? "Band set" : "Product configuration", pick), field("Reason", reason)),
             el("div", { class: "actions" }, btn("Confirm retire", async () => {
               if (!reason.value.trim()) { say(amsg, "Give a reason for retiring it.", true); return; }
               const label2 = pick.options[pick.selectedIndex].text;
@@ -5924,13 +5941,14 @@ function reviewLines(grid, name) {
         }
         if (editable) {
           menu = el("details", { class: "menu" }, el("summary", { class: "btn mk2", text: "Manage band sets" }),
-            el("div", { class: "menubox" }, btn("New band set", newSetPanel, "mk2"), btn("New bundle", () => bundlePanel(""), "mk2"),
-              btn("Edit bundle members", () => { if (!bs.bundles.length) { say(amsg, "There are no bundles to edit.", true); return; } bundlePanel(bs.bundles[0].bundleId); }, "mk2"),
-              btn("Edit ladder", ladderPanel, "mk2"), btn("Retire band set", () => retirePanel("set"), "mk2"), btn("Retire bundle", () => retirePanel("bundle"), "mk2")));
+            el("div", { class: "menubox" }, btn("New band set", newSetPanel, "mk2"), btn("New product configuration", () => bundlePanel(""), "mk2"),
+              btn("Edit product configuration members", () => { if (!bs.bundles.length) { say(amsg, "There are no product configurations to edit.", true); return; } bundlePanel(bs.bundles[0].bundleId); }, "mk2"),
+              btn("Edit ladder", ladderPanel, "mk2"), btn("Retire band set", () => retirePanel("set"), "mk2"), btn("Retire product configuration", () => retirePanel("bundle"), "mk2")));
         }
         const nb = bs.ladder.bands.length;
         gridView = drawGrid(gridHost, orderColumns(G.makeGrid(bs.ladder.bands, bs.bandSets, bsFuel, bs.ladder.ladderId), bs.bundles), {
-          editable, bundles: bs.bundles, fuelName: FUEL[bsFuel].toLowerCase(), lead: fuelCtl, tail: menu, afterTop: [amsg, panel],
+          editable, bundles: bs.bundles, fuelName: FUEL[bsFuel].toLowerCase(), lead: fuelCtl, tail: menu, afterTop: [amsg, panel], onNew: newSetPanel,
+          emptyText: "No " + FUEL[bsFuel].toLowerCase() + " band sets yet. " + (editable ? "Add one with New band set." : "Someone with the Set tick can add one."),
           note: FUEL[bsFuel] + " ladder version " + bs.ladder.version + ", " + nb + (nb === 1 ? " band." : " bands.") + (editable ? "" : " View only: you need the Set tick to change margins."),
           history: (name) => call("band_set_history", { fuel: bsFuel, name }),
           onChange: () => drawFoot(),

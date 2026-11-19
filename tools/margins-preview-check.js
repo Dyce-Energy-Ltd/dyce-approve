@@ -31,6 +31,20 @@
   const cell = (name, band) => $('#pr table.grid td.cell[data-name="' + name + '"][data-band="' + band + '"]');
   const kv = (k) => { const row = $$("#pr aside.detail .kv > div").find((d) => d.querySelector(".k").textContent === k); return row ? row.querySelector(".v").textContent : null; };
   function done() { const p = document.createElement("pre"); p.id = "result"; p.textContent = JSON.stringify({ as, results }); document.body.append(p); }
+  // The whole mockup layout with no band sets (Phil Brook, 20/11/2026: dyce-prod has none yet): the
+  // switches (greyed out), the selection bar, the chart card with axes over the bands, the grid's
+  // corner cells and a row per band, New band set in the grid with the Set tick, and the Cell detail.
+  function emptyLayout(fuel, bands, canSet, tag) {
+    const segs = $$("#pr .mk-ctl").map((c) => c.querySelector(".lab").textContent);
+    check(tag + "empty: the Columns and Showing switches show, greyed out", segs.includes("Columns") && segs.includes("Showing") && button("By product configuration").disabled && button("Margin, p/kWh").disabled, segs.join());
+    check(tag + "empty: the selection bar shows Selected: nothing, greyed out", $("#pr .gridbar") && !$("#pr .gridbar").hidden && $("#pr .gridbar .selt").textContent === "Selected: nothing" && button("Select all", $("#pr .gridbar")).disabled);
+    const card = $("#pr .chartcard");
+    check(tag + "empty: the chart card shows its title and axes over the bands", card && !card.hidden && card.querySelector(".ct-title").textContent === "Margin curve, " + fuel + ": p/kWh by band (kWh a year)" && $$("#pr svg.chart text.axt.ta-m").length === bands && $$("#pr svg.chart .gl").length === 5, card && card.textContent.slice(0, 200));
+    check(tag + "empty: the chart says to add a band set", card && !!card.querySelector(".legend") && card.querySelector(".legend").textContent === (canSet ? "No band sets to plot yet. Add one with New band set." : "No band sets to plot yet. Someone with the Set tick can add one."), card && card.textContent);
+    check(tag + "empty: the grid keeps its corner cells and a row per band", $("#pr table.grid .corner3") && $("#pr table.grid .corner3").textContent === "On chart (up to 4)" && $("#pr table.grid .corner2").textContent === "Band, kWh a year" && $$("#pr table.grid tbody tr").length === bands);
+    check(tag + "empty: New band set is in the grid only with the Set tick", canSet ? !!button("New band set", $("#pr table.grid")) : !$$("#pr table.grid button").some((b) => b.textContent === "New band set"));
+    check(tag + "empty: the Cell detail asks for a click", $("#pr aside.detail") && !$("#pr aside.detail").hidden && $("#pr aside.detail").textContent.includes("Click a cell to see what it earns at the band midpoint"));
+  }
 
   async function common() {
     const heads = $$("#pr table.grid th.colh button").map((b) => b.textContent);
@@ -100,12 +114,21 @@
     button("Gas").click();
     const rows = await until(() => { const r = $$("#pr table.grid tbody tr"); return r.length === 5 && !$$("#pr table.grid th.colh").length ? r : null; });
     check("Gas: the ladder's five bands show with no band sets", !!rows);
+    emptyLayout("gas", 5, true, "Gas ");
+    check("Gas empty: the foot shows", $("#pr .savebar") && $("#pr .savebar .t").textContent === "No unsaved changes.");
+    button("New band set", $("#pr table.grid")).click();
+    check("Gas empty: the grid's New band set opens the form", !!(await until(() => button("Add to the grid"))));
   }
 
   async function view() {
     const vers = await common();
     check("view only: no Restore", vers && !vers.some((v) => button("Restore as a new change", v)));
     check("view only: no Manage, Review or Shift", !$$("#pr summary").some((s) => s.textContent === "Manage band sets") && !button("Review changes") && !button("Shift by value"));
+    button("Gas").click();
+    const rows = await until(() => { const r = $$("#pr table.grid tbody tr"); return r.length === 5 && !$$("#pr table.grid th.colh").length ? r : null; });
+    check("view only, Gas: the ladder's five bands show", !!rows);
+    emptyLayout("gas", 5, false, "view only, Gas ");
+    check("view only, Gas: the grid says who can add a band set", $("#pr .gridwrap").textContent.includes("No gas band sets yet. Someone with the Set tick can add one."));
   }
 
   (async () => {

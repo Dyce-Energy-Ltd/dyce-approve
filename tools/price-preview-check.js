@@ -8,7 +8,7 @@
 // gas ladder's bands with no columns and New band set; a blank new band set stays blank and the
 // preview waits until every band is filled, then shows; Save calls band_sets_save and bundle_save
 // and never apply, and the screen comes back with the band set ticked and the preview showing. On
-// the electricity file a name already used by a band set or a bundle is refused, a new band set
+// the electricity file a name already used by a band set or a product configuration is refused, a new band set
 // can be kept for one sale type, and Apply with a new unsaved band set saves it, then applies it.
 // ?as=pricingview (View only): the same gas file shows the bands, and no New band set or Save.
 (() => {
@@ -34,6 +34,18 @@
   const newCard = () => $$("#pr .card.white").find((c) => { const h = c.querySelector("h2"); return h && h.textContent === "New band set"; }) || null;
   const dialogCard = (title) => $$("#pr .card.white").find((c) => { const h = c.querySelector("h2"); return h && h.textContent === title; }) || null;
   function done() { const p = document.createElement("pre"); p.id = "result"; p.textContent = JSON.stringify({ as, results }); document.body.append(p); }
+  // The whole Margins mockup layout with no band sets, as on the Margins screen (Phil Brook, 20/11/2026).
+  function emptyLayout(fuel, bands, canSet, tag) {
+    const segs = $$("#pr .mk-ctl").map((c) => c.querySelector(".lab").textContent);
+    check(tag + "empty: the Columns and Showing switches show, greyed out", segs.includes("Columns") && segs.includes("Showing") && button("By product configuration").disabled && button("Margin, p/kWh").disabled, segs.join());
+    check(tag + "empty: the selection bar shows Selected: nothing, greyed out", $("#pr .gridbar") && !$("#pr .gridbar").hidden && $("#pr .gridbar .selt").textContent === "Selected: nothing" && button("Select all", $("#pr .gridbar")).disabled);
+    const card = $("#pr .chartcard");
+    check(tag + "empty: the chart card shows its title and axes over the bands", card && !card.hidden && card.querySelector(".ct-title").textContent === "Margin curve, " + fuel + ": p/kWh by band (kWh a year)" && $$("#pr svg.chart text.axt.ta-m").length === bands && $$("#pr svg.chart .gl").length === 5, card && card.textContent.slice(0, 200));
+    check(tag + "empty: the chart says to add a band set", card && !!card.querySelector(".legend") && card.querySelector(".legend").textContent === (canSet ? "No band sets to plot yet. Add one with New band set." : "No band sets to plot yet. Someone with the Set tick can add one."), card && card.textContent);
+    check(tag + "empty: the grid keeps its corner cells and a row per band", $("#pr table.grid .corner3") && $("#pr table.grid .corner3").textContent === "On chart (up to 4)" && $("#pr table.grid .corner2").textContent === "Band, kWh a year" && $$("#pr table.grid tbody tr").length === bands);
+    check(tag + "empty: New band set is in the grid only with the Set tick", canSet ? !!button("New band set", $("#pr table.grid")) : !$$("#pr table.grid button").some((b) => b.textContent === "New band set"));
+    check(tag + "empty: the Cell detail asks for a click", $("#pr aside.detail") && !$("#pr aside.detail").hidden && $("#pr aside.detail").textContent.includes("Click a cell to see what it earns at the band midpoint"));
+  }
 
   async function openFile(name) {
     const row = await until(() => $$("#pr table.prt tbody tr").find((tr) => tr.textContent.includes(name)));
@@ -76,6 +88,7 @@
     check("no band sets: the choice says where to add one", text().includes("No gas band sets yet. Add one with New band set under Margins below."));
     check("New band set and Save are offered", !!button("New band set") && !!button("Save"));
     check("the margins hint names both routes", text().includes("Change margins here. Save keeps them without changing any price; Apply saves them and puts the prices live."));
+    emptyLayout("gas", 5, true, "");
 
     const before = calls().length;
     await addSet("Gas One", "Standard", "", "8");
@@ -108,10 +121,10 @@
     check("Save asks for the reason and lists the new band set", dlg && dlg.textContent.includes("New band set, saved under its name: Gas One.") && !!inputFor("Reason for the change", dlg), dlg && dlg.textContent);
     set(inputFor("Reason for the change", dlg), "First gas margins");
     $("#prBundle").click();
-    set(inputFor("Bundle name", dlg), "Gas range");
+    set(inputFor("Product configuration name", dlg), "Gas range");
     button("Save band sets", dlg).click();
     const saidMsg = await until(() => { const m = $("#pr > .msg"); return m && !m.hidden && m.textContent.startsWith("Saved") ? m.textContent : null; });
-    check("Save says what it saved, in words", saidMsg === "Saved Gas One version 1. Bundle Gas range saved. No price has changed.", saidMsg || $("#pr > .msg").textContent);
+    check("Save says what it saved, in words", saidMsg === "Saved Gas One version 1. Product configuration Gas range saved. No price has changed.", saidMsg || $("#pr > .msg").textContent);
     const made = calls().slice(atSave);
     check("Save calls band_sets_save then bundle_save, and never apply", made.includes("band_sets_save") && made.includes("bundle_save") && made.indexOf("band_sets_save") < made.indexOf("bundle_save") && !made.includes("apply"), made.join());
     const sv = window.__stub.calls.filter((c) => c.op === "band_sets_save").pop();
@@ -120,13 +133,13 @@
     check("after Save the band set is still ticked", tick2 && tick2.querySelector("input").checked);
     check("after Save the preview shows again", !!(await until(pivot)));
     check("after Save the band set is saved, not changed", !text().includes("Changed, not saved yet"), text().slice(0, 300));
-    check("after Save the bundle can be chosen", $$("#pr .chooser select option").some((o) => o.textContent === "Gas range"));
+    check("after Save the product configuration can be chosen", $$("#pr .chooser select option").some((o) => o.textContent === "Gas range"));
 
     // ---- electricity: names already used, and a new band set for one sale type
     button("Back to files").click();
     if (!(await openFile("Alpha_electricity_example_12112026.xlsx"))) { check("the electricity file opens", false); return; }
     await addSet("Core range", "", "", "15");
-    check("a bundle's name is refused", newMsg().textContent === "There is already a band set or bundle with that name.", newMsg().textContent);
+    check("a product configuration's name is refused", newMsg().textContent === "There is already a band set or product configuration with that name.", newMsg().textContent);
     button("Cancel", newCard()).click();
     await addSet("Gold", "", "", "15");
     check("a saved band set's name is refused", newMsg().textContent === "There is already a band set called Gold in the grid.", newMsg().textContent);
@@ -162,6 +175,7 @@
     check("view only: the grid says who can add a band set", text().includes("No gas band sets yet. Someone with the Set tick can add one."));
     check("view only: no New band set and no Save", !button("New band set") && !button("Save") && !button("Save band sets"));
     check("view only: no Apply", !button("Apply"));
+    emptyLayout("gas", 5, false, "view only ");
   }
 
   (async () => {
