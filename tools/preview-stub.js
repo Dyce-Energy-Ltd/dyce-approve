@@ -55,9 +55,16 @@
 // nothing: the pages stay as drawn. Refusals: a decide that includes line 512 (another person
 // decided it while the page was open), Set broker to broker 44 (the contract has a broker), a No
 // with a blank reason and a blank resolution note.
+// DEMO MODE (build.py --demo): the build puts "window.__DEMO__ = true;" before this file. The page then
+// signs in as Demo Example (all four Pricing ticks, no sign-in screen), opens Pricing > Supplier files,
+// shows a "Demo: invented prices" bar with a "Reset demo" link, holds its state in sessionStorage (so it
+// lasts for the browser tab) and answers every call in the page: window.fetch never reaches another host.
+// The demo's supplier names are Dyce's own (Voltx, Yu, Jellyfish); every file name, figure and person is
+// invented. See the section "Demo mode" at the end of this file.
 (function () {
+  var DEMO = window.__DEMO__ === true;
   var ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/comms-web";
-  var as = (new URLSearchParams(location.search).get("as") || "admin").toLowerCase();
+  var as = DEMO ? "demo" : (new URLSearchParams(location.search).get("as") || "admin").toLowerCase();
   var ADMIN = "admin.example@dyce-energy.co.uk";
   var PERSONA = {
     admin: ADMIN,
@@ -73,6 +80,7 @@
     pricingview: "tara.example@dyce-energy.co.uk",
     ceview: "cy.example@dyce-energy.co.uk",
     cedecide: "dee.example@dyce-energy.co.uk",
+    demo: "demo.example@dyce-energy.co.uk",
     none: null
   };
   var DOMAIN = /^[a-z0-9._%-]+@dyce-energy\.co\.uk$/;
@@ -126,6 +134,9 @@
   // The Pricing people are listed only in their own preview.
   if (as === "pricing") {
     people.push({ email: PERSONA.pricing, display_name: "Quinn Example", active: true, grants: ["pricing.view", "pricing.load", "pricing.set", "pricing.publish"], added_at: "2026-11-13T10:30:00+00:00", added_by: ADMIN });
+  }
+  if (as === "demo") {
+    people.push({ email: PERSONA.demo, display_name: "Demo Example", active: true, grants: ["pricing.view", "pricing.load", "pricing.set", "pricing.publish"], added_at: "2026-11-13T10:30:00+00:00", added_by: ADMIN });
   }
   if (as === "pricingview") {
     people.push({ email: PERSONA.pricingview, display_name: "Tara Example", active: true, grants: ["pricing.view"], added_at: "2026-11-13T10:35:00+00:00", added_by: ADMIN });
@@ -709,13 +720,13 @@
   var PR_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/dna-pricing";
   var PR_UPLOAD = DV_STORAGE + "object/upload/sign/pricing-files/";
   var PR_TICK = {
-    "overview": "pricing.view", "band_set_get": "pricing.view", "split_list": "pricing.view", "run_set": "pricing.view",
-    "preview": "pricing.view", "book_live": "pricing.view", "book_rows": "pricing.view",
+    "overview": "pricing.view", "split_list": "pricing.view", "book_live": "pricing.view", "book_rows": "pricing.view",
+    "band_sets": "pricing.view", "band_set_history": "pricing.view", "file_regions": "pricing.view", "preview_selection": "pricing.view",
     "file_start": "pricing.load", "file_rows": "pricing.load", "file_finish": "pricing.load", "file_reject": "pricing.load",
-    "band_set_new": "pricing.set", "band_set_copy": "pricing.set", "band_set_save": "pricing.set", "band_set_approve": "pricing.set",
-    "band_set_retire": "pricing.set", "split_save": "pricing.set", "split_publish": "pricing.set", "run_set_prepare": "pricing.set",
-    "publish": "pricing.publish", "publish_abandon": "pricing.publish", "output_upload_url": "pricing.publish", "output_record": "pricing.publish", "output_link": "pricing.view"
+    "band_set_retire": "pricing.set", "band_sets_save": "pricing.set", "bundle_save": "pricing.set", "bundle_retire": "pricing.set", "ladder_save": "pricing.set", "split_save": "pricing.set", "split_publish": "pricing.set",
+    "apply": "pricing.publish", "publish_abandon": "pricing.publish", "output_upload_url": "pricing.publish", "output_record": "pricing.publish", "output_link": "pricing.view"
   };
+
   var pid = function (n) { return "00000000-0000-4000-8000-" + String(1000000000 + n).slice(1).padStart(12, "0"); };
   var F1 = pid(101), F2 = pid(102), F3 = pid(103);
   var prSuppliers = [
@@ -723,29 +734,57 @@
     { supplier_id: "beta", supplier_name: "Beta Example Energy", panel_status: "active" },
     { supplier_id: "gamma", supplier_name: "Gamma Example Gas", panel_status: "active" }
   ];
+  // Pricing v2 file states. state is one of loading, awaiting_bandings, applying, live, replaced, load_failed.
+  var PR_STATE_LABEL = { loading: "Loading", awaiting_bandings: "Awaiting bandings", applying: "Applying", live: "Live", replaced: "Replaced", load_failed: "Load failed" };
   var prFiles = [
-    { supplier_file_id: F1, supplier_id: "alpha", fuel: "electricity", file_format: "yu_elec_v1", source_filename: "Alpha_electricity_example_12112026.xlsx", status: "loaded", production_date: "2026-11-12", quote_valid_from: "2026-11-16", quote_valid_until: "2026-11-30", row_count_source: 162708, row_count_loaded: 162700, finished: true, refused_count: 8, loaded_by: "pricing.person", loaded_at: "2026-11-13T09:10:00+00:00", activated_at: null },
-    { supplier_file_id: F2, supplier_id: "beta", fuel: "electricity", file_format: "voltx_elec_v1", source_filename: "Beta_electricity_example_10112026.xlsx", status: "active", production_date: "2026-11-10", quote_valid_from: "2026-11-11", quote_valid_until: "2026-11-25", row_count_source: 40320, row_count_loaded: 40320, finished: true, refused_count: 0, loaded_by: "pricing.person", loaded_at: "2026-11-10T14:00:00+00:00", activated_at: "2026-11-11T08:00:00+00:00" },
-    { supplier_file_id: F3, supplier_id: "gamma", fuel: "gas", file_format: "yu_gas_v1", source_filename: "Gamma_gas_example_09112026.xlsx", status: "loaded", production_date: "2026-11-09", quote_valid_from: null, quote_valid_until: null, row_count_source: 9000, row_count_loaded: 4500, finished: false, refused_count: 0, loaded_by: "pricing.person", loaded_at: "2026-11-09T16:00:00+00:00", activated_at: null }
+    { supplierFileId: F1, supplierId: "alpha", fuel: "electricity", fileFormat: "yu_elec_v1", sourceFilename: "Alpha_electricity_example_12112026.xlsx", loadedAt: "2026-11-12T16:20:00+00:00", quoteValidFrom: "2026-11-16", quoteValidUntil: "2026-11-30", rowCountSource: 162708, rowCountLoaded: 162700, refusedCount: 8, state: "awaiting_bandings" },
+    { supplierFileId: F2, supplierId: "beta", fuel: "electricity", fileFormat: "voltx_elec_v1", sourceFilename: "Beta_electricity_example_10112026.xlsx", loadedAt: "2026-11-10T14:05:00+00:00", quoteValidFrom: "2026-11-11", quoteValidUntil: "2026-11-25", rowCountSource: 40320, rowCountLoaded: 40320, refusedCount: 0, state: "live" },
+    { supplierFileId: F3, supplierId: "gamma", fuel: "gas", fileFormat: "yu_gas_v1", sourceFilename: "Gamma_gas_example_09112026.xlsx", loadedAt: "2026-11-09T16:00:00+00:00", quoteValidFrom: null, quoteValidUntil: null, rowCountSource: 9000, rowCountLoaded: 4500, refusedCount: 0, state: "loading" },
+    { supplierFileId: pid(105), supplierId: "beta", fuel: "electricity", fileFormat: "voltx_elec_v1", sourceFilename: "Beta_electricity_example_03112026.xlsx", loadedAt: "2026-11-03T09:40:00+00:00", quoteValidFrom: "2026-11-04", quoteValidUntil: "2026-11-18", rowCountSource: 40100, rowCountLoaded: 40100, refusedCount: 0, state: "replaced" }
   ];
-  var prProducts = [{ product: "Standard", is_advanced: false, active: true }, { product: "Gold", is_advanced: false, active: true }, { product: "Silver", is_advanced: false, active: true }, { product: "Advanced Saver", is_advanced: true, active: true }];
-  var BS1 = pid(201), BS2 = pid(202), BS3 = pid(203), BS4 = pid(204);
-  var prBandSets = [
-    { price_config_id: BS1, config_key: "alpha|electricity|Standard|all", version: 2, name: "Alpha Standard", supplier_id: "alpha", fuel: "electricity", product: "Standard", sale_type: "all", status: "approved", cost_per_meter_pence: 1500, created_by: "pricing.person", created_at: "2026-11-12T10:00:00+00:00", approved_by: "pricing.person", approved_at: "2026-11-12T11:00:00+00:00" },
-    { price_config_id: BS2, config_key: "alpha|electricity|Gold|all", version: 1, name: "Alpha Gold", supplier_id: "alpha", fuel: "electricity", product: "Gold", sale_type: "all", status: "draft", cost_per_meter_pence: 1500, created_by: "pricing.person", created_at: "2026-11-13T08:00:00+00:00", approved_by: null, approved_at: null },
-    { price_config_id: BS3, config_key: "beta|electricity|Standard|renewal", version: 1, name: "Beta Standard renewal", supplier_id: "beta", fuel: "electricity", product: "Standard", sale_type: "renewal", status: "retired", cost_per_meter_pence: 1200, created_by: "pricing.person", created_at: "2026-11-01T08:00:00+00:00", approved_by: "pricing.person", approved_at: "2026-11-01T09:00:00+00:00" },
-    { price_config_id: BS4, config_key: "gamma|gas|Standard|all", version: 1, name: "Gamma gas Standard", supplier_id: "gamma", fuel: "gas", product: "Standard", sale_type: "all", status: "approved", cost_per_meter_pence: 800, created_by: "pricing.person", created_at: "2026-11-05T08:00:00+00:00", approved_by: "pricing.person", approved_at: "2026-11-05T09:00:00+00:00" }
-  ];
-  var band = function (i, lo, hi, kind, v, share) {
-    return { band_index: i, eac_min_kwh: String(lo), eac_max_kwh: String(hi),
-      target_margin_milli_pence_per_kwh: kind === "p" ? String(v) : null, target_margin_pct_of_cost: kind === "pct" ? String(v) : null,
-      standing_share_pct: String(share), unit_uplift_milli_pence_per_kwh: null, standing_uplift_milli_pence_per_day: null };
+  var prLoadFailures = [{ driveItemId: "invented-drive-item-1", sourcePath: "Pricing/Inbox/Gamma_gas_example_13112026.xlsx", supplierId: "gamma", fuel: "gas", reason: "The sheet named Rates was not found (invented reason for the preview).", seenAt: "2026-11-13T07:30:00+00:00" }];
+  var prLastPreview = { attentionCount: -1, fingerprint: "" }, prAppliedRuns = [];
+  // INVENTED ARITHMETIC, not a supplier's or Dyce's pricing: it only lets a margin edit move the figures.
+  // The real function works the rates out in the database.
+  var prPreview = function (body, file) {
+    var rows = [], attention = [], terms = [12, 24, 36];
+    body.items.forEach(function (it, n) {
+      var types = it.saleType === "all" ? ["acquisition", "renewal"] : [it.saleType];
+      body.usages.forEach(function (u) {
+        var bd = it.bands.filter(function (b) { return u >= b.eacMinKwh && u <= b.eacMaxKwh; })[0] || it.bands[it.bands.length - 1];
+        var m = bd.marginMilliPencePerKwh, sh = bd.standingSharePct;
+        terms.forEach(function (t) {
+          types.forEach(function (st, k) {
+            var unit = Math.round((15 + t * 0.02 + k * 0.1 + m / 1000 * (1 - sh / 100)) * 100) / 100;
+            var stand = Math.round((30 + (m / 1000 * u * sh / 100) / 365) * 100) / 100;
+            var sell = Math.round(unit * u + stand * 365);
+            rows.push({ label: it.label, which: "proposed", saleType: st, usageKwh: u, termMonths: t, unitRatePence2dp: unit, standingChargePence2dp: stand, sellAnnualPence: sell, marginAnnualPence: Math.round(m / 1000 * u - (DEMO ? it.costPerMeterPence / 2 : it.costPerMeterPence)) });
+            var lsell = Math.round(sell * 1.02 + 900 - t * 15);
+            rows.push({ label: it.label, which: "live", saleType: st, usageKwh: u, termMonths: t, unitRatePence2dp: Math.round((unit + 0.2) * 100) / 100, standingChargePence2dp: stand, sellAnnualPence: lsell, marginAnnualPence: Math.round(lsell * 0.05) });
+          });
+        });
+      });
+      if (n === 0) attention.push({ product: it.product, saleType: it.saleType, issue: "range_not_covered", rangeMinKwh: 200000, rangeMaxKwh: 300000, rateCount: 12, detail: null });
+      if (it.bands.some(function (b) { return b.marginMilliPencePerKwh < 250; })) attention.push({ product: it.product, saleType: it.saleType, issue: "margin_below_floor", rangeMinKwh: null, rangeMaxKwh: null, rateCount: null, detail: "A band has a margin under 0.25p/kWh (invented rule)." });
+    });
+    // Demo: the Yu electricity file always shows the same two invented items (whatever the margins), so the
+    // count read before Apply is the count Apply checks. Other demo files show none.
+    if (DEMO) {
+      attention = [];
+      if (file && file.supplierId === "yu" && file.fuel === "electricity") {
+        attention.push({ product: body.items[0].product, saleType: body.items[0].saleType, issue: "range_not_covered", rangeMinKwh: 200001, rangeMaxKwh: 300000, rateCount: 12, detail: null });
+        var lastIt = body.items[body.items.length - 1];
+        attention.push({ product: lastIt.product, saleType: lastIt.saleType, issue: "no_rates_for_term", rangeMinKwh: null, rangeMaxKwh: null, rateCount: 3, detail: "The file has no 36 month rates for this product in this region (invented)." });
+      }
+    }
+    // As the database's attention_list_fingerprint: from the attention list itself, not the labels, so a
+    // band set saved under a new name before Apply keeps the fingerprint the person read.
+    var fp = 0, s = JSON.stringify(attention.map(function (a) { return [a.product, a.saleType, a.issue, a.rangeMinKwh, a.rangeMaxKwh, a.rateCount, a.detail]; }));
+    for (var i = 0; i < s.length; i++) fp = (fp * 31 + s.charCodeAt(i)) >>> 0;
+    prLastPreview = { attentionCount: attention.length, fingerprint: ("0000000" + fp.toString(16)).slice(-8).repeat(8) };
+    return { rows: rows, attention: attention, attentionCount: attention.length, fingerprint: prLastPreview.fingerprint };
   };
-  var prBands = {};
-  prBands[BS1] = [band(1, 0, 10000, "p", 450, 20), band(2, 10000, 50000, "p", 380, 20), band(3, 50000, 200000, "pct", 6.5, 10)];
-  prBands[BS2] = [band(1, 0, 25000, "p", 500, 25), band(2, 25000, 100000, "pct", 7, 15)];
-  prBands[BS3] = [band(1, 0, 100000, "p", 300, 20)];
-  prBands[BS4] = [band(1, 0, 73200, "p", 200, 0)];
+  var prProducts = [{ product: "Standard", is_advanced: false, active: true }, { product: "Gold", is_advanced: false, active: true }, { product: "Silver", is_advanced: false, active: true }, { product: "Advanced Saver", is_advanced: true, active: true }];
   var prSplits = [
     { supplier_split_id: pid(301), supplier_id: "alpha", rate_structure: "day_night", version: 1, split: { day: 0.7, night: 0.3 }, supplier_said: "Confirmed by email from the account manager.", supplier_said_on: "2026-10-20", status: "published", created_by: "pricing.person", created_at: "2026-10-20T12:00:00+00:00", published_by: "pricing.person", published_at: "2026-10-20T12:30:00+00:00" },
     { supplier_split_id: pid(302), supplier_id: "alpha", rate_structure: "evening_weekend", version: 1, split: { day: 0.55, ew: 0.45 }, supplier_said: "Said on a call.", supplier_said_on: "2026-11-02", status: "draft", created_by: "pricing.person", created_at: "2026-11-02T12:00:00+00:00", published_by: null, published_at: null },
@@ -757,45 +796,83 @@
     { supplier_id: "beta", rate_structure: "day_night", split: { day: 0.6803, night: 0.3197 }, pairs_matched: 7020, source_filename: "Beta_electricity_example_10112026.xlsx", loaded_at: "2026-11-10" }
   ];
   var R = function (n) { return pid(400 + n); };
-  // The runs of each file: [id, product, sale type, band set, status]
-  var prRuns = {};
-  prRuns[F1] = [[1, "Standard", "all", BS1, "draft"], [2, "Gold", "all", BS2, "draft"], [3, "Silver", "acquisition", pid(205), "draft"]];
-  prRuns[F2] = [[4, "Standard", "all", pid(206), "published"], [5, "Gold", "all", pid(207), "published"]];
-  prRuns[F3] = [];
   var prLive = [
-    { supplier_id: "beta", fuel: "electricity", product: "Standard", sale_type: "acquisition", price_run_id: R(4), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].source_filename, row_count: 115200, publishing_runs: 0 },
-    { supplier_id: "beta", fuel: "electricity", product: "Standard", sale_type: "renewal", price_run_id: R(4), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].source_filename, row_count: 115200, publishing_runs: 0 },
-    { supplier_id: "beta", fuel: "electricity", product: "Gold", sale_type: "acquisition", price_run_id: R(5), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].source_filename, row_count: 115200, publishing_runs: 0 },
-    { supplier_id: "beta", fuel: "electricity", product: "Gold", sale_type: "renewal", price_run_id: R(5), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].source_filename, row_count: 115200, publishing_runs: 0 }
+    { supplier_id: "beta", fuel: "electricity", product: "Standard", sale_type: "acquisition", price_run_id: R(4), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0 },
+    { supplier_id: "beta", fuel: "electricity", product: "Standard", sale_type: "renewal", price_run_id: R(4), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0 },
+    { supplier_id: "beta", fuel: "electricity", product: "Gold", sale_type: "acquisition", price_run_id: R(5), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0 },
+    { supplier_id: "beta", fuel: "electricity", product: "Gold", sale_type: "renewal", price_run_id: R(5), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0 }
   ];
   var prProblems = [{ supplier: "gamma", fuel: "gas", message: "Build failed: the book could not be written for 2 runs (invented message for the preview).", "when": "2026-11-12T17:45:00+00:00" }];
   var prBuiltAt = null, prPublishedFile = null, prRecorded = {};
   prRecorded[R(4)] = [{ layout: "broker", path: "outputs/" + R(4) + "/broker.xlsx", sha256: "c".repeat(64) }, { layout: "ud_upload", path: "outputs/" + R(4) + "/ud_upload.xlsx", sha256: "c".repeat(64) }];
-  var prAttention = function (fileId) {
-    if (fileId !== F1) return [];
-    return [
-      { price_run_id: R(1), issue: "range_not_covered", range_min_kwh: "200000", range_max_kwh: "300000", rate_count: 12, detail: null },
-      { price_run_id: R(2), issue: "tariff_code_missing", range_min_kwh: null, range_max_kwh: null, rate_count: 36, detail: "Two-rate evening/weekend (invented)" },
-      { price_run_id: R(3), issue: "rate_blank", range_min_kwh: "0", range_max_kwh: "25000", rate_count: 4, detail: null }
-    ];
-  };
-  var prFingerprint = function (fileId) { return fileId === F1 ? "f1c0ffee00112233f1c0ffee00112233f1c0ffee00112233f1c0ffee00112233" : "0000000000000000000000000000000000000000000000000000000000000000"; };
+  // prRuns: what each run of the demo's book is (supplier, fuel, product, sale type). Empty outside the demo,
+  // where every run answers as Beta Example's Standard electricity.
+  var prRuns = {};
   var prBookRows = function (runId) {
     var rows = [], terms = [12, 24, 36], structures = ["single", "day_night"];
+    var info = prRuns[runId] || { supplierId: "beta", fuel: "electricity", product: "Standard", saleType: "all" };
+    var bump = prProducts.map(function (x) { return x.product; }).indexOf(info.product) * 0.35;
+    if (bump < 0) bump = 0;
+    var money = function (v) { return (Math.round(v * 100) / 100).toFixed(2); };
     for (var i = 0; i < 12; i++) {
       var term = terms[i % 3], st = structures[Math.floor(i / 3) % 2];
       rows.push({
-        price_run_id: runId, product_key: "beta|electricity|all|" + String(1000 + i), supplier_id: "beta", fuel: "electricity", product: "Standard", sale_type: "all",
+        price_run_id: runId, product_key: info.supplierId + "|" + info.fuel + "|" + info.product + "|" + info.saleType + "|" + String(1000 + i), supplier_id: info.supplierId, fuel: info.fuel, product: info.product, sale_type: info.saleType,
         base_rate_id: String(5000 + i), band_index: 1, product_name: "Example product", dno_id: "10", ldz: null, exit_zone: null, meter_type: "nhh", profile_class: 1,
         rate_structure: st, llf_band_group: "nda", llf_band_number: 1, min_kva: null, max_kva: null, term_months: term, contract_start_earliest: "2026-12-01",
         contract_start_latest: "2026-12-31", green_energy: false, carbon_offset: false, piece_min_kwh: "0", piece_max_kwh: "10000",
-        sell_unit_rate_single_pence_2dp: st === "single" ? "20.00" : null, sell_unit_rate_day_pence_2dp: st === "single" ? null : "21.00", sell_unit_rate_night_pence_2dp: st === "single" ? null : "15.00",
+        sell_unit_rate_single_pence_2dp: st === "single" ? money(20 + bump) : null, sell_unit_rate_day_pence_2dp: st === "single" ? null : money(21 + bump), sell_unit_rate_night_pence_2dp: st === "single" ? null : money(15 + bump),
         sell_unit_rate_ew_pence_2dp: null, sell_standing_charge_pence_2dp: "40.00", sell_capacity_rate_pence_2dp: null,
-        tariff_code: "EXAMPLE" + i, tariff_name_acquisition: "Dec26-" + term + "M-Acq Standard Standard", tariff_name_renewal: "Dec26-" + term + "M-Ren Standard Standard",
+        tariff_code: "EXAMPLE" + i, tariff_name_acquisition: "Dec26-" + term + "M-Acq " + info.product + " " + info.product, tariff_name_renewal: "Dec26-" + term + "M-Ren " + info.product + " " + info.product,
         sell_tac_pence: "250000", quote_valid_from: "2026-11-11", quote_valid_until: "2026-11-25", published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00"
       });
     }
     return rows;
+  };
+
+  // Pricing v2: the band ladder, band sets (with versions) and bundles of each fuel. Invented figures,
+  // none of them a price. The "Gold renewal" set was saved against version 2 of the electricity
+  // ladder, so the page shows it carried to the current ladder.
+  var band2 = function (ladder, i, margin, share) { return { bandIndex: ladder[i].bandIndex, eacMinKwh: ladder[i].eacMinKwh, eacMaxKwh: ladder[i].eacMaxKwh, marginMilliPencePerKwh: margin, standingSharePct: share }; };
+  var mkLadder = function (id, version, ranges) { return { ladderId: id, version: version, bands: ranges.map(function (r, i) { return { bandIndex: i + 1, eacMinKwh: r[0], eacMaxKwh: r[1] }; }) }; };
+  var prLadder = {
+    electricity: mkLadder(pid(801), 3, [[1000, 3000], [3001, 12500], [12501, 25000], [25001, 50000], [50001, 100000], [100001, 200000]]),
+    gas: mkLadder(pid(802), 2, [[1000, 5000], [5001, 15000], [15001, 40000], [40001, 100000], [100001, 250000]])
+  };
+  var prLadderOld = mkLadder(pid(803), 2, [[1000, 3000], [3001, 12500], [12501, 30000], [30001, 100000], [100001, 200000]]);
+  var prNamed = [], prBundles = [], prSeq = 0;
+  var addNamed = function (fuel, name, product, cost, margins, shares, ladder, ladderVersion) {
+    var make = function (version, delta, reason, when) {
+      return { priceConfigId: pid(900 + (prSeq++)), version: version, status: "approved", savedBy: "pricing.person", savedAt: when, reason: reason, costPerMeterPence: cost, ladderVersion: ladderVersion,
+        bands: margins.map(function (m, i) { return band2(ladder, i, m + delta, shares[i]); }) };
+    };
+    prNamed.push({ fuel: fuel, name: name, product: product, versions: [make(1, -60, "First margins (invented).", "2026-10-14T09:00:00+00:00"), make(2, -20, "Trimmed the larger bands (invented).", "2026-11-02T11:30:00+00:00"), make(3, 0, "Margins for the November files (invented).", "2026-11-12T10:00:00+00:00")] });
+  };
+  addNamed("electricity", "Standard", "Standard", 1500, [620, 540, 470, 420, 360, 300], [22, 20, 18, 16, 14, 12], prLadder.electricity.bands, 3);
+  addNamed("electricity", "Gold", "Gold", 1500, [700, 620, 540, 480, 420, 350], [25, 22, 20, 18, 15, 12], prLadder.electricity.bands, 3);
+  addNamed("electricity", "Silver", "Silver", 1400, [660, 580, 500, 450, 390, 330], [24, 21, 19, 17, 14, 12], prLadder.electricity.bands, 3);
+  addNamed("electricity", "Advanced Saver", "Advanced Saver", 1600, [760, 680, 600, 540, 470, 400], [20, 18, 16, 14, 12, 10], prLadder.electricity.bands, 3);
+  addNamed("electricity", "Gold renewal", "Gold", 1500, [640, 560, 480, 420, 330], [25, 22, 20, 15, 12], prLadderOld.bands, 2);
+  addNamed("gas", "Gas Standard", "Standard", 800, [300, 260, 230, 200, 170], [0, 0, 0, 0, 0], prLadder.gas.bands, 2);
+  addNamed("gas", "Gas Gold", "Gold", 800, [340, 300, 260, 230, 200], [0, 0, 0, 0, 0], prLadder.gas.bands, 2);
+  prBundles.push({ bundleId: pid(851), fuel: "electricity", name: "Core range", members: ["Standard", "Gold", "Silver"] });
+  prBundles.push({ bundleId: pid(852), fuel: "electricity", name: "Advanced range", members: ["Advanced Saver"] });
+  prBundles.push({ bundleId: pid(853), fuel: "gas", name: "Gas range", members: ["Gas Standard", "Gas Gold"] });
+
+  // The database's rule (pricing.newest_finished_file): only the newest finished file of a supplier and
+  // fuel can be priced, whatever its state, so a Live newest file can be priced again.
+  var prFinished = function (f) { return f.state !== "loading" && f.state !== "load_failed"; };
+  var prNewest = function (f) {
+    return prFiles.filter(function (o) { return o.supplierId === f.supplierId && o.fuel === f.fuel && prFinished(o); })
+      .sort(function (a, b) { return a.loadedAt < b.loadedAt ? 1 : a.loadedAt > b.loadedAt ? -1 : 0; })[0] || null;
+  };
+  var prCanApply = function (f) { var nf = prNewest(f); return !!nf && nf.supplierFileId === f.supplierFileId; };
+  // The Edge Function requires the ladder each saved set and preview item was edited against, and the
+  // database refuses one that is no longer the fuel's current ladder (final review S2).
+  var prLadderProblem = function (ladderId, fuel) {
+    if (typeof ladderId !== "string" || !ladderId) return "The band ladder is not valid.";
+    if (ladderId !== prLadder[fuel].ladderId) return "The " + fuel + " band ladder has changed since this screen was opened. Open it again.";
+    return null;
   };
 
   function prAnswer(body) {
@@ -808,54 +885,140 @@
     var bad = function (m) { return [400, { ok: false, error: m }]; };
     var ok = function (o) { var r = copy(o || {}); r.ok = true; return [200, r]; };
     var find = function (list, key, v) { return list.filter(function (x) { return x[key] === v; })[0] || null; };
-    var runsFor = function (fileId) {
-      var f = find(prFiles, "supplier_file_id", fileId);
-      return (prRuns[fileId] || []).map(function (r) {
-        return { price_run_id: R(r[0]), status: r[4], created_by: "pricing.person", created_at: "2026-11-13T09:12:00+00:00", approved_by: null, published_by: null, published_at: null, engine_version: "20261116130000", output_files: prRecorded[R(r[0])] || [], consumption_split: null, price_config_id: r[3], band_set_name: f.supplier_id + " " + r[1], band_set_version: 1, supplier_id: f.supplier_id, fuel: f.fuel, product: r[1], sale_type: r[2] };
-      });
-    };
+    // ---- Pricing v2: files with states, regions, the selection preview and apply. The state handling
+    // is all here (prFiles[].state and the flip below) so the full demo (task 9a) can extend it.
     if (op === "overview") {
-      var sets = Object.keys(prRuns).filter(function (k) { return prRuns[k].length; }).map(function (k) {
-        var f = find(prFiles, "supplier_file_id", k), c = function (st) { return prRuns[k].filter(function (r) { return r[4] === st; }).length; };
-        return { supplier_file_id: k, supplier_id: f.supplier_id, fuel: f.fuel, source_filename: f.source_filename, file_status: f.status, draft: c("draft"), approved: c("approved"), publishing: c("publishing"), published: c("published") };
+      // An applied file moves to live on the next overview call after the apply.
+      if (!DEMO) prFiles.forEach(function (f) { if (f.state === "applying") f.state = "live"; });
+      var view = prFiles.map(function (f) {
+        return { supplierFileId: f.supplierFileId, supplierId: f.supplierId, fuel: f.fuel, fileFormat: f.fileFormat, sourceFilename: f.sourceFilename, loadedAt: f.loadedAt, quoteValidFrom: f.quoteValidFrom, quoteValidUntil: f.quoteValidUntil,
+          rowCountSource: f.rowCountSource, rowCountLoaded: f.rowCountLoaded, refusedCount: f.refusedCount, state: f.state, stateLabel: PR_STATE_LABEL[f.state], canApply: prCanApply(f) };
       });
-      // The failed gamma build leaves a set in publishing, so the page can offer to abandon it.
-      if (prProblems.length) sets.push({ supplier_file_id: F3, supplier_id: "gamma", fuel: "gas", source_filename: prFiles[2].source_filename, file_status: "loaded", draft: 0, approved: 0, publishing: 2, published: 0 });
-      return ok({ suppliers: prSuppliers, files: prFiles, bandSets: prBandSets.map(function (b) { var o = copy(b); o.band_count = (prBands[b.price_config_id] || []).length; return o; }), splits: prSplits.map(function (x) { var o = copy(x); delete o.split; delete o.supplier_said; return o; }), runSets: sets, products: prProducts });
+      return ok({ suppliers: prSuppliers, files: view, loadFailures: prLoadFailures, splits: prSplits.map(function (x) { var o = copy(x); delete o.split; delete o.supplier_said; return o; }), products: prProducts });
     }
-    if (op === "band_set_get") {
-      var b = find(prBandSets, "price_config_id", body.priceConfigId);
-      if (!b) return [404, { ok: false, error: "That band set was not found." }];
-      var o = copy(b); o.uplift_model = "target_margin"; o.tariff_name_pattern = null; o.tariff_code_pattern = null;
-      return ok({ bandSet: o, bands: prBands[b.price_config_id] || [] });
+    if (op === "file_regions") {
+      var rf = find(prFiles, "supplierFileId", body.fileId);
+      if (!rf) return bad("The file is not valid.");
+      return ok({ regions: rf.fuel === "gas" ? ["EA", "NE", "NW", "SE"] : ["10", "11", "12", "13"] });
     }
+    if (op === "preview_selection") {
+      var pf = find(prFiles, "supplierFileId", body.fileId);
+      if (!pf) return bad("The file is not valid.");
+      if (!body.region) return bad("Give the region.");
+      if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 8) return bad("Choose between 1 and 8 band sets.");
+      if (!Array.isArray(body.usages) || body.usages.length < 1 || body.usages.length > 10 || !body.usages.every(function (u) { return Number.isSafeInteger(u) && u > 0; })) return bad("Give between 1 and 10 usages, each a whole number of kWh above zero.");
+      for (var pi = 0; pi < body.items.length; pi++) { var lp = prLadderProblem(body.items[pi] && body.items[pi].ladderId, pf.fuel); if (lp) return bad(lp); }
+      if (!prCanApply(pf)) return [400, { ok: false, error: "Only the newest file of that supplier and fuel can be priced: " + (prNewest(pf) || pf).sourceFilename + "." }];
+      return ok(prPreview(body, pf));
+    }
+    if (op === "apply") {
+      var af = find(prFiles, "supplierFileId", body.fileId);
+      if (!af) return bad("The file is not valid.");
+      if (!prCanApply(af)) return bad("Only the newest file of that supplier and fuel can be priced: " + (prNewest(af) || af).sourceFilename + ".");
+      if (af.state === "applying") return bad("That file is being applied now. Wait until its book is built, then try again.");
+      if (!Array.isArray(body.selections) || body.selections.length < 1 || body.selections.length > 8) return bad("Choose between 1 and 8 band sets.");
+      if (body.selections.some(function (s) { return !prNamed.some(function (x) { return x.versions.some(function (v) { return v.priceConfigId === s.priceConfigId; }); }) || ["all", "acquisition", "renewal"].indexOf(s.saleType) < 0; })) return bad("Every choice must be a saved band set with a sale type.");
+      if (body.attentionSeen !== prLastPreview.attentionCount || body.fingerprint !== prLastPreview.fingerprint) return bad("The list of items needing attention has changed since you read it. Preview it again.");
+      prAppliedRuns = body.selections.map(function (sel) { var nm = prNamed.filter(function (x) { return x.versions.some(function (v) { return v.priceConfigId === sel.priceConfigId; }); })[0]; return { product: nm.product, saleType: sel.saleType }; });
+      af.state = "applying"; prPublishedFile = af.supplierFileId; prBuiltAt = Date.now() + (window.__stub && window.__stub.buildMs != null ? window.__stub.buildMs : 15000);
+      return ok({ runsPublishing: body.selections.length });
+    }
+    if (op === "band_sets" || op === "band_set_history" || op === "band_sets_save" || op === "band_set_retire" || op === "bundle_save" || op === "bundle_retire" || op === "ladder_save") {
+      // band_sets_save names the fuel on each set, not on the request.
+      var fuel = op === "band_sets_save" ? (Array.isArray(body.sets) && body.sets[0] ? body.sets[0].fuel : null) : body.fuel;
+      if (op !== "bundle_retire" && fuel !== "electricity" && fuel !== "gas") return bad("The fuel must be electricity or gas.");
+      var nameTaken = function (n) { return prNamed.some(function (x) { return x.name === n; }) || prBundles.some(function (x) { return x.name === n; }); };
+      var current = function (x) { return x.versions[x.versions.length - 1]; };
+      var live = function () { return prNamed.filter(function (x) { return x.fuel === fuel && !x.retired; }); };
+      var ladder = prLadder[fuel];
+      if (op === "band_sets") {
+        return ok({ ladder: ladder, bandSets: live().map(function (x) { var c = current(x); return { name: x.name, priceConfigId: c.priceConfigId, version: c.version, product: x.product, costPerMeterPence: c.costPerMeterPence, ladderCurrent: c.ladderVersion === ladder.version, savedBy: c.savedBy, savedAt: c.savedAt, bands: c.bands }; }),
+          bundles: prBundles.filter(function (b) { return b.fuel === fuel && !b.retired; }).map(function (b) { return { bundleId: b.bundleId, name: b.name, members: b.members.filter(function (m) { return live().some(function (x) { return x.name === m; }); }) }; }) });
+      }
+      if (op === "band_set_history") {
+        var h = live().filter(function (x) { return x.name === body.name; })[0];
+        if (!h) return [404, { ok: false, error: "That band set was not found." }];
+        return ok({ versions: h.versions.slice().reverse().map(function (v) { return { priceConfigId: v.priceConfigId, version: v.version, status: v.status, savedBy: v.savedBy, savedAt: v.savedAt, reason: v.reason, costPerMeterPence: v.costPerMeterPence, bands: v.bands }; }) });
+      }
+      if (op === "band_sets_save") {
+        if (!body.reason || !String(body.reason).trim()) return bad("The reason is needed.");
+        if (!Array.isArray(body.sets) || body.sets.length < 1 || body.sets.length > 40) return bad("Give between 1 and 40 band sets.");
+        for (var i = 0; i < body.sets.length; i++) {
+          var st = body.sets[i], label = (st && st.name) || "A band set";
+          if (!st || typeof st.name !== "string" || st.name.trim().length < 1 || st.name.length > 60) return bad("A band set name must be 1 to 60 characters.");
+          if (st.fuel !== fuel) return bad(label + ": the fuel does not match.");
+          if (st.isNew ? nameTaken(st.name) : !live().some(function (x) { return x.name === st.name; })) return bad(st.isNew ? "There is already a band set or bundle with that name." : label + " was not found.");
+          var slp = prLadderProblem(st.ladderId, fuel);
+          if (slp) return bad(slp);
+          if (!Array.isArray(st.bands) || st.bands.length !== ladder.bands.length) return bad(label + ": give a margin and share for each of the " + ladder.bands.length + " bands.");
+          for (var j = 0; j < st.bands.length; j++) {
+            var bb = st.bands[j];
+            if (!Number.isInteger(bb.marginMilliPencePerKwh) || bb.marginMilliPencePerKwh <= 0) return bad(label + ": every margin must be a whole number above zero.");
+            if (typeof bb.standingSharePct !== "number" || bb.standingSharePct < 0 || bb.standingSharePct > 100 || Math.round(bb.standingSharePct * 100) / 100 !== bb.standingSharePct) return bad(label + ": every share must be between 0 and 100 with at most 2 decimals.");
+          }
+        }
+        var savedList = body.sets.map(function (st) {
+          var x = prNamed.filter(function (y) { return y.name === st.name; })[0];
+          if (!x) { x = { fuel: fuel, name: st.name, product: st.product, versions: [] }; prNamed.push(x); }
+          var v = { priceConfigId: pid(900 + (prSeq++)), version: x.versions.length + 1, status: "approved", savedBy: person(me).email, savedAt: now(), reason: String(body.reason).trim(), costPerMeterPence: st.costPerMeterPence, ladderVersion: ladder.version,
+            bands: st.bands.map(function (b, k) { return band2(ladder.bands, k, b.marginMilliPencePerKwh, b.standingSharePct); }) };
+          x.versions.push(v); x.product = st.product;
+          return { name: st.name, priceConfigId: v.priceConfigId, version: v.version };
+        });
+        return ok({ saved: savedList });
+      }
+      if (op === "band_set_retire") {
+        if (!body.reason) return bad("The reason is needed.");
+        var r = live().filter(function (x) { return x.name === body.name; })[0];
+        if (!r) return [404, { ok: false, error: "That band set was not found." }];
+        r.retired = true;
+        return ok({});
+      }
+      if (op === "bundle_save") {
+        if (typeof body.name !== "string" || body.name.trim().length < 1 || body.name.length > 60) return bad("A bundle name must be 1 to 60 characters.");
+        if (!Array.isArray(body.members) || body.members.length < 1 || body.members.length > 10) return bad("A bundle needs between 1 and 10 band sets.");
+        var known = live().map(function (x) { return x.name; });
+        if (body.members.some(function (m) { return known.indexOf(m) < 0; })) return bad("Every member must be a saved band set of that fuel.");
+        var existing = body.bundleId ? prBundles.filter(function (b) { return b.bundleId === body.bundleId; })[0] : null;
+        if (body.bundleId && !existing) return [404, { ok: false, error: "That bundle was not found." }];
+        if ((!existing || existing.name !== body.name) && nameTaken(body.name)) return bad("There is already a band set or bundle with that name.");
+        if (existing) { existing.name = body.name; existing.members = body.members.slice(); return ok({ bundleId: existing.bundleId }); }
+        var nb2 = { bundleId: pid(860 + prBundles.length), fuel: fuel, name: body.name, members: body.members.slice() };
+        prBundles.push(nb2);
+        return ok({ bundleId: nb2.bundleId });
+      }
+      if (op === "bundle_retire") {
+        if (!body.reason) return bad("The reason is needed.");
+        var rb = prBundles.filter(function (b) { return b.bundleId === body.bundleId && !b.retired; })[0];
+        if (!rb) return [404, { ok: false, error: "That bundle was not found." }];
+        rb.retired = true;
+        return ok({});
+      }
+      // ladder_save
+      if (!body.reason) return bad("The reason is needed.");
+      if (!Array.isArray(body.bands) || body.bands.length < 1 || body.bands.length > 20) return bad("A ladder needs between 1 and 20 bands.");
+      for (var q = 0; q < body.bands.length; q++) {
+        var lb = body.bands[q];
+        if (!Number.isInteger(lb.eacMinKwh) || !Number.isInteger(lb.eacMaxKwh) || lb.eacMinKwh < 0 || lb.eacMaxKwh <= lb.eacMinKwh) return bad("Band " + (q + 1) + ": the maximum must be above the minimum.");
+        if (q && lb.eacMinKwh <= body.bands[q - 1].eacMaxKwh) return bad("Band " + (q + 1) + " must start above the end of band " + q + ".");
+      }
+      // As the database (final review S3): the same bands as the current ladder save nothing.
+      if (body.bands.length === prLadder[fuel].bands.length && body.bands.every(function (b, k) { return b.eacMinKwh === prLadder[fuel].bands[k].eacMinKwh && b.eacMaxKwh === prLadder[fuel].bands[k].eacMaxKwh; })) return bad("The ladder is the same as the current one. Nothing was saved.");
+      prLadder[fuel] = mkLadder(pid(810 + prLadder[fuel].version), prLadder[fuel].version + 1, body.bands.map(function (b) { return [b.eacMinKwh, b.eacMaxKwh]; }));
+      return ok({ ladderId: prLadder[fuel].ladderId });
+    }
+
     if (op === "split_list") return ok({ splits: prSplits, solved: prSolved });
-    if (op === "run_set") {
-      if (!find(prFiles, "supplier_file_id", body.fileId)) return bad("The file is not valid.");
-      var att = prAttention(body.fileId);
-      return ok({ runs: runsFor(body.fileId), attention: att, attentionCount: att.length, fingerprint: prFingerprint(body.fileId) });
-    }
-    if (op === "preview") {
-      if (!body.region || !Array.isArray(body.usages) || !body.usages.length) return bad("Give between 1 and 10 usages.");
-      var rows = [];
-      body.usages.forEach(function (u) { [12, 24, 36].forEach(function (t) { ["acquisition", "renewal"].forEach(function (st, k) {
-        var tac = Math.round(u * 0.2 * 100 + 4000 * (t / 12) + k * 1000), liveTac = tac + 3500 - t * 40;
-        rows.push({ which: "proposed", sale_type: st, usage_kwh: String(u), term_months: t, sell_annual_pence: String(tac), margin_annual_pence: String(Math.round(tac * 0.07)) });
-        if (body.priceRunId !== R(2)) rows.push({ which: "live", sale_type: st, usage_kwh: String(u), term_months: t, sell_annual_pence: String(liveTac), margin_annual_pence: String(Math.round(liveTac * 0.065)) });
-      }); }); });
-      return ok({ rows: rows });
-    }
     if (op === "book_live") {
       var building = prBuiltAt !== null && Date.now() < prBuiltAt, live = copy(prLive);
-      if (prPublishedFile === F1) {
-        if (building) {
-          live.forEach(function (r) { if (r.supplier_id === "alpha") r.publishing_runs = 3; });
-        } else {
-          ["Standard", "Gold"].forEach(function (p) { ["acquisition", "renewal"].forEach(function (st) {
-            live.push({ supplier_id: "alpha", fuel: "electricity", product: p, sale_type: st, price_run_id: R(p === "Standard" ? 1 : 2), published_by: person(me).email, published_at: now(), engine_version: "20261116130000", supplier_file_id: F1, source_filename: prFiles[0].source_filename, row_count: 12, publishing_runs: 0 });
-          }); });
-          live.push({ supplier_id: "alpha", fuel: "electricity", product: "Silver", sale_type: "acquisition", price_run_id: R(3), published_by: person(me).email, published_at: now(), engine_version: "20261116130000", supplier_file_id: F1, source_filename: prFiles[0].source_filename, row_count: 12, publishing_runs: 0 });
-        }
+      if (!DEMO && prPublishedFile && !building) {
+        // The runs of the applied choice, once built: one per product and sale type chosen.
+        var pubFile = find(prFiles, "supplierFileId", prPublishedFile);
+        prAppliedRuns.forEach(function (x, i) {
+          (x.saleType === "all" ? ["acquisition", "renewal"] : [x.saleType]).forEach(function (st) {
+            live.push({ supplier_id: pubFile.supplierId, fuel: pubFile.fuel, product: x.product, sale_type: st, price_run_id: R(20 + i), published_by: person(me).email, published_at: now(), engine_version: "20261116130000", supplier_file_id: pubFile.supplierFileId, source_filename: pubFile.sourceFilename, row_count: 12, publishing_runs: 0 });
+          });
+        });
       }
       return ok({ live: live, problems: prProblems });
     }
@@ -866,47 +1029,17 @@
     }
     if (op === "file_start") {
       if (!/^[0-9a-f]{64}$/.test(body.sha256 || "")) return bad("The file checksum must be 64 lower-case hexadecimal characters.");
-      prLastStartGamma = body.supplierId === "gamma"; prSent = 0;
+      prSent = 0;
       var path = body.supplierId + "/" + body.fuel + "/" + body.sha256 + "." + body.extension;
       return ok({ fileId: pid(500 + calls.length), uploadUrl: PR_UPLOAD + path + "?token=preview-not-a-real-link", path: path });
     }
     if (op === "file_rows") { prSent += (body.rows || []).length; return ok({ added: (body.rows || []).length }); }
     if (op === "file_finish") {
       var by = {}; (body.refused || []).forEach(function (r) { by[r.reason] = (by[r.reason] || 0) + 1; });
-      var rep = { refused: body.refused || [], refused_count: (body.refused || []).length, by_reason: by, row_count_loaded: prSent, runs_prepared: 3 };
-      if (prLastStartGamma) { rep.runs_prepared = 0; rep.prepare_problem = "No published split for gamma day_night."; }
+      var rep = { refused: body.refused || [], refused_count: (body.refused || []).length, by_reason: by, row_count_loaded: prSent };
       return ok({ report: rep });
     }
     if (op === "file_reject") return body.reason ? ok({}) : bad("The reason is needed.");
-    if (op === "band_set_new" || op === "band_set_copy") {
-      var id = pid(600 + prBandSets.length), src = op === "band_set_copy" ? find(prBandSets, "price_config_id", body.fromId) : null;
-      if (op === "band_set_copy" && !src) return [404, { ok: false, error: "That band set was not found." }];
-      var nb = { price_config_id: id, config_key: body.supplierId + "|" + (src ? src.fuel : body.fuel) + "|" + body.product + "|" + body.saleType, version: 1, name: body.name || (src ? src.name + " (copy)" : "New band set"), supplier_id: body.supplierId, fuel: src ? src.fuel : body.fuel, product: body.product, sale_type: body.saleType, status: "draft", cost_per_meter_pence: src ? src.cost_per_meter_pence : 0, created_by: person(me).email, created_at: now(), approved_by: null, approved_at: null };
-      prBandSets.push(nb); prBands[id] = src ? copy(prBands[src.price_config_id] || []) : [];
-      return ok({ priceConfigId: id });
-    }
-    if (op === "band_set_save") {
-      var s = find(prBandSets, "price_config_id", body.priceConfigId);
-      if (!s) return bad("That band set does not exist.");
-      if (s.status !== "draft") return bad("That band set is " + s.status + ", so it cannot be changed. Make a new version instead.");
-      if (!Array.isArray(body.bands) || !body.bands.length) return bad("A band set needs at least one band.");
-      prBands[s.price_config_id] = body.bands.map(function (x) { var o = {}; Object.keys(x).forEach(function (k) { o[k] = x[k] === null ? null : String(x[k]); }); o.unit_uplift_milli_pence_per_kwh = null; o.standing_uplift_milli_pence_per_day = null; return o; });
-      s.cost_per_meter_pence = body.costPerMeterPence;
-      return ok({});
-    }
-    if (op === "band_set_approve") {
-      var a = find(prBandSets, "price_config_id", body.priceConfigId);
-      if (!a || a.status !== "draft") return bad("Only a draft band set can be approved.");
-      a.status = "approved"; a.approved_by = person(me).email; a.approved_at = now();
-      return ok({ runsPrepared: 3 });
-    }
-    if (op === "band_set_retire") {
-      var r = find(prBandSets, "price_config_id", body.priceConfigId);
-      if (!r) return [404, { ok: false, error: "That band set was not found." }];
-      if (!body.reason) return bad("The reason is needed.");
-      r.status = "retired";
-      return ok({});
-    }
     if (op === "split_save") {
       var keys = { day_night: ["day", "night"], hh: ["day", "night"], evening_weekend: ["day", "ew"], evening_weekend_night: ["day", "ew", "night"] }[body.rateStructure];
       if (!keys || Object.keys(body.split || {}).sort().join() !== keys.slice().sort().join()) return bad("The split does not have the keys its rate structure needs.");
@@ -921,20 +1054,7 @@
       if (!sp) return [404, { ok: false, error: "That split was not found." }];
       prSplits.forEach(function (x) { if (x.supplier_id === sp.supplier_id && x.rate_structure === sp.rate_structure && x.status === "published") x.status = "retired"; });
       sp.status = "published"; sp.published_by = person(me).email; sp.published_at = now();
-      if (sp.supplier_id === "gamma") return ok({ runsPrepared: 0, prepareProblem: "The split is published, but the new runs could not be prepared for all fuels. Approve a band set or load a file again to prepare them." });
-      return ok({ runsPrepared: 3 });
-    }
-    if (op === "publish") {
-      if (body.fileId !== F1) return bad("There is nothing in that file to publish.");
-      if (body.attentionSeen !== prAttention(F1).length || body.fingerprint !== prFingerprint(F1)) return bad("The list of items needing attention has changed since you read it. Read it again.");
-      if (prPublishedFile === F1) return bad("That set has already been published.");
-      prPublishedFile = F1; prBuiltAt = Date.now() + (window.__stub && window.__stub.buildMs != null ? window.__stub.buildMs : 15000);
-      prRuns[F1].forEach(function (r) { r[4] = "publishing"; });
-      return ok({ runsPublishing: 3 });
-    }
-    if (op === "run_set_prepare") {
-      if (!find(prFiles, "supplier_file_id", body.fileId)) return bad("The file is not valid.");
-      return ok({ runsPrepared: 3 });
+      return ok({});
     }
     if (op === "publish_abandon") {
       if (!body.reason) return bad("The reason is needed.");
@@ -956,7 +1076,7 @@
     prRecorded[body.priceRunId] = copy(body.files);
     return ok({});
   }
-  var prLastStartGamma = false, prSent = 0;
+  var prSent = 0;
 
   // ---------- Commission Engine: the commission-engine function's page op, gated as its core.ts gates it.
   var CE_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/commission-engine";
@@ -1111,7 +1231,147 @@
     return [200, { ok: true, page: page }];
   }
 
-  var realFetch = window.fetch ? window.fetch.bind(window) : null;
+  // ---------- Demo mode (build.py --demo). Everything here runs only when window.__DEMO__ is true.
+  // The data below replaces the preview's Pricing data with the demo story's: Dyce's own supplier names
+  // (Voltx, Yu, Jellyfish) and invented file names, margins, rates and people. None of it is a real price.
+  // Answers are stateful: band_sets_save makes new versions, bundle_save adds bundles, apply moves the
+  // file to Applying and, after __stub.buildMs (4 seconds in the demo), to Live, marks the older file of
+  // the same supplier and fuel Replaced, leaves every other supplier alone and puts invented rows in the
+  // live book and in book_rows. The state is kept in sessionStorage, so it lasts for the browser tab.
+  var DEMO_KEY = "dyce.demo.state", DEMO_STARTED = "dyce.demo.started";
+  var prPending = [], prRunSeq = 0;
+  var prSettle = function () {
+    var t = Date.now(), due = prPending.filter(function (p) { return p.at <= t; });
+    if (!due.length) return;
+    prPending = prPending.filter(function (p) { return p.at > t; });
+    due.forEach(function (p) {
+      var f = prFiles.filter(function (x) { return x.supplierFileId === p.fileId; })[0];
+      if (!f) return;
+      f.state = "live";
+      var gone = {};
+      prFiles.forEach(function (o) {
+        if (o !== f && o.supplierId === f.supplierId && o.fuel === f.fuel && o.loadedAt < f.loadedAt && (o.state === "live" || o.state === "awaiting_bandings")) { o.state = "replaced"; gone[o.supplierFileId] = true; }
+      });
+      // Applying replaces the whole live set of the supplier and fuel, as the database's build does.
+      prLive = prLive.filter(function (x) { return !gone[x.supplier_file_id] && !(x.supplier_id === f.supplierId && x.fuel === f.fuel); });
+      p.runs.forEach(function (r) {
+        var id = pid(600 + (prRunSeq++)), types = r.saleType === "all" ? ["acquisition", "renewal"] : [r.saleType];
+        prRuns[id] = { supplierId: f.supplierId, fuel: f.fuel, product: r.product, saleType: r.saleType };
+        // One live run per supplier, fuel, product and sale type: a newer run takes the place of an older one.
+        prLive = prLive.filter(function (x) { return !(x.supplier_id === f.supplierId && x.fuel === f.fuel && x.product === r.product && types.indexOf(x.sale_type) >= 0); });
+        types.forEach(function (st) {
+          prLive.push({ supplier_id: f.supplierId, fuel: f.fuel, product: r.product, sale_type: st, price_run_id: id, published_by: PERSONA.demo, published_at: now(), engine_version: "20261116130000", supplier_file_id: f.supplierFileId, source_filename: f.sourceFilename, row_count: 12, publishing_runs: 0 });
+        });
+      });
+    });
+  };
+  var prSave = function () {
+    try {
+      sessionStorage.setItem(DEMO_KEY, JSON.stringify({ files: prFiles, failures: prLoadFailures, named: prNamed, bundles: prBundles, seq: prSeq, ladder: prLadder, splits: prSplits,
+        live: prLive, problems: prProblems, recorded: prRecorded, runs: prRuns, runSeq: prRunSeq, pending: prPending, lastPreview: prLastPreview, applied: prAppliedRuns, builtAt: prBuiltAt, published: prPublishedFile }));
+    } catch (e) { /* the demo still works until the tab is closed */ }
+  };
+  var prCall = function (body) {
+    if (!DEMO) return prAnswer(body);
+    prSettle();
+    var res = prAnswer(body);
+    if (body.op === "apply" && res[0] === 200) prPending.push({ fileId: body.fileId, at: prBuiltAt, runs: copy(prAppliedRuns) });
+    prSave();
+    return res;
+  };
+  if (DEMO) {
+    var DF = { voltxElec: pid(101), yuElec: pid(102), yuGas: pid(103), jfOld: pid(104), jfNew: pid(105) };
+    prSuppliers = [
+      { supplier_id: "voltx", supplier_name: "Voltx", panel_status: "active" },
+      { supplier_id: "yu", supplier_name: "Yu", panel_status: "active" },
+      { supplier_id: "jellyfish", supplier_name: "Jellyfish", panel_status: "active" }
+    ];
+    prFiles = [
+      { supplierFileId: DF.voltxElec, supplierId: "voltx", fuel: "electricity", fileFormat: "voltx_elec_v1", sourceFilename: "Voltx_electricity_demo_12112026.xlsx", loadedAt: "2026-11-12T16:20:00+00:00", quoteValidFrom: "2026-11-13", quoteValidUntil: "2026-11-27", rowCountSource: 40320, rowCountLoaded: 40320, refusedCount: 0, state: "live" },
+      { supplierFileId: DF.yuElec, supplierId: "yu", fuel: "electricity", fileFormat: "yu_elec_v1", sourceFilename: "Yu_electricity_demo_13112026.xlsx", loadedAt: "2026-11-13T15:10:00+00:00", quoteValidFrom: "2026-11-16", quoteValidUntil: "2026-11-30", rowCountSource: 162708, rowCountLoaded: 162700, refusedCount: 8, state: "awaiting_bandings" },
+      { supplierFileId: DF.yuGas, supplierId: "yu", fuel: "gas", fileFormat: "yu_gas_v1", sourceFilename: "Yu_gas_demo_13112026.xlsx", loadedAt: "2026-11-13T15:40:00+00:00", quoteValidFrom: "2026-11-16", quoteValidUntil: "2026-11-30", rowCountSource: 9000, rowCountLoaded: 9000, refusedCount: 0, state: "awaiting_bandings" },
+      { supplierFileId: DF.jfOld, supplierId: "jellyfish", fuel: "gas", fileFormat: "jellyfish_gas_v1", sourceFilename: "Jellyfish_gas_demo_06112026.xlsx", loadedAt: "2026-11-06T11:00:00+00:00", quoteValidFrom: "2026-11-07", quoteValidUntil: "2026-11-20", rowCountSource: 7800, rowCountLoaded: 7800, refusedCount: 0, state: "replaced" },
+      { supplierFileId: DF.jfNew, supplierId: "jellyfish", fuel: "gas", fileFormat: "jellyfish_gas_v1", sourceFilename: "Jellyfish_gas_demo_13112026.xlsx", loadedAt: "2026-11-13T09:30:00+00:00", quoteValidFrom: "2026-11-16", quoteValidUntil: "2026-11-30", rowCountSource: 7950, rowCountLoaded: 7950, refusedCount: 0, state: "awaiting_bandings" }
+    ];
+    prLoadFailures = [{ driveItemId: "demo-drive-item-1", sourcePath: "Partner Sales/Voltx/Voltx_gas_demo_13112026.xlsx", supplierId: "voltx", fuel: "gas", reason: "The sheet named Rates was not found (invented reason for the demo).", seenAt: "2026-11-13T07:30:00+00:00" }];
+    prProblems = [];
+    var swapNames = function (o) {
+      return JSON.parse(JSON.stringify(o).replace(/"alpha"/g, '"yu"').replace(/"beta"/g, '"voltx"').replace(/Alpha_electricity_example_12112026\.xlsx/g, "Yu_electricity_demo_13112026.xlsx").replace(/Beta_electricity_example_10112026\.xlsx/g, "Voltx_electricity_demo_12112026.xlsx"));
+    };
+    prSplits = swapNames(prSplits);
+    prSolved = swapNames(prSolved);
+    // The live book starts with Voltx's electricity file only.
+    var liveRow = function (product, st, run) {
+      return { supplier_id: "voltx", fuel: "electricity", product: product, sale_type: st, price_run_id: run, published_by: PERSONA.demo, published_at: "2026-11-12T17:05:00+00:00", engine_version: "20261116130000", supplier_file_id: DF.voltxElec, source_filename: "Voltx_electricity_demo_12112026.xlsx", row_count: 12, publishing_runs: 0 };
+    };
+    prLive = [liveRow("Standard", "acquisition", R(4)), liveRow("Standard", "renewal", R(4)), liveRow("Gold", "acquisition", R(5)), liveRow("Gold", "renewal", R(5))];
+    prRuns = {};
+    prRuns[R(4)] = { supplierId: "voltx", fuel: "electricity", product: "Standard", saleType: "all" };
+    prRuns[R(5)] = { supplierId: "voltx", fuel: "electricity", product: "Gold", saleType: "all" };
+    prRecorded = {};
+    [R(4), R(5)].forEach(function (id) { prRecorded[id] = [{ layout: "broker", path: "outputs/" + id + "/broker.xlsx", sha256: "c".repeat(64) }, { layout: "ud_upload", path: "outputs/" + id + "/ud_upload.xlsx", sha256: "c".repeat(64) }]; });
+    // The default sets give each fuel its Standard and Gold; the demo adds Silver and Advanced Saver to gas.
+    addNamed("gas", "Gas Silver", "Silver", 800, [320, 280, 245, 215, 185], [0, 0, 0, 0, 0], prLadder.gas.bands, 2);
+    addNamed("gas", "Gas Advanced Saver", "Advanced Saver", 900, [380, 340, 300, 270, 240], [0, 0, 0, 0, 0], prLadder.gas.bands, 2);
+    prBundles.forEach(function (b) { if (b.name === "Gas range") b.members = ["Gas Standard", "Gas Gold", "Gas Silver"]; });
+    // A tab that has already been used carries on from where it was.
+    try {
+      var saved = JSON.parse(sessionStorage.getItem(DEMO_KEY) || "null");
+      if (saved) {
+        prFiles = saved.files; prLoadFailures = saved.failures; prNamed = saved.named; prBundles = saved.bundles; prSeq = saved.seq; prLadder = saved.ladder; prSplits = saved.splits;
+        prLive = saved.live; prProblems = saved.problems; prRecorded = saved.recorded; prRuns = saved.runs; prRunSeq = saved.runSeq; prPending = saved.pending; prLastPreview = saved.lastPreview;
+        prAppliedRuns = saved.applied; prBuiltAt = saved.builtAt; prPublishedFile = saved.published;
+      }
+    } catch (e) { /* start from the beginning */ }
+    // Signed in already, and straight into Pricing > Supplier files on a fresh tab. The token starts
+    // with "stub", which prAnswer honours for the demo person.
+    try {
+      localStorage.setItem("dyce.hub.token", "stubdemo");
+      if (!sessionStorage.getItem(DEMO_STARTED)) {
+        localStorage.setItem("dyce.hub.where", JSON.stringify({ tool: "pricing", item: "files" }));
+        sessionStorage.setItem(DEMO_STARTED, "1");
+      }
+    } catch (e) { /* without storage the page cannot keep its sign-in */ }
+  }
+  var demoReset = function () {
+    try { sessionStorage.removeItem(DEMO_KEY); sessionStorage.removeItem(DEMO_STARTED); localStorage.removeItem("dyce.hub.where"); } catch (e) { /* nothing to clear */ }
+    if (typeof location !== "undefined" && location.replace) location.replace(location.pathname + location.search);
+  };
+  // The page's Download buttons open a window and send it to a stored file's link. In the demo the
+  // link is never followed: the file is made here from the run's invented rows and saved.
+  var demoDownload = function (u) {
+    var m = /object\/sign\/pricing-files\/outputs\/([^/]+)\/([a-z_]+)\.xlsx/.exec(String(u));
+    if (!m || typeof PR_EXPORTS === "undefined" || typeof PR_XLSX === "undefined") return;
+    var info = prRuns[m[1]] || {}, bytes = PR_EXPORTS.workbookFor(PR_XLSX, m[2], prBookRows(m[1]));
+    var url = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    var a = document.createElement("a");
+    a.href = url; a.download = "Demo_" + (info.supplierId || "run") + "_" + (info.product || "").replace(/\s+/g, "") + "_" + m[2] + ".xlsx";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+  };
+  if (DEMO && typeof document !== "undefined" && document.body) {
+    window.open = function () { return { opener: null, close: function () {}, location: { replace: demoDownload } }; };
+    document.title = "DNA Hub Pricing demo (invented prices)";
+    var demoStyle = document.createElement("style");
+    demoStyle.textContent = "#demobar{position:sticky;top:0;z-index:60;height:44px;display:flex;align-items:center;gap:16px;padding:0 16px;background:#D8D9DB;color:#0F2A34;font:400 14px/20px Montserrat,Calibri,'Segoe UI',system-ui,Arial,sans-serif;white-space:nowrap;overflow:hidden}" +
+      "#demobar strong{font-weight:800}#demobar .note{flex:1;overflow:hidden;text-overflow:ellipsis}#demobar a{color:#0F2A34;font-weight:800;text-decoration:underline;cursor:pointer}" +
+      "#signOutBtn{display:none!important}@media (min-width:761px){.rail{top:44px!important;height:calc(100vh - 44px)!important}}@media (max-width:760px){#demobar .note{display:none}}";
+    document.head.appendChild(demoStyle);
+    var demoBar = document.createElement("div");
+    demoBar.id = "demobar"; demoBar.setAttribute("role", "status");
+    var demoLabel = document.createElement("strong"); demoLabel.textContent = "Demo: invented prices";
+    var demoNote = document.createElement("span"); demoNote.className = "note"; demoNote.textContent = "Every name, file and price here is invented. Nothing is saved to Dyce or sent to anyone.";
+    var demoLink = document.createElement("a"); demoLink.textContent = "Reset demo"; demoLink.setAttribute("href", "#"); demoLink.setAttribute("role", "button");
+    demoLink.addEventListener("click", function (e) { e.preventDefault(); demoReset(); });
+    demoBar.append(demoLabel, demoNote, demoLink);
+    document.body.insertBefore(demoBar, document.body.firstChild);
+    // The hub's own footer says names are read from the database; nothing is in the demo, and the
+    // Pricing tab's footer says so instead (final review A7).
+    Array.prototype.forEach.call(document.querySelectorAll("p.foot"), function (p) { p.hidden = true; });
+  }
+
+  // In the demo no call ever leaves the page: an address the stub does not answer is refused here.
+  var realFetch = !DEMO && window.fetch ? window.fetch.bind(window) : null;
   window.fetch = function (url, init) {
     var u = String(url);
     if (u.indexOf(PR_UPLOAD) === 0 && init && init.method === "PUT") {
@@ -1126,7 +1386,7 @@
     if (u !== ENDPOINT && u !== DV_ENDPOINT && u !== PR_ENDPOINT && u !== CE_ENDPOINT) return realFetch ? realFetch(url, init) : Promise.reject(new Error("no fetch"));
     var body = {};
     try { body = JSON.parse((init && init.body) || "{}"); } catch (e) { body = {}; }
-    var res = u === DV_ENDPOINT ? dvAnswer(body) : u === PR_ENDPOINT ? prAnswer(body) : u === CE_ENDPOINT ? ceAnswer(body) : answer(body);
+    var res = u === DV_ENDPOINT ? dvAnswer(body) : u === PR_ENDPOINT ? prCall(body) : u === CE_ENDPOINT ? ceAnswer(body) : answer(body);
     // A dna-viewer, dna-pricing or commission-engine call has no args: its fields (all but the token) are listed in their place.
     var dvArgs = function () { var o = copy(body); delete o.token; delete o.op; delete o.action; return o; };
     calls.push({ op: body.op, action: body.action || null, args: body.args ? copy(body.args) : (u === DV_ENDPOINT || u === PR_ENDPOINT || u === CE_ENDPOINT ? dvArgs() : null), status: res[0], answer: copy(res[1]) });
@@ -1140,7 +1400,7 @@
     as: as,
     calls: calls,
     delay: delay,
-    buildMs: 15000,
+    buildMs: DEMO ? 4000 : 15000,
     endSession: function () { Object.keys(sessions).forEach(function (k) { delete sessions[k]; ended[k] = true; }); },
     untick: function (code) {
       Object.keys(sessions).forEach(function (k) { var p = person(sessions[k]); if (p) p.grants = p.grants.filter(function (c) { return c !== code; }); });

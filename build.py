@@ -4,16 +4,21 @@ and inlining the parts/ files named in INCLUDES.
     python build.py            writes X.html next to each X.src.html
     python build.py --preview  also writes preview/X.html with tools/preview-stub.js
                                inlined before the page's first <script>
+    python build.py --demo     also writes demo/pricing-demo.html from hub.src.html: the stub inlined in
+                               demo mode (signed in as an invented person, straight into Pricing >
+                               Supplier files, invented prices, every call answered in the page), the
+                               font and connection allowances taken out so it asks no other host for anything
 
 --root DIR builds in another folder (used by the tests).
 
-Three more placeholders put the Pricing tab's code into the page, each as one expression:
+Four more placeholders put the Pricing tab's code into the page, each as one expression:
   {{XLSX_LIB}}            vendor/xlsx.full.min.js, wrapped in a function that returns XLSX
   {{PRICING_ADAPTERS}}    pricing/adapters.js, as an object of its exports
   {{PRICING_EXPORTS}}     pricing/exports.js, as an object of its exports
-The two modules are ES modules for the Node tests. Here their `export` keywords are stripped and
-the source is wrapped in a function that returns the exported names, so the two files' private
-names (both have a LAYOUTS) cannot clash. Every non-ASCII character is written as a unicode
+  {{PRICING_GRID}}        pricing/grid.js, as an object of its exports
+The three modules are ES modules for the Node tests. Here their `export` keywords are stripped and
+the source is wrapped in a function that returns the exported names, so the files' private
+names (adapters and exports both have a LAYOUTS) cannot clash. Every non-ASCII character is written as a unicode
 escape, so the built page is plain ASCII there (the library holds thousands, em dashes among them).
 """
 import argparse
@@ -39,6 +44,7 @@ CODE = {
     "XLSX_LIB": ("vendor/xlsx.full.min.js", "lib"),
     "PRICING_ADAPTERS": ("pricing/adapters.js", "module"),
     "PRICING_EXPORTS": ("pricing/exports.js", "module"),
+    "PRICING_GRID": ("pricing/grid.js", "module"),
 }
 EXPORT = re.compile(r"^export\s+(?:const|let|function|class)\s+([A-Za-z_$][\w$]*)", re.M)
 BACKSLASH_BEFORE_NON_ASCII = re.compile("\\\\[^\u0000-\u007f]")
@@ -126,9 +132,21 @@ def inline_stub(html, stub, name):
     return html[:i] + "<script>" + stub + "</script>" + html[i:]
 
 
+def demo_page(html, stub, name):
+    # A demo makes no request to any host: the web font link and the preconnect go (the page falls back
+    # to Calibri), and the policy loses its font and connection allowances. The stub answers every call.
+    html = re.sub(r'<link rel="(?:preconnect|stylesheet)" href="https://fonts\.[^>]*>\n?', "", html)
+    csp = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"
+    html, n = re.subn(r'(<meta http-equiv="Content-Security-Policy" content=")[^"]*(")', lambda m: m.group(1) + csp + m.group(2), html)
+    if n != 1:
+        raise SystemExit("%s: expected one Content-Security-Policy meta tag for the demo" % name)
+    return check_no_braces(inline_stub(html, "window.__DEMO__ = true;\n" + stub, name), "demo/pricing-demo.html (with tools/preview-stub.js)")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--preview", action="store_true")
+    ap.add_argument("--demo", action="store_true")
     ap.add_argument("--root", default=str(Path(__file__).resolve().parent))
     args = ap.parse_args(argv)
     root = Path(args.root)
@@ -137,17 +155,19 @@ def main(argv=None):
         print("No *.src.html files to build.")
         return 0
     stub = None
-    if args.preview:
+    if args.demo and not (root / "hub.src.html").is_file():
+        raise SystemExit("--demo needs hub.src.html, which is missing")
+    if args.preview or args.demo:
         stub_path = root / "tools" / "preview-stub.js"
         if not stub_path.is_file():
-            raise SystemExit("--preview needs tools/preview-stub.js, which is missing")
+            raise SystemExit("--preview and --demo need tools/preview-stub.js, which is missing")
         stub = stub_path.read_text(encoding="utf-8")
     for src in sources:
         out_name = src.name[: -len(".src.html")] + ".html"
         html = check_no_braces(
             render(src.read_text(encoding="utf-8"), root, src.name), src.name)
         preview = None
-        if stub is not None:
+        if args.preview:
             preview = check_no_braces(inline_stub(html, stub, src.name),
                                       "preview/" + out_name + " (with tools/preview-stub.js)")
         (root / out_name).write_text(html, encoding="utf-8", newline="")
@@ -156,6 +176,10 @@ def main(argv=None):
             (root / "preview").mkdir(exist_ok=True)
             (root / "preview" / out_name).write_text(preview, encoding="utf-8", newline="")
             print("wrote preview/" + out_name)
+        if args.demo and src.name == "hub.src.html":
+            (root / "demo").mkdir(exist_ok=True)
+            (root / "demo" / "pricing-demo.html").write_text(demo_page(html, stub, src.name), encoding="utf-8", newline="")
+            print("wrote demo/pricing-demo.html")
     return 0
 
 

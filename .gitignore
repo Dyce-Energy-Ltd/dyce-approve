@@ -1,6 +1,7 @@
 index.src.html
 send.src.html
 preview/
+demo/
 __pycache__/
 
 # dyce-approve is published on public GitHub Pages: no real supplier price data.
