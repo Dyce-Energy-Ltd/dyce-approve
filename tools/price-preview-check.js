@@ -58,12 +58,12 @@
   }
   const newMsg = () => { const b = button("New band set"); return b ? b.parentElement.nextElementSibling : null; };
   async function setColumn(name, layer, value) {
-    if (layer === "share") button("Standing charge share (%)").click(); else button("Margin (p/kWh)").click();
+    if (layer === "share") button("Standing charge share, %").click(); else button("Margin, p/kWh").click();
     await sleep(20);
     const head = $$("#pr table.grid th.colh button").find((b) => b.textContent === name);
     head.click(); await sleep(20);
-    set($('#pr .gridbar input[aria-label="Value to set"]'), value);
-    button("Set to", $("#pr .gridbar")).click();
+    set($('#pr .gridbar input[aria-label="Value"]'), value);
+    button("Set to value", $("#pr .gridbar")).click();
     await sleep(20);
   }
 

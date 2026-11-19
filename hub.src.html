@@ -402,6 +402,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
   --status-critical: #B5281F; --status-critical-wash: #FBE0DD; --status-critical-edge: #E6A9A4;
   --status-info: #1F5FAE; --status-info-wash: #E2ECF9; --status-info-edge: #A8C2E2;
   --status-neutral: #5B6B72; --status-neutral-wash: #ECEFF1; --status-neutral-edge: #C0C7CB;
+  --maturity-3: #5E808C;
   padding-bottom: 22px;
 }
 #pr h2.sect { margin: 34px 0 10px; }
@@ -421,14 +422,10 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #pr details.menu > summary { list-style: none; display: inline-block; }
 #pr details.menu > summary::-webkit-details-marker { display: none; }
 #pr details.menu > .menubox { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+#pr .mk-tail { position: relative; }
+#pr details.menu.mk-tail > .menubox { position: absolute; right: 0; top: calc(100% + 6px); z-index: 6; flex-direction: column; flex-wrap: nowrap; align-items: stretch; margin-top: 0; padding: 8px; min-width: 220px; background: var(--surface); border: 1px solid var(--hairline); border-radius: 10px; box-shadow: var(--shadow-card); }
 #pr td details.menu > .menubox { flex-direction: column; align-items: flex-start; }
 #pr .gridtop { display: flex; gap: 10px 18px; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; margin-top: 14px; }
-/* The save bar stays at the foot of the screen while there are unsaved edits. */
-#pr .savebar { position: sticky; bottom: 0; z-index: 5; display: flex; gap: 10px 14px; flex-wrap: wrap; align-items: center; background: var(--brand-navy); color: var(--brand-white); border-radius: var(--r-card); padding: 12px 18px; margin-top: 22px; box-shadow: var(--shadow-card); }
-#pr .savebar .t { font-weight: 800; font-size: 14px; flex: 1 1 260px; min-width: 0; }
-#pr .savebar input[type="text"] { font: inherit; font-size: 14px; color: var(--ink); background: var(--brand-white); border: 0; border-radius: 8px; padding: 8px 10px; flex: 1 1 260px; min-width: 0; }
-#pr .savebar .msg { flex-basis: 100%; }
-#pr .savebar .btn.go { background: var(--brand-white); color: var(--brand-navy); border-color: var(--brand-white); }
 #pr h3.sub { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); margin: 6px 0 0; }
 #pr input[type="number"], #pr select { font: inherit; font-size: 15px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; padding: 9px 12px; width: 100%; }
 #pr table.prt input[type="number"], #pr table.prt select { font-size: 13px; padding: 6px 8px; min-width: 96px; }
@@ -457,34 +454,126 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #pr .inline { display: inline-flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 #pr .foot { margin-top: 34px; }
 #pr .seg { display: inline-flex; gap: 6px; flex-wrap: wrap; margin-top: 14px; }
-#pr .gridbar { display: flex; gap: 10px 18px; flex-wrap: wrap; align-items: center; margin: 14px 0 8px; }
-#pr .gridbar .seg { margin-top: 0; }
-#pr .gridbar .tool { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
-#pr .gridbar input[type="text"], #pr .gridbar select, #pr .cellin { font: inherit; font-size: 13px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; padding: 6px 8px; }
-#pr .gridbar input[type="text"] { width: 84px; }
-#pr .cellin { width: 84px; text-align: right; }
 #pr .card input[type="text"], #pr .card input[type="date"] { font: inherit; font-size: 15px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; padding: 9px 12px; width: 100%; }
-#pr .gridwrap:focus-visible { outline: 3px solid var(--brand-magenta); outline-offset: 2px; }
-#pr table.grid { border-collapse: separate; border-spacing: 0; font-size: 13px; line-height: 18px; font-variant-numeric: tabular-nums; }
-#pr table.grid th, #pr table.grid td { border-bottom: 1px solid var(--hairline); padding: 6px 10px; text-align: right; min-width: 104px; background: var(--surface); vertical-align: top; }
-#pr table.grid th { font-weight: 400; }
-#pr table.grid th.grp { text-align: left; border-bottom: 2px solid var(--brand-magenta); font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); }
-#pr table.grid th.colh { text-align: right; }
-#pr table.grid th.colh .sub { display: block; font-size: 11px; color: var(--muted); }
-#pr table.grid th.colh .marks { display: flex; gap: 4px; justify-content: flex-end; flex-wrap: wrap; margin-top: 2px; }
-#pr table.grid th[scope="row"] { text-align: left; position: sticky; left: 0; z-index: 1; white-space: nowrap; }
-#pr table.grid td { cursor: cell; }
-#pr table.grid td .strip { display: block; font-size: 11px; color: var(--muted); }
-#pr table.grid td.gap { color: var(--muted); }
-#pr table.grid td.sel { background: var(--surface-raised); outline: 2px solid var(--ink); outline-offset: -2px; }
-#pr table.grid td.chg { background: var(--magenta-tint); box-shadow: inset 3px 0 0 var(--brand-magenta); font-weight: 800; }
 #pr button.linkbtn { font: inherit; font-weight: 800; background: none; border: 0; padding: 0; color: var(--ink); cursor: pointer; text-align: inherit; text-decoration: underline; text-decoration-color: var(--brand-magenta); text-underline-offset: 3px; }
-#pr .chartbox { margin-top: 18px; display: grid; gap: 8px; }
-#pr svg.chart { width: 100%; max-width: 820px; height: auto; display: block; touch-action: none; }
-#pr svg.chart circle.pt { cursor: ns-resize; }
-#pr svg.chart circle.pt:focus-visible { outline: none; stroke: var(--brand-magenta); stroke-width: 4; }
-#pr .legend { display: flex; gap: 6px 18px; flex-wrap: wrap; font-size: 13px; }
-#pr .legend .key { display: inline-flex; gap: 6px; align-items: center; }
+/* Margins grid, chart and cell detail, on Margins and the Price screen: Phil Brook's Margins mockup
+   (09/11/2026, look agreed 19/11/2026). Segmented switches with a small label above, the selection
+   bar, the chart card above a hairline spreadsheet with an On chart row, the cell detail beside it,
+   and the foot with Discard changes and Review changes. */
+#pr .mk-top { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: flex-end; margin-top: 18px; }
+#pr .mk-ctl { display: flex; flex-direction: column; gap: 6px; }
+#pr .mk-ctl > .lab { font-size: 10px; line-height: 14px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+#pr .mk-seg { display: flex; padding-left: 1px; }
+#pr .segb { font: inherit; min-height: 40px; padding: 0 14px; border: 1px solid var(--hairline); background: var(--surface); color: var(--ink); font-size: 13px; line-height: 18px; font-weight: 400; cursor: pointer; margin-left: -1px; }
+#pr .segb[aria-pressed="true"] { background: var(--brand-navy); border-color: var(--brand-navy); color: var(--brand-white); font-weight: 800; }
+#pr .mk-tail { margin-left: auto; align-self: flex-end; }
+#pr .btn.mk2, #pr .btn.mkp { min-height: 44px; padding: 0 14px; font-size: 13px; line-height: 18px; border-radius: 6px; }
+#pr .btn.mk2 { border: 1px solid var(--hairline); background: var(--surface); color: var(--ink); }
+#pr .btn.mk2.on { border-color: var(--brand-magenta); box-shadow: inset 0 0 0 1px var(--brand-magenta); }
+#pr .btn.mkp { padding: 0 18px; border: 1px solid var(--brand-navy); background: var(--brand-navy); color: var(--brand-white); }
+#pr .btn.mk2[disabled], #pr .btn.mkp[disabled] { opacity: 1; color: var(--muted); }
+#pr .btn.mkp[disabled] { background: var(--surface-raised); border-color: var(--hairline); }
+#pr details.menu > summary.btn.mk2 { display: inline-flex; align-items: center; }
+#pr .gridbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; background: var(--surface-raised); border-radius: var(--r-card); padding: 12px 14px; margin-top: 18px; }
+#pr .gridbar .selt { font-size: 14px; line-height: 22px; font-weight: 800; flex: 1 1 220px; min-width: 0; }
+#pr .gridbar label { font-size: 14px; line-height: 22px; }
+#pr .gridbar input[type="text"] { font: inherit; min-height: 44px; width: 96px; border: 1px solid var(--hairline); border-radius: 6px; padding: 0 12px; font-size: 14px; color: var(--ink); background: var(--surface); text-align: right; }
+#pr p.mk-hint { margin: 18px 0 0; font-size: 14px; line-height: 22px; color: var(--muted); }
+#pr .chartcard { border: 1px solid var(--hairline); border-radius: var(--r-card); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+#pr .chartcard .ct-head { display: flex; flex-wrap: wrap; gap: 6px 20px; align-items: baseline; justify-content: space-between; }
+#pr .chartcard .ct-title { font-size: 17px; line-height: 23px; font-weight: 800; }
+#pr .chartcard .ct-sub { font-size: 14px; line-height: 22px; color: var(--muted); }
+#pr .legend { display: flex; flex-wrap: wrap; gap: 8px 20px; min-height: 22px; font-size: 13px; line-height: 22px; }
+#pr .legend .key { display: inline-flex; gap: 8px; align-items: center; color: var(--ink); }
+#pr .legend .none { color: var(--muted); }
+#pr .readout { min-height: 22px; font-size: 13px; line-height: 22px; color: var(--ink); font-variant-numeric: tabular-nums; }
+#pr svg.chart { width: 100%; max-width: 1080px; height: auto; display: block; touch-action: none; cursor: crosshair; user-select: none; }
+#pr svg .gl { stroke: var(--hairline); stroke-width: 1; }
+#pr svg .xh { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; fill: none; }
+#pr svg .axt { fill: var(--muted); font-size: 12px; font-family: var(--font); font-variant-numeric: tabular-nums; }
+#pr svg .axtt { fill: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; font-family: var(--font); }
+#pr svg .dl { fill: var(--ink); font-size: 11px; font-weight: 800; font-family: var(--font); }
+#pr svg .ta-e { text-anchor: end; }
+#pr svg .ta-m { text-anchor: middle; }
+#pr svg .ln { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+#pr svg .s0 { stroke: var(--brand-navy); }
+#pr svg .s1 { stroke: var(--brand-magenta); }
+#pr svg .s2 { stroke: var(--maturity-3); stroke-dasharray: 6 4; }
+#pr svg .s3 { stroke: var(--brand-navy); stroke-dasharray: 2 4; }
+#pr svg .mkr { stroke: var(--surface); stroke-width: 2; }
+#pr svg .m0 { fill: var(--brand-navy); }
+#pr svg .m1 { fill: var(--brand-magenta); }
+#pr svg .m2 { fill: var(--maturity-3); }
+#pr svg .mkr.m3 { fill: var(--surface); stroke: var(--brand-navy); }
+#pr svg.chart .mkr.pt { cursor: ns-resize; }
+#pr svg.chart .mkr.pt:focus-visible { outline: none; stroke: var(--brand-magenta); stroke-width: 3; }
+#pr .gridrow { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; margin-top: 18px; }
+#pr .gridwrap { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow-x: auto; border: 1px solid var(--hairline); }
+/* Beside the cell detail on a wide screen; a grid wider than the room scrolls inside its border. */
+@media (min-width: 1100px) { #pr .gridwrap { max-width: calc(100% - 322px); } }
+#pr .gridwrap:focus-visible { outline: 3px solid var(--brand-magenta); outline-offset: 2px; }
+#pr table.grid { border-collapse: separate; border-spacing: 0; font-size: 13px; line-height: 18px; font-variant-numeric: tabular-nums; color: var(--ink); }
+#pr table.grid th, #pr table.grid td { padding: 0; background: var(--surface); text-align: right; vertical-align: middle; font-weight: 400; }
+#pr table.grid .corner, #pr table.grid .corner2, #pr table.grid .corner3, #pr table.grid th[scope="row"] { width: 176px; min-width: 176px; max-width: 176px; text-align: left; position: sticky; left: 0; z-index: 1; }
+#pr table.grid .corner2, #pr table.grid .corner3 { padding: 0 10px; font-size: 10px; line-height: 14px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--hairline); }
+#pr table.grid .corner3 { height: 40px; }
+#pr table.grid .corner2 { vertical-align: bottom; padding-bottom: 8px; }
+#pr table.grid th.grp { border-left: 2px solid var(--ink); padding: 8px 10px; font-size: 13px; line-height: 18px; font-weight: 800; color: var(--ink); background: var(--surface-raised); text-align: left; min-width: 82px; }
+#pr table.grid .gs { border-left: 2px solid var(--ink); }
+#pr table.grid td.chk { width: 82px; min-width: 82px; height: 40px; border-right: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
+#pr table.grid td.chk label { display: flex; align-items: center; justify-content: flex-end; gap: 6px; height: 40px; padding: 0 8px; cursor: pointer; }
+#pr table.grid td.chk input[type="checkbox"] { accent-color: var(--brand-navy); }
+#pr table.grid td.chk input[disabled] { cursor: not-allowed; }
+#pr table.grid th.colh { width: 82px; min-width: 82px; height: 44px; border-bottom: 1px solid var(--hairline); border-right: 1px solid var(--hairline); font-size: 11px; line-height: 14px; font-weight: 800; padding: 4px 6px; }
+#pr table.grid th.colh.sel { box-shadow: inset 0 -3px 0 var(--brand-magenta); }
+#pr table.grid th.colh.pick { background: var(--magenta-tint); }
+#pr table.grid button.colb { font: inherit; font-weight: 800; background: none; border: 0; padding: 0; margin: 0; color: var(--ink); cursor: pointer; text-align: right; width: 100%; min-height: 34px; overflow-wrap: anywhere; }
+#pr table.grid th.colh .marks { display: flex; gap: 2px; justify-content: flex-end; flex-wrap: wrap; }
+#pr table.grid th.colh .badge { font-size: 9px; line-height: 12px; letter-spacing: 0.04em; padding: 1px 4px; }
+#pr table.grid th[scope="row"] { border-bottom: 1px solid var(--hairline); }
+#pr table.grid th[scope="row"].sel { box-shadow: inset 3px 0 0 var(--brand-magenta); }
+#pr table.grid button.rowb { font: inherit; font-size: 13px; font-weight: 400; background: none; border: 0; margin: 0; padding: 0 10px; color: var(--ink); cursor: pointer; text-align: left; width: 100%; min-height: 58px; font-variant-numeric: tabular-nums; }
+#pr table.grid td.cell { width: 82px; min-width: 82px; height: 58px; border-right: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); cursor: cell; vertical-align: top; }
+#pr table.grid td.cell .cv { display: block; height: 35px; line-height: 35px; padding: 0 8px; white-space: nowrap; }
+#pr table.grid td.cell .strip { display: block; height: 22px; border-top: 1px solid var(--hairline); background: var(--surface-raised); font-size: 11px; line-height: 21px; color: var(--muted); padding: 0 8px; white-space: nowrap; }
+#pr table.grid td.cell.chg { background: var(--magenta-tint); font-weight: 800; }
+#pr table.grid td.cell.chg .strip { color: var(--ink); font-weight: 800; }
+#pr table.grid td.cell.gap .cv { color: var(--muted); }
+#pr table.grid td.cell.sel { box-shadow: inset 0 0 0 2px var(--brand-magenta); }
+#pr table.grid td.cell .cellin { font: inherit; display: block; width: 100%; height: 35px; border: 0; border-radius: 0; background: var(--surface); color: var(--ink); text-align: right; padding: 0 8px; box-shadow: inset 0 0 0 2px var(--brand-navy); outline: none; }
+#pr table.grid.bare th[scope="row"] { padding: 0 10px; height: 44px; }
+#pr .gridwrap > .empty { padding: 14px 10px; }
+#pr aside.detail { flex: 1 1 300px; min-width: 0; background: var(--surface-raised); border-radius: var(--r-card); padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+#pr aside.detail .dt-title { font-size: 17px; line-height: 23px; font-weight: 800; }
+#pr aside.detail .dt-band, #pr aside.detail .dt-note { margin: 0; font-size: 14px; line-height: 22px; color: var(--muted); }
+#pr aside.detail .kv { display: flex; flex-direction: column; }
+#pr aside.detail .kv > div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--hairline); font-size: 14px; line-height: 22px; }
+#pr aside.detail .kv .k { color: var(--muted); }
+#pr aside.detail .kv .v { font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#pr aside.detail .dt-lab { font-size: 10px; line-height: 14px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); padding-top: 6px; }
+#pr aside.detail .vers { display: flex; flex-direction: column; gap: 10px; }
+#pr aside.detail .ver { background: var(--surface); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 22px; }
+#pr aside.detail .ver b { font-weight: 800; }
+#pr aside.detail .ver .note { color: var(--muted); }
+#pr aside.detail .ver .btn { align-self: flex-start; }
+#pr aside.detail .dt-cost { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+#pr aside.detail .dt-cost label { font-size: 14px; line-height: 22px; flex: 1 1 100%; }
+#pr aside.detail .dt-cost input[type="text"] { font: inherit; min-height: 44px; width: 110px; border: 1px solid var(--hairline); border-radius: 6px; padding: 0 12px; font-size: 14px; color: var(--ink); background: var(--surface); text-align: right; }
+#pr .savebar { position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; border-top: 1px solid var(--hairline); padding: 16px 0; margin-top: 18px; background: var(--surface); }
+#pr .savebar .t { font-size: 14px; line-height: 22px; }
+#pr .savebar .t b { font-weight: 800; }
+#pr .savebar .acts { display: flex; flex-wrap: wrap; gap: 10px; }
+#pr h2.sh { margin: 0; font-size: 13px; line-height: 18px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink); padding-bottom: 8px; border-bottom: 2px solid var(--brand-magenta); align-self: flex-start; }
+#pr .warnbox { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
+#pr .warnline { font-size: 14px; line-height: 22px; color: var(--ink); padding: 8px 12px; border-left: 4px solid var(--status-warn); background: var(--surface); }
+#pr .warnline.block { border-left-color: var(--status-critical); }
+#pr .review { border: 2px solid var(--brand-navy); border-radius: var(--r-card); padding: 22px; display: flex; flex-direction: column; gap: 16px; margin-top: 18px; }
+#pr .review .rv-set { display: flex; flex-direction: column; gap: 4px; }
+#pr .review .rv-title { font-size: 17px; line-height: 23px; font-weight: 800; }
+#pr .review .rv-line { font-size: 14px; line-height: 22px; font-variant-numeric: tabular-nums; }
+#pr .review > label { font-size: 14px; line-height: 22px; font-weight: 800; }
+#pr .review textarea { font: inherit; width: 100%; min-height: 88px; border: 1px solid var(--hairline); border-radius: 6px; padding: 10px 12px; font-size: 14px; line-height: 22px; color: var(--ink); background: var(--surface); resize: vertical; }
+#pr .review p { margin: 0; font-size: 14px; line-height: 22px; color: var(--muted); }
 #pr fieldset.members { border: 1px solid var(--hairline); border-radius: 10px; padding: 8px 14px 12px; display: grid; gap: 6px; }
 #pr fieldset.members legend { font-size: 10px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); padding: 0 6px; }
 #pr .twocol { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
@@ -2797,7 +2886,7 @@ const PR_GRID = {{PRICING_GRID}};
           // With no band sets for the fuel the grid still shows the ladder's bands, so there is no dead end.
           gridHint.hidden = g.columns.length > 0 || none;
           if (!g.columns.length && !none) { if (gridView) { gridView.destroy(); gridView = null; } note(); return; }
-          if (!gridView) gridView = drawGrid(gridHost, g, { editable, bundles: bs.bundles, onChange: afterEdit, emptyText: noSets + (editable ? "Add one with New band set above." : "Someone with the Set tick can add one.") });
+          if (!gridView) gridView = drawGrid(gridHost, g, { editable, bundles: bs.bundles, onChange: afterEdit, fuelName: fuelWord, history: (name) => call("band_set_history", { fuel: file.fuel, name }), emptyText: noSets + (editable ? "Add one with New band set above." : "Someone with the Set tick can add one.") });
           else { gridView.setGrid(g); }
           note();
         }
@@ -3211,14 +3300,7 @@ const PR_GRID = {{PRICING_GRID}};
     // and selection tools are drawGrid, which the Price workspace reuses.
     // =====================================================================================
     const G = PR_GRID;
-    const LAYER_LABEL = { margin: "Margin (p/kWh)", share: "Standing charge share (%)" };
-    // Lines in magenta, navy, grey and navy dashed. Each is also named in the legend, so colour is not the only cue.
-    // Grey on white is about 1.4:1, so the grey line has a navy casing (a wider navy line beneath it) and
-    // its points a 2px navy outline: the navy edge is what reaches 3:1 against white (final review A6).
-    const SERIES = [
-      { color: "var(--brand-magenta)", dash: "" }, { color: "var(--ink)", dash: "" },
-      { color: "var(--brand-grey)", dash: "", casing: "var(--brand-navy)" }, { color: "var(--ink)", dash: "7 5" },
-    ];
+    const LAYER_LABEL = { margin: "Margin, p/kWh", share: "Standing charge share, %" };
     const SVGNS = "http://www.w3.org/2000/svg";
     function svg(tag, attrs, ...kids) {
       const n = document.createElementNS(SVGNS, tag);
@@ -3226,8 +3308,30 @@ const PR_GRID = {{PRICING_GRID}};
       for (const kid of kids) if (kid != null) n.append(kid);
       return n;
     }
+    const svgTitle = (t) => { const n = svg("title"); n.textContent = t; return n; };
+    const svgText = (cls, x, y, t) => { const n = svg("text", { class: cls, x, y }); n.textContent = t; return n; };
     const bandText = (b) => comma(b.eacMinKwh) + " to " + comma(b.eacMaxKwh) + " kWh";
     const marginText = (m) => m == null ? "–" : (m / 1000).toFixed(3);
+    const rd = (n) => Math.round(n * 10) / 10;
+    // The chart's four lines, as the Margins mockup draws them: navy, magenta, slate dashed and navy
+    // dotted (classes s0 to s3), with a circle, a square, a triangle and a hollow diamond at each point
+    // (m0 to m3). Each line is also named in the legend and at its end, so colour is not the only cue.
+    function markPath(slot, x, y) {
+      if (slot === 0) return "M" + rd(x - 4.5) + " " + rd(y) + "a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0 -9 0Z";
+      if (slot === 1) return "M" + rd(x - 4) + " " + rd(y - 4) + "h8v8h-8Z";
+      if (slot === 2) return "M" + rd(x) + " " + rd(y - 5.5) + "L" + rd(x + 5.5) + " " + rd(y + 4) + "L" + rd(x - 5.5) + " " + rd(y + 4) + "Z";
+      return "M" + rd(x) + " " + rd(y - 5.5) + "L" + rd(x + 5.5) + " " + rd(y) + "L" + rd(x) + " " + rd(y + 5.5) + "L" + rd(x - 5.5) + " " + rd(y) + "Z";
+    }
+    function swatch(slot, withMark) {
+      if (!withMark) return svg("svg", { width: 22, height: 10, "aria-hidden": "true" }, svg("path", { class: "ln s" + slot, d: "M1 5H21" }));
+      return svg("svg", { width: 28, height: 14, "aria-hidden": "true" }, svg("path", { class: "ln s" + slot, d: "M2 7H26" }), svg("path", { class: "mkr m" + slot, d: markPath(slot, 14, 7) }));
+    }
+    // A segmented switch with its small label above it: the mockup's Fuel, Columns and Showing.
+    function segCtl(label, options, current, on) {
+      return el("div", { class: "mk-ctl" }, el("span", { class: "lab", text: label }),
+        el("div", { class: "mk-seg", role: "group", "aria-label": label }, ...options.map(([v, t]) =>
+          el("button", { type: "button", class: "segb", "aria-pressed": String(v === current), text: t, onclick: () => { if (v !== current) on(v); } }))));
+    }
     // What a person has edited (G.editedNames): leaving with these unsaved loses work. G.changedNames is
     // what the next Save saves: the edited sets and any set saved against an older ladder whose every
     // band was carried to the current one (final review A2), which is not an edit.
@@ -3241,26 +3345,46 @@ const PR_GRID = {{PRICING_GRID}};
       return Object.assign({}, grid, { columns: cols.map((x) => x.c) });
     }
 
-    // opts: {editable, bundles, emptyText, onChange(grid), onSelectCell({name, bandIndex})}. Returns
-    // {getGrid, setGrid, selection, destroy}: setGrid replaces the grid (as an edit) and calls onChange.
-    // With no band sets the grid still shows the ladder's bands as rows, with emptyText under them.
+    // The margins grid, its chart and the cell detail, laid out as Phil Brook's Margins mockup: the
+    // switches (Columns by bundle or by product, Showing margin or share), the selection bar and hint,
+    // the chart card (up to four band sets, ticked in the grid's On chart row, points dragged to change
+    // a margin), then the grid with the Cell detail beside it.
+    // opts: {editable, bundles, emptyText, fuelName, lead (an element before the switches, such as the
+    // Fuel switch), tail (an element at the end of their row), afterTop ([elements] under that row),
+    // note (text before the hint), history(name) (a promise of the band_set_history answer, for the
+    // versions in the cell detail), onChange(grid), onSelectCell({name, bandIndex})}. Returns
+    // {getGrid, setGrid, selection, say, destroy}: setGrid replaces the grid (as an edit) and calls
+    // onChange. With no band sets the grid still shows the ladder's bands as rows, with emptyText under them.
     function drawGrid(host, start, opts) {
       opts = opts || {};
       const editable = !!opts.editable;
       const bundleOf = new Map();
       for (const b of opts.bundles || []) for (const m of b.members) if (!bundleOf.has(m)) bundleOf.set(m, b.name);
-      let grid = start, layer = "margin", sel = [], selKeys = new Set(), anchor = null, last = null, editing = null, focusPoint = null;
+      let grid = start, layer = "margin", groupBy = "bundle", sel = [], selKeys = new Set(), anchor = null, last = null, editing = null, focusPoint = null;
+      let picks = [], seen = null, copyMode = false, valueText = "", detailGen = 0, cols = [], gone = false;
       const cellKey = (c) => c.name + "|" + c.bandIndex;
       host.textContent = "";
-      const bar = el("div", { class: "gridbar" });
+      const top = el("div", { class: "mk-top" });
+      const bar = el("div", { class: "gridbar", role: "group", "aria-label": "Selection" });
       const msgG = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
-      const wrap = el("div", { class: "prwide gridwrap", tabindex: "0", role: "group", "aria-label": "Margins grid. Select cells, use the tools above, or paste from Excel with Ctrl and V." });
-      const chartBox = el("div", { class: "chartbox" });
-      host.append(bar, msgG, wrap, chartBox);
+      const hint = el("p", { class: "mk-hint" });
+      const chartBox = el("div", { class: "chartcard" });
+      const wrap = el("div", { class: "gridwrap", tabindex: "0", role: "group", "aria-label": "Margins grid. Select cells, use the tools above, or paste from Excel with Ctrl and V." });
+      const aside = el("aside", { class: "detail", "aria-label": "Cell detail" });
+      host.append(top, ...(opts.afterTop || []), bar, msgG, hint, chartBox, el("div", { class: "gridrow" }, wrap, aside));
 
-      const colPos = (name) => grid.columns.findIndex((c) => c.name === name);
-      const cellAt = (ci, bi) => ({ name: grid.columns[ci].name, bandIndex: grid.bands[bi].bandIndex });
-      const label = (cell) => cell.name + ", band " + (grid.bands.findIndex((b) => b.bandIndex === cell.bandIndex) + 1);
+      // The columns in the order shown: by bundle (as the grid was given), or by product.
+      function shownCols() {
+        if (groupBy !== "product") return grid.columns.slice();
+        const order = [];
+        grid.columns.forEach((c) => { if (!order.includes(c.product)) order.push(c.product); });
+        return grid.columns.map((c, i) => ({ c, i, r: order.indexOf(c.product) })).sort((a, b) => a.r - b.r || a.i - b.i).map((x) => x.c);
+      }
+      const colPos = (name) => cols.findIndex((c) => c.name === name);
+      const colOf = (name) => grid.columns.find((c) => c.name === name) || null;
+      const bandPos = (bandIndex) => grid.bands.findIndex((b) => b.bandIndex === bandIndex);
+      const cellAt = (ci, bi) => ({ name: cols[ci].name, bandIndex: grid.bands[bi].bandIndex });
+      const label = (cell) => cell.name + ", band " + (bandPos(cell.bandIndex) + 1);
       const setSel = (cells) => { sel = cells; selKeys = new Set(cells.map(cellKey)); };
       function commit(g) { grid = g; render(); if (opts.onChange) opts.onChange(grid); }
       function picked(cell) { last = cell; render(); if (opts.onSelectCell) opts.onSelectCell(cell); }
@@ -3278,85 +3402,147 @@ const PR_GRID = {{PRICING_GRID}};
         picked(cell);
       }
       function selectColumn(ci) {
+        // In copy mode the heading clicked is the band set to copy from, into every band set selected.
+        if (copyMode) {
+          copyMode = false;
+          const from = cols[ci].name, targets = [...new Set(sel.map((s) => s.name))].filter((nm) => nm !== from);
+          if (!targets.length) { say(msgG, "Select cells in the band sets to copy into, then choose a different band set to copy from.", true); render(); return; }
+          let g = grid;
+          targets.forEach((t) => { g = G.copyColumn(g, from, t); });
+          say(msgG, "Copied " + from + " into " + andList(targets) + ".");
+          commit(g);
+          return;
+        }
         setSel(grid.bands.map((b, bi) => cellAt(ci, bi))); anchor = { ci, bi: 0 };
         picked(cellAt(ci, 0));
       }
       function selectRow(bi) {
-        setSel(grid.columns.map((c, ci) => cellAt(ci, bi))); anchor = { ci: 0, bi };
+        setSel(cols.map((c, ci) => cellAt(ci, bi))); anchor = { ci: 0, bi };
         picked(cellAt(0, bi));
       }
+      function selectAll() {
+        const cells = [];
+        cols.forEach((c, ci) => grid.bands.forEach((b, bi) => cells.push(cellAt(ci, bi))));
+        setSel(cells); anchor = { ci: 0, bi: 0 }; render();
+      }
+      function togglePick(name) {
+        const r = G.toggleChartPick(picks, name);
+        if (r.refused) say(msgG, "The chart takes four band sets at most. Untick one first.", true);
+        else { picks = r.picks; say(msgG, ""); }
+        render();
+      }
 
-      // ---------- the tools above the grid
+      // ---------- the switches
+      function renderTop() {
+        top.textContent = "";
+        if (opts.lead) top.append(opts.lead);
+        if (grid.columns.length) top.append(
+          segCtl("Columns", [["bundle", "By bundle"], ["product", "By product"]], groupBy, (v) => { groupBy = v; editing = null; copyMode = false; render(); }),
+          segCtl("Showing", [["margin", LAYER_LABEL.margin], ["share", LAYER_LABEL.share]], layer, (v) => { layer = v; editing = null; render(); }));
+        if (opts.tail) { opts.tail.classList.add("mk-tail"); top.append(opts.tail); }
+        top.hidden = !top.childNodes.length;
+      }
+
+      // ---------- the selection bar and the hint under it
+      function selText() {
+        if (!sel.length) return "nothing";
+        if (sel.length === 1) { const b = grid.bands[bandPos(sel[0].bandIndex)]; return sel[0].name + ", " + (b ? G.bandRange(b) : ""); }
+        return comma(sel.length) + " cells";
+      }
       function renderBar() {
         bar.textContent = "";
-        if (!grid.columns.length) return;
-        bar.append(el("div", { class: "seg", role: "group", "aria-label": "Layer" },
-          ...["margin", "share"].map((l) => el("button", { type: "button", class: "btn small " + (layer === l ? "" : "ghost"), "aria-pressed": String(layer === l), text: LAYER_LABEL[l], onclick: () => { layer = l; editing = null; render(); } }))));
-        bar.append(el("span", { class: "hint", text: sel.length ? comma(sel.length) + (sel.length === 1 ? " cell selected" : " cells selected") : "No cells selected" }));
-        if (!editable) return;
-        const shiftIn = el("input", { type: "text", inputmode: "decimal", "aria-label": "Amount to shift by" });
-        const setIn = el("input", { type: "text", inputmode: "decimal", "aria-label": "Value to set" });
-        const from = select2(grid.columns.map((c) => [c.name, c.name]));
-        const needSel = () => { if (sel.length) return true; say(msgG, "Select one or more cells first.", true); return false; };
-        const unit = layer === "margin" ? "pence" : "percentage points";
-        bar.append(
-          el("span", { class: "tool" }, shiftIn, btn("Shift by", () => {
+        bar.hidden = !grid.columns.length;
+        if (bar.hidden) return;
+        bar.append(el("span", { class: "selt", text: "Selected: " + selText() }));
+        if (editable) {
+          const id = "pr-v" + (++uid);
+          const valIn = el("input", { type: "text", id, inputmode: "decimal", autocomplete: "off", value: valueText, placeholder: layer === "margin" ? "0.050" : "5", "aria-label": "Value" });
+          valIn.addEventListener("input", () => { valueText = valIn.value; });
+          const needSel = () => { if (sel.length) return true; say(msgG, "Select some cells first: click a cell, a column heading or a band.", true); return false; };
+          const unit = layer === "margin" ? "pence" : "percentage points";
+          const copyBtn = btn("Copy a column into selection", () => {
+            if (copyMode) { copyMode = false; render(); return; }
             if (!needSel()) return;
-            const t = shiftIn.value.trim().replace(/p$|%$/i, "");
-            if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(t)) { say(msgG, "Enter the shift as a number of " + unit + ", such as 0.1 or -0.05.", true); return; }
-            const places = (t.split(".")[1] || "").length;
-            if (places > (layer === "margin" ? 3 : 2)) { say(msgG, "Use at most " + (layer === "margin" ? "3" : "2") + " decimal places.", true); return; }
-            say(msgG, ""); commit(G.shiftCells(grid, sel, layer, layer === "margin" ? Math.round(Number(t) * 1000) : Number(t)));
-          }, "ghost small")),
-          el("span", { class: "tool" }, setIn, btn("Set to", () => {
-            if (!needSel()) return;
-            const r = (layer === "margin" ? G.parseMargin : G.parseShare)(setIn.value);
-            if (r.error) { say(msgG, r.error, true); return; }
-            say(msgG, ""); commit(G.setCells(grid, sel, layer, r.value));
-          }, "ghost small")),
-          el("span", { class: "tool" }, el("label", { text: "Copy column from" }), from, btn("Copy into selected", () => {
-            const targets = [...new Set(sel.map((s) => s.name))];
-            if (targets.length !== 1) { say(msgG, "Select cells in one band set to copy into.", true); return; }
-            if (targets[0] === from.value) { say(msgG, "Choose a different band set to copy from.", true); return; }
-            say(msgG, "Copied " + from.value + " into " + targets[0] + ".");
-            commit(G.copyColumn(grid, from.value, targets[0]));
-          }, "ghost small")));
-        bar.append(el("span", { class: "hint", text: "Click to select, Shift-click for a block, double-click to type. You can paste from Excel." }));
+            copyMode = true; say(msgG, ""); render();
+          }, "mk2" + (copyMode ? " on" : ""));
+          copyBtn.setAttribute("aria-pressed", String(copyMode));
+          bar.append(el("label", { for: id, text: "Value" }), valIn,
+            btn("Shift by value", () => {
+              if (!needSel()) return;
+              const t = valIn.value.trim().replace(/p$|%$/i, "");
+              if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(t)) { say(msgG, "Enter the shift as a number of " + unit + ", such as 0.1 or -0.05.", true); return; }
+              const places = (t.split(".")[1] || "").length;
+              if (places > (layer === "margin" ? 3 : 2)) { say(msgG, "Use at most " + (layer === "margin" ? "3" : "2") + " decimal places.", true); return; }
+              say(msgG, ""); commit(G.shiftCells(grid, sel, layer, layer === "margin" ? Math.round(Number(t) * 1000) : Number(t)));
+            }, "mk2"),
+            btn("Set to value", () => {
+              if (!needSel()) return;
+              const r = (layer === "margin" ? G.parseMargin : G.parseShare)(valIn.value);
+              if (r.error) { say(msgG, r.error, true); return; }
+              say(msgG, ""); commit(G.setCells(grid, sel, layer, r.value));
+            }, "mk2"),
+            copyBtn);
+        }
+        bar.append(btn("Select all", selectAll, "mk2"));
       }
-      const select2 = (options) => el("select", { "aria-label": "Copy column from" }, ...options.map(([v, t]) => el("option", { value: v, text: t })));
+      function renderHint() {
+        const strip = "The grey strip under each margin is the annual margin at the band midpoint: margin p/kWh × midpoint kWh ÷ 100.";
+        const how = editable
+          ? " Changed cells are tinted and bold until saved. Click a cell, then Shift-click to select a block or Ctrl-click to add one. Click a column heading or a band to select it all. Double-click a cell, or select it and type, to change it. Paste a block copied from Excel into any cell and it fills across and down."
+          : " Click a cell to see its detail. Click a column heading or a band to select it all.";
+        const text = copyMode ? "Now click the heading of the band set to copy from. Its margins and shares go into every band set in your selection."
+          : (opts.note ? opts.note + (grid.columns.length ? " " : "") : "") + (grid.columns.length ? strip + how : "");
+        hint.textContent = text; hint.hidden = !text;
+      }
 
-      // ---------- the grid
+      // ---------- the grid: a group row (bundle or product), the On chart row, the band headings, then
+      // a row per band with the margin (or share) and its annual margin at the midpoint in each cell.
       function renderTable() {
         wrap.textContent = "";
-        const cols = grid.columns;
         if (!cols.length) {
-          wrap.append(el("table", { class: "grid" }, el("thead", {}, el("tr", {}, el("th", { scope: "col", text: "Band" }))),
-            el("tbody", {}, ...grid.bands.map((b, bi) => el("tr", {}, el("th", { scope: "row", text: (bi + 1) + ": " + bandText(b) }))))),
+          wrap.append(el("table", { class: "grid bare" }, el("thead", {}, el("tr", {}, el("th", { scope: "col", class: "corner2", text: "Band, kWh a year" }))),
+            el("tbody", {}, ...grid.bands.map((b) => el("tr", {}, el("th", { scope: "row", text: G.bandRange(b) }))))),
             el("div", { class: "empty", text: opts.emptyText || "No band sets for this fuel yet." }));
           return;
         }
         const groups = [];
-        cols.forEach((c) => { const l = bundleOf.get(c.name) || "", g = groups[groups.length - 1]; if (g && g.label === l) g.n++; else groups.push({ label: l, n: 1 }); });
+        cols.forEach((c) => { const l = groupBy === "product" ? c.product : (bundleOf.get(c.name) || ""), g = groups[groups.length - 1]; if (g && g.label === l) g.n++; else groups.push({ label: l, n: 1 }); });
         const anyBundle = groups.some((g) => g.label);
+        const starts = new Set(); let at = 0; groups.forEach((g) => { starts.add(at); at += g.n; });
+        const gs = (ci) => starts.has(ci) ? " gs" : "";
         const key = layer === "margin" ? "margins" : "shares";
+        const fullCol = (ci) => grid.bands.every((b, bi) => selKeys.has(cellKey(cellAt(ci, bi))));
+        const fullRow = (bi) => cols.every((c, ci) => selKeys.has(cellKey(cellAt(ci, bi))));
         let editInput = null;
-        const head1 = el("tr", {}, el("th", { scope: "col", rowspan: 2, text: "Band" }),
+        const head1 = el("tr", {}, el("td", { class: "corner" }),
           ...groups.map((g) => el("th", { scope: "colgroup", colspan: g.n, class: "grp", text: g.label || (anyBundle ? "Not in a bundle" : "Band sets") })));
-        const head2 = el("tr", {}, ...cols.map((c, ci) => el("th", { scope: "col", class: "colh" },
-          el("button", { type: "button", class: "linkbtn", text: c.name, title: "Select this whole band set", onclick: () => selectColumn(ci) }),
-          el("span", { class: "sub", text: (c.product !== c.name ? c.product + ", " : "") + pounds(c.costPerMeterPence) + " per meter" }),
-          el("span", { class: "marks" },
-            c.isNew ? el("span", { class: "badge info", text: "New" }) : null,
-            c.stale ? el("span", { class: "badge warn", text: "Older ladder", title: "Made on an older ladder. Check its margins before saving." + (G.isChanged(c) && !G.isEdited(c) ? " Every band carried over, so the next save moves it to the current ladder." : "") }) : null,
-            (!c.isNew && G.isEdited(c)) ? el("span", { class: "badge info", text: "Changed" }) : null))));
-        const rows = grid.bands.map((b, bi) => el("tr", {},
-          el("th", { scope: "row" }, el("button", { type: "button", class: "linkbtn", text: (bi + 1) + ": " + bandText(b), title: "Select this band in every band set", onclick: () => selectRow(bi) })),
+        const head2 = el("tr", { class: "onchart" }, el("th", { scope: "row", class: "corner3", text: "On chart (up to " + G.CHART_MAX + ")" }),
           ...cols.map((c, ci) => {
-            const v = c[key][bi], changed = c.isNew || v !== c.saved[key][bi];
+            const p = picks.find((x) => x.name === c.name);
+            const cb = el("input", { type: "checkbox", "aria-label": "Show " + c.name + " on the chart" });
+            cb.checked = !!p; cb.disabled = !p && picks.length >= G.CHART_MAX;
+            cb.addEventListener("change", () => togglePick(c.name));
+            return el("td", { class: "chk" + gs(ci) }, el("label", {}, p ? swatch(p.slot, false) : null, cb));
+          }));
+        const head3 = el("tr", {}, el("th", { scope: "col", class: "corner2", text: "Band, kWh a year" }),
+          ...cols.map((c, ci) => el("th", { scope: "col", class: "colh" + gs(ci) + (fullCol(ci) ? " sel" : "") + (copyMode ? " pick" : "") },
+            el("button", { type: "button", class: "colb", text: c.name, title: copyMode ? "Copy " + c.name + " into the selection" : "Select the whole of " + c.name, onclick: () => selectColumn(ci) }),
+            (c.isNew || c.stale || G.isEdited(c)) ? el("span", { class: "marks" },
+              c.isNew ? el("span", { class: "badge info", text: "New" }) : null,
+              c.stale ? el("span", { class: "badge warn", text: "Older ladder", title: "Made on an older ladder. Check its margins before saving." + (G.isChanged(c) && !G.isEdited(c) ? " Every band carried over, so the next save moves it to the current ladder." : "") }) : null,
+              (!c.isNew && G.isEdited(c)) ? el("span", { class: "badge info", text: "Changed" }) : null) : null)));
+        const rows = grid.bands.map((b, bi) => el("tr", {},
+          el("th", { scope: "row", class: fullRow(bi) ? "sel" : null }, el("button", { type: "button", class: "rowb", text: G.bandRange(b), title: "Select this band in every band set", onclick: () => selectRow(bi) })),
+          ...cols.map((c, ci) => {
+            const v = c[key][bi], was = c.saved[key][bi], changed = c.isNew || v !== was;
             const cell = cellAt(ci, bi), on = selKeys.has(cellKey(cell));
-            const td = el("td", { role: "gridcell", "aria-selected": String(on), class: (on ? "sel " : "") + (changed ? "chg " : "") + (v == null ? "gap" : ""), "data-name": c.name, "data-band": b.bandIndex });
+            const unitText = (x) => x == null ? "none" : layer === "margin" ? marginText(x) + " p/kWh" : x + "%";
+            const td = el("td", { role: "gridcell", "aria-selected": String(on), class: "cell" + gs(ci) + (on ? " sel" : "") + (changed ? " chg" : "") + (v == null ? " gap" : ""), "data-name": c.name, "data-band": b.bandIndex,
+              title: c.isNew ? "New band set, not saved yet." : changed ? "Saved: " + unitText(was) + ". Not saved yet: " + unitText(v) + "." : null });
             if (editing && editing.ci === ci && editing.bi === bi) {
-              editInput = el("input", { type: "text", class: "cellin", inputmode: "decimal", value: v == null ? "" : layer === "margin" ? G.formatMargin(v) : String(v), "aria-label": label(cell) + ", " + LAYER_LABEL[layer] });
+              const seed = editing.seed;
+              editInput = el("input", { type: "text", class: "cellin", inputmode: "decimal", value: seed != null ? seed : v == null ? "" : layer === "margin" ? G.formatMargin(v) : String(v), "aria-label": label(cell) + ", " + LAYER_LABEL[layer] });
+              editInput.dataset.seeded = seed != null ? "1" : "";
               let done = false;
               const finish = (apply) => {
                 if (done) return; done = true; editing = null;
@@ -3369,32 +3555,32 @@ const PR_GRID = {{PRICING_GRID}};
               editInput.addEventListener("blur", () => finish(true));
               td.append(editInput);
             } else {
-              td.append(v == null ? "–" : layer === "margin" ? marginText(v) + "p" : String(v) + "%");
-              if (layer === "margin") {
-                const pounds0 = G.midpointAnnualPounds(v, b.eacMinKwh, b.eacMaxKwh);
-                td.append(el("span", { class: "strip", text: pounds0 == null ? "" : "£" + comma(pounds0) + " a year" }));
-              }
+              td.append(el("span", { class: "cv", text: v == null ? "–" : layer === "margin" ? marginText(v) : String(v) + "%" }));
               td.addEventListener("click", (e) => select(ci, bi, e.shiftKey, e.ctrlKey || e.metaKey));
               if (editable) td.addEventListener("dblclick", () => { editing = { ci, bi }; render(); });
             }
+            td.append(el("span", { class: "strip", text: G.midpointText(c.margins[bi], b.eacMinKwh, b.eacMaxKwh) }));
             return td;
           })));
-        wrap.append(el("table", { class: "grid", role: "grid" }, el("thead", {}, head1, head2), el("tbody", {}, ...rows)));
-        if (editInput) { editInput.focus(); editInput.select(); }
+        wrap.append(el("table", { class: "grid", role: "grid" }, el("thead", {}, head1, head2, head3), el("tbody", {}, ...rows)));
+        if (editInput) { editInput.focus(); if (editInput.dataset.seeded) { const n = editInput.value.length; editInput.setSelectionRange(n, n); } else editInput.select(); }
       }
-      // Arrow keys move the selection (shift extends it); Enter or F2 types into the cell.
+      // Arrow keys move the selection (Shift extends it); Enter or F2 types into the cell, and so does
+      // typing a number, which starts the cell with it; Escape leaves copy mode.
       wrap.addEventListener("keydown", (e) => {
-        if (e.target !== wrap || !last || !grid.columns.length) return;
-        let ci = colPosOf(last), bi = grid.bands.findIndex((b) => b.bandIndex === last.bandIndex);
+        if (e.target !== wrap) return;
+        if (e.key === "Escape" && copyMode) { copyMode = false; render(); return; }
+        if (!last || !cols.length) return;
+        let ci = colPos(last.name), bi = bandPos(last.bandIndex);
         if (ci < 0 || bi < 0) return;
         const move = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
         if (move) {
           e.preventDefault();
-          ci = Math.min(grid.columns.length - 1, Math.max(0, ci + move[0])); bi = Math.min(grid.bands.length - 1, Math.max(0, bi + move[1]));
+          ci = Math.min(cols.length - 1, Math.max(0, ci + move[0])); bi = Math.min(grid.bands.length - 1, Math.max(0, bi + move[1]));
           select(ci, bi, e.shiftKey, false);
         } else if ((e.key === "Enter" || e.key === "F2") && editable) { e.preventDefault(); editing = { ci, bi }; render(); }
+        else if (editable && !e.ctrlKey && !e.metaKey && !e.altKey && /^[0-9.]$/.test(e.key)) { e.preventDefault(); editing = { ci, bi, seed: e.key }; render(); }
       });
-      const colPosOf = (cell) => colPos(cell.name);
 
       // Paste a block copied from Excel, starting at the top left of the selection.
       function onPaste(e) {
@@ -3405,84 +3591,196 @@ const PR_GRID = {{PRICING_GRID}};
         const text = e.clipboardData ? e.clipboardData.getData("text") : "";
         e.preventDefault();
         if (!sel.length) { say(msgG, "Select the cell to paste from first.", true); return; }
-        const ci = Math.min(...sel.map((s) => colPos(s.name))), bi = Math.min(...sel.map((s) => grid.bands.findIndex((b) => b.bandIndex === s.bandIndex)));
-        const r = G.pasteBlock(grid, cellAt(ci, bi), text, layer);
-        commit(r.grid);
+        const ci = Math.min(...sel.map((s) => colPos(s.name))), bi = Math.min(...sel.map((s) => bandPos(s.bandIndex)));
+        // pasteBlock fills across in the grid's own order, so it is given the columns as shown.
+        const shown = Object.assign({}, grid, { columns: cols });
+        const r = G.pasteBlock(shown, cellAt(ci, bi), text, layer);
+        commit(Object.assign({}, grid, { columns: grid.columns.map((c) => r.grid.columns.find((x) => x.name === c.name) || c) }));
         say(msgG, r.errors.length ? "Pasted what could be read. " + r.errors.slice(0, 4).join(" ") + (r.errors.length > 4 ? " And " + (r.errors.length - 4) + " more." : "") : "Pasted.", !!r.errors.length);
       }
       document.addEventListener("paste", onPaste);
 
-      // ---------- the chart: margin by band for up to four band sets; drag a point to change a cell
+      // ---------- the chart card, above the grid: the margin by band of the band sets ticked in the On
+      // chart row, with a crosshair and a readout line, and points that drag to change a margin.
+      const CW = 960, CH = 210, PL = 70, PRT = 132, PT = 10, PB = 46, PW = CW - PL - PRT, PH = CH - PT - PB;
       function renderChart() {
         chartBox.textContent = "";
-        if (!grid.columns.length) return;
-        const picks = [...new Set(sel.map((s) => s.name))];
-        const names = (picks.length ? picks : grid.columns.map((c) => c.name)), shown = names.slice(0, 4);
-        const cols = shown.map((n) => grid.columns[colPos(n)]);
-        const W = 760, H = 280, L = 58, R = 18, T = 16, B = 38, PH = H - T - B, PW = W - L - R;
-        const scale = G.chartScale(cols.flatMap((c) => c.margins), PH), topVal = scale.fromY(0);
-        const nb = grid.bands.length, xAt = (i) => nb === 1 ? L + PW / 2 : L + PW * i / (nb - 1);
-        const root2 = svg("svg", { viewBox: "0 0 " + W + " " + H, class: "chart", role: "group", "aria-label": "Margin in pence per kWh for each band, for " + shown.join(", ") });
-        // Gridlines on round steps (0.05p, 0.1p, 0.2p, 0.25p, 0.5p, 1p and so on), up to the top of the drawing.
-        const STEPS = [10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000];
-        const step = STEPS.find((s) => topVal / s <= 5) || STEPS[STEPS.length - 1];
-        for (let v = 0; v <= topVal + 1e-9; v += step) {
-          const y = T + scale.toY(v);
-          root2.append(svg("line", { x1: L, x2: W - R, y1: y, y2: y, stroke: "var(--hairline)", "stroke-width": 1 }));
-          const tx = svg("text", { x: L - 8, y: y + 4, "text-anchor": "end", "font-size": 11, fill: "var(--muted)" }); tx.textContent = String(Number((v / 1000).toFixed(3))) + "p"; root2.append(tx);
-        }
-        grid.bands.forEach((b, i) => { const tx = svg("text", { x: xAt(i), y: H - 16, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }); tx.textContent = String(i + 1); const ti = svg("title"); ti.textContent = bandText(b); tx.append(ti); root2.append(tx); });
-        const ax = svg("text", { x: L + PW / 2, y: H - 2, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }); ax.textContent = "Band"; root2.append(ax);
-        const tip = svg("text", { x: W - R, y: 12, "text-anchor": "end", "font-size": 12, "font-weight": 800, fill: "var(--ink)" }); root2.append(tip);
-        let dragging = null;
-        cols.forEach((c, si) => {
-          const sty = SERIES[si], vals = c.margins.slice();
-          const line = svg("polyline", { fill: "none", stroke: sty.color, "stroke-width": 3, "stroke-dasharray": sty.dash || null, "stroke-linejoin": "round" });
-          const casing = sty.casing ? svg("polyline", { fill: "none", stroke: sty.casing, "stroke-width": 6, "stroke-linejoin": "round" }) : null;
-          const draw = () => {
-            const pts = vals.map((v, i) => v == null ? null : xAt(i) + "," + (T + scale.toY(v))).filter(Boolean).join(" ");
-            line.setAttribute("points", pts); if (casing) casing.setAttribute("points", pts);
-          };
-          draw(); if (casing) root2.append(casing); root2.append(line);
-          const ci = colPos(c.name);
-          vals.forEach((v, i) => {
-            if (v == null) return;
-            const dot = svg("circle", { class: "pt", cx: xAt(i), cy: T + scale.toY(v), r: 6, fill: sty.color, stroke: sty.casing || "var(--ink)", "stroke-width": sty.casing ? 2 : 1.5, "data-name": c.name, "data-i": i });
-            const ti = svg("title"); ti.textContent = c.name + ", band " + (i + 1) + ": " + marginText(v) + "p/kWh"; dot.append(ti);
-            if (editable) {
-              dot.setAttribute("tabindex", "0"); dot.setAttribute("role", "slider"); dot.setAttribute("aria-orientation", "vertical");
-              dot.setAttribute("aria-label", c.name + ", band " + (i + 1) + ", margin in pence per kWh. Drag, or use the up and down keys."); dot.setAttribute("aria-valuenow", marginText(v)); dot.setAttribute("aria-valuemin", "0.01");
-              dot.addEventListener("pointerdown", (e) => { e.preventDefault(); dot.setPointerCapture(e.pointerId); dragging = { v }; });
-              dot.addEventListener("pointermove", (e) => {
-                if (!dragging) return;
-                const r = root2.getBoundingClientRect(), y = (e.clientY - r.top) * (H / r.height) - T;
-                dragging.v = G.dragValue(scale, y); vals[i] = dragging.v;
-                dot.setAttribute("cy", Math.max(2, T + scale.toY(dragging.v))); draw(); tip.textContent = c.name + ", band " + (i + 1) + ": " + marginText(dragging.v) + "p";
-              });
-              const drop = () => { if (!dragging) return; const nv = dragging.v; dragging = null; if (nv !== c.margins[i]) { focusPoint = { name: c.name, i }; commit(G.setCells(grid, [cellAt(ci, i)], "margin", nv)); } else render(); };
-              dot.addEventListener("pointerup", drop); dot.addEventListener("pointercancel", drop);
-              dot.addEventListener("keydown", (e) => {
-                const d = { ArrowUp: 1, ArrowDown: -1 }[e.key]; if (!d) return;
-                e.preventDefault(); focusPoint = { name: c.name, i };
-                commit(G.setCells(grid, [cellAt(ci, i)], "margin", Math.max(10, c.margins[i] + d * (e.shiftKey ? 100 : 10))));
-              });
-            }
-            root2.append(dot);
-          });
+        chartBox.hidden = !grid.columns.length;
+        if (chartBox.hidden) return;
+        const series = picks.map((p) => ({ slot: p.slot, c: colOf(p.name) })).filter((s) => s.c).sort((a, b) => a.slot - b.slot);
+        const nb = grid.bands.length, xAt = (i) => nb === 1 ? PL + PW / 2 : PL + PW * i / (nb - 1);
+        const axis = G.chartAxis(series.flatMap((s) => s.c.margins), PH);
+        const yAt = (v) => PT + axis.toY(Math.max(0, Math.min(v, axis.top)));
+        const fuel = opts.fuelName || String(FUEL[grid.fuel] || grid.fuel || "").toLowerCase();
+        const names = series.map((s) => s.c.name);
+        const root2 = svg("svg", { viewBox: "0 0 " + CW + " " + CH, class: "chart", role: "group", "aria-label": "Margin in pence per kWh by consumption band, for " + (names.length ? andList(names) : "no band sets") });
+        axis.ticks.forEach((v) => { const y = rd(yAt(v)); root2.append(svg("line", { class: "gl", x1: PL, x2: PL + PW, y1: y, y2: y }), svgText("axt ta-e", PL - 8, rd(y + 4), (v / 1000).toFixed(2))); });
+        const spacing = nb > 1 ? PW / (nb - 1) : PW, every = spacing < 52 ? 2 : 1;
+        const short = (k) => k >= 1000 ? (Math.round(k / 100) / 10) + "k" : String(k);
+        grid.bands.forEach((b, i) => {
+          if (i % every) return;
+          const tx = svgText("axt ta-m", rd(xAt(i)), 182, spacing >= 112 ? comma(b.eacMinKwh) + "–" + comma(b.eacMaxKwh) : short(b.eacMinKwh) + "–" + short(b.eacMaxKwh));
+          tx.append(svgTitle(bandText(b))); root2.append(tx);
         });
-        chartBox.append(el("h3", { class: "sub", text: "Margin by band (p/kWh)" }), root2,
-          el("div", { class: "legend" }, ...cols.map((c, si) => el("span", { class: "key" }, (() => { const s2 = svg("svg", { width: 30, height: 10, "aria-hidden": "true" }); if (SERIES[si].casing) s2.append(svg("line", { x1: 0, x2: 30, y1: 5, y2: 5, stroke: SERIES[si].casing, "stroke-width": 6 })); s2.append(svg("line", { x1: 0, x2: 30, y1: 5, y2: 5, stroke: SERIES[si].color, "stroke-width": 3, "stroke-dasharray": SERIES[si].dash || null })); return s2; })(), " " + c.name))),
-          el("p", { class: "hint", text: (names.length > 4 ? "Showing 4 of " + names.length + " band sets. Select cells to choose which. " : "") + (editable ? "Drag a point to change a margin." : "") }));
-        if (focusPoint) { const f = chartBox.querySelector('circle.pt[data-name="' + CSS.escape(focusPoint.name) + '"][data-i="' + focusPoint.i + '"]'); if (f) f.focus(); focusPoint = null; }
+        root2.append(svgText("axtt ta-m", rd(PL + PW / 2), 205, "Consumption band, kWh a year"));
+        const yTitle = svgText("axtt ta-m", 0, 0, "Margin, p/kWh"); yTitle.setAttribute("transform", "translate(14 " + rd(PT + PH / 2) + ") rotate(-90)"); root2.append(yTitle);
+        const xh = svg("path", { class: "xh", d: "" }); root2.append(xh);
+        const readout = el("div", { class: "readout", role: "status" });
+        const rest = series.length ? (editable ? "Hover the chart to read a band. Drag a point to change its margin." : "Hover the chart to read a band.") : "";
+        readout.textContent = rest;
+        const vals = series.map((s) => s.c.margins.slice());
+        const pathOf = (vs) => vs.map((v, i) => v == null ? null : [xAt(i), yAt(v)]).filter(Boolean).map((p, k) => (k ? "L" : "M") + rd(p[0]) + " " + rd(p[1])).join("");
+        const lines = series.map((s, si) => { const p = svg("path", { class: "ln s" + s.slot, d: pathOf(vals[si]) }); root2.append(p); return p; });
+        const marks = series.map((s, si) => vals[si].map((v, i) => {
+          if (v == null) return null;
+          const c = s.c, mk = svg("path", { class: "mkr pt m" + s.slot, d: markPath(s.slot, xAt(i), yAt(v)), "data-name": c.name, "data-i": i });
+          mk.append(svgTitle(c.name + ", " + bandText(grid.bands[i]) + ": " + marginText(v) + " p/kWh"));
+          if (editable) {
+            mk.setAttribute("tabindex", "0"); mk.setAttribute("role", "slider"); mk.setAttribute("aria-orientation", "vertical");
+            mk.setAttribute("aria-label", c.name + ", band " + (i + 1) + ", margin in pence per kWh. Drag, or use the up and down keys."); mk.setAttribute("aria-valuenow", marginText(v)); mk.setAttribute("aria-valuemin", "0.01");
+            mk.addEventListener("keydown", (e) => {
+              const d = { ArrowUp: 1, ArrowDown: -1 }[e.key]; if (!d) return;
+              e.preventDefault(); focusPoint = { name: c.name, i };
+              commit(G.setCells(grid, [{ name: c.name, bandIndex: grid.bands[i].bandIndex }], "margin", Math.max(10, c.margins[i] + d * (e.shiftKey ? 100 : 10))));
+            });
+          }
+          root2.append(mk);
+          return mk;
+        }));
+        // Each line's name at its end, nudged apart where two ends meet.
+        const labs = series.map((s, si) => { let li = -1; vals[si].forEach((v, i) => { if (v != null) li = i; }); return li < 0 ? null : { x: xAt(li) + 12, y: yAt(vals[si][li]), t: s.c.name }; }).filter(Boolean).sort((a, b) => a.y - b.y);
+        for (let i = 1; i < labs.length; i++) if (labs[i].y - labs[i - 1].y < 14) labs[i].y = labs[i - 1].y + 14;
+        labs.forEach((l) => { const tx = svgText("dl", rd(l.x), rd(Math.min(CH - 4, l.y + 4)), l.t.length > 17 ? l.t.slice(0, 16) + "…" : l.t); tx.append(svgTitle(l.t)); root2.append(tx); });
+
+        const toSvg = (e) => { const r = root2.getBoundingClientRect(); return { x: (e.clientX - r.left) * CW / r.width, y: (e.clientY - r.top) * CH / r.height }; };
+        const hoverAt = (i) => {
+          if (i == null || !series.length) { xh.setAttribute("d", ""); readout.textContent = rest; return; }
+          const b = grid.bands[i];
+          xh.setAttribute("d", "M" + rd(xAt(i)) + " " + PT + "V" + (PT + PH));
+          readout.textContent = G.bandRange(b) + " kWh: " + series.map((s, si) => s.c.name + " " + (vals[si][i] == null ? "–" : marginText(vals[si][i]) + " p/kWh (" + G.midpointText(vals[si][i], b.eacMinKwh, b.eacMaxKwh) + " a year at midpoint)")).join(" · ");
+        };
+        let dragging = null;
+        root2.addEventListener("pointerdown", (e) => {
+          if (!editable) return;
+          const p = toSvg(e);
+          let best = null, bd = 16;
+          series.forEach((s, si) => vals[si].forEach((v, i) => { if (v == null) return; const d = Math.hypot(xAt(i) - p.x, yAt(v) - p.y); if (d < bd) { bd = d; best = { si, i }; } }));
+          if (!best) return;
+          e.preventDefault();
+          try { root2.setPointerCapture(e.pointerId); } catch (err) { /* the drag still works without capture */ }
+          dragging = Object.assign(best, { v: vals[best.si][best.i] });
+          hoverAt(best.i);
+        });
+        root2.addEventListener("pointermove", (e) => {
+          const p = toSvg(e);
+          if (dragging) {
+            const d = dragging, v = G.dragValue(axis, Math.max(0, p.y - PT));
+            d.v = v; vals[d.si][d.i] = v;
+            lines[d.si].setAttribute("d", pathOf(vals[d.si]));
+            const mk = marks[d.si][d.i]; if (mk) mk.setAttribute("d", markPath(series[d.si].slot, xAt(d.i), yAt(v)));
+            hoverAt(d.i);
+            return;
+          }
+          let i = nb === 1 ? 0 : Math.round((p.x - PL) / (PW / (nb - 1)));
+          i = Math.max(0, Math.min(nb - 1, i));
+          hoverAt(p.x < PL - 24 || p.x > PL + PW + 24 ? null : i);
+        });
+        const drop = () => {
+          if (!dragging) return;
+          const d = dragging, c = series[d.si].c; dragging = null;
+          if (d.v !== c.margins[d.i]) { focusPoint = { name: c.name, i: d.i }; commit(G.setCells(grid, [{ name: c.name, bandIndex: grid.bands[d.i].bandIndex }], "margin", d.v)); }
+          else render();
+        };
+        root2.addEventListener("pointerup", drop); root2.addEventListener("pointercancel", drop);
+        root2.addEventListener("pointerleave", () => { if (!dragging) hoverAt(null); });
+
+        chartBox.append(
+          el("div", { class: "ct-head" },
+            el("div", { class: "ct-title", text: "Margin curve, " + fuel + ": p/kWh by band (kWh a year)" }),
+            el("div", { class: "ct-sub", text: editable ? "Tick up to four columns in the On chart row. Drag a point up or down and the grid follows." : "Tick up to four columns in the On chart row." })),
+          el("div", { class: "legend" }, ...(series.length ? series.map((s) => el("span", { class: "key" }, swatch(s.slot, true), s.c.name))
+            : [el("span", { class: "none", text: "Nothing plotted yet. Tick a column in the On chart row of the grid." })])),
+          root2, readout);
+        if (focusPoint) { const f = chartBox.querySelector('path.pt[data-name="' + CSS.escape(focusPoint.name) + '"][data-i="' + focusPoint.i + '"]'); if (f) f.focus(); focusPoint = null; }
       }
-      function render() { renderBar(); renderTable(); renderChart(); }
+
+      // ---------- the cell detail beside the grid: what the cell earns at the band midpoint, how the
+      // margin splits between the standing charge and the unit rate, the cost per meter and the product,
+      // then the versions of its band set with Restore as a new change.
+      const histCache = new Map();
+      const history = (name) => { if (!opts.history) return null; if (!histCache.has(name)) histCache.set(name, opts.history(name)); return histCache.get(name); };
+      function renderDetail() {
+        const my = ++detailGen;
+        aside.textContent = "";
+        aside.hidden = !grid.columns.length;
+        if (aside.hidden) return;
+        const col = last ? colOf(last.name) : null, bi = last ? bandPos(last.bandIndex) : -1;
+        if (!col || bi < 0) {
+          aside.append(el("div", { class: "dt-title", text: "Cell detail" }),
+            el("p", { class: "dt-note", text: "Click a cell to see what it earns at the band midpoint, how it splits between standing charge and unit rate, and the versions of its band set." }));
+          return;
+        }
+        const band = grid.bands[bi];
+        aside.append(el("div", { class: "dt-title", text: [col.name, col.product !== col.name ? col.product : null, FUEL[grid.fuel] || null].filter(Boolean).join(" · ") }),
+          el("p", { class: "dt-band", text: G.bandRange(band) + " kWh a year, midpoint " + comma((band.eacMinKwh + band.eacMaxKwh) / 2) + " kWh" + (col.stale ? ". Made on an older ladder." : "") }),
+          el("div", { class: "kv" }, ...G.cellFacts(col, band, bi).map((r) => el("div", {}, el("span", { class: "k", text: r.k }), el("span", { class: "v", text: r.v })))));
+        if (editable) {
+          const id = "pr-c" + (++uid);
+          const costIn = el("input", { type: "text", id, inputmode: "decimal", value: col.costPerMeterPence == null ? "" : (col.costPerMeterPence / 100).toFixed(2), "aria-label": "Cost per meter in pounds a year for " + col.name });
+          aside.append(el("div", { class: "dt-cost" }, el("label", { for: id, text: "Cost per meter, £ a year" }), costIn, btn("Set cost per meter", () => {
+            const t = costIn.value.trim().replace(/^£/, "");
+            if (!/^\d+(\.\d{1,2})?$/.test(t)) { say(msgG, "Enter the cost per meter in pounds, such as 15 or 15.50.", true); return; }
+            say(msgG, "Cost per meter for " + col.name + " set to " + pounds(Math.round(Number(t) * 100)) + ".");
+            commit(G.setCostPerMeter(grid, col.name, Math.round(Number(t) * 100)));
+          }, "mk2")));
+        }
+        const vers = el("div", { class: "vers" });
+        aside.append(el("div", { class: "dt-lab", text: "Versions of this band set" }), vers);
+        if (col.isNew) { vers.append(el("p", { class: "dt-note", text: "New band set: no versions yet. Saving makes version 1." })); return; }
+        const pending = history(col.name);
+        if (!pending) { vers.append(el("p", { class: "dt-note", text: "Versions show on the Margins screen." })); return; }
+        vers.append(el("p", { class: "dt-note", text: "Loading…" }));
+        pending.then((r) => {
+          if (gone || my !== detailGen || !vers.isConnected) return;
+          vers.textContent = "";
+          if (!r.versions.length) { vers.append(el("p", { class: "dt-note", text: "No versions." })); return; }
+          r.versions.forEach((v, i) => {
+            const vb = v.bands.find((x) => x.bandIndex === band.bandIndex), vm = vb ? vb.marginMilliPencePerKwh : null;
+            vers.append(el("div", { class: "ver" },
+              el("div", {}, el("b", { text: "Version " + v.version }), " · " + day(v.savedAt) + " · " + (v.savedBy ? personName(v.savedBy) : "–") + (i === 0 ? " · current" : "")),
+              el("div", { class: "note", text: v.reason || "No reason given." }),
+              el("div", { class: "note", text: "This band: " + (vm == null ? "no margin" : marginText(vm) + " p/kWh") + ". Cost per meter " + pounds(v.costPerMeterPence) + " a year." }),
+              editable && i > 0 ? btn("Restore as a new change", () => restore(col.name, v), "mk2") : null));
+          });
+        }, (err) => { if (!gone && my === detailGen && vers.isConnected && !(err && err.signedOut)) { vers.textContent = ""; vers.append(el("p", { class: "msg refused", text: explain(err) })); } });
+      }
+      // Loads an older version's margins and shares into the column as unsaved edits; saving makes a new version.
+      function restore(name, v) {
+        let g = grid;
+        const carried = G.carryToLadder(v.bands, g.bands);
+        carried.forEach((cb, i) => {
+          const cell = { name, bandIndex: g.bands[i].bandIndex };
+          g = G.setCells(G.setCells(g, [cell], "margin", cb.marginMilliPencePerKwh), [cell], "share", cb.standingSharePct);
+        });
+        const blanks = carried.filter((cb) => cb.marginMilliPencePerKwh == null || cb.standingSharePct == null).length;
+        say(msgG, "Version " + v.version + " of " + name + " is back in the grid as a change. Save to keep it as a new version. The cost per meter is unchanged." + (blanks ? " " + blanks + (blanks === 1 ? " band does" : " bands do") + " not line up with the current ladder: fill " + (blanks === 1 ? "it." : "them.") : ""), false);
+        commit(g);
+      }
+
+      function render() {
+        cols = shownCols();
+        const s = G.syncChartPicks(picks, cols.map((c) => c.name), seen);
+        picks = s.picks; seen = s.seen;
+        if (last && !colOf(last.name)) last = null;
+        renderTop(); renderBar(); renderHint(); renderTable(); renderChart(); renderDetail();
+      }
       render();
       return {
         getGrid: () => grid,
         setGrid: (g) => { setSel(sel.filter((s) => g.columns.some((c) => c.name === s.name))); commit(g); },
         selection: () => sel.slice(),
         say: (t, bad) => say(msgG, t, bad),
-        destroy: () => { document.removeEventListener("paste", onPaste); host.textContent = ""; },
+        destroy: () => { gone = true; document.removeEventListener("paste", onPaste); host.textContent = ""; },
       };
     }
 
@@ -3515,7 +3813,7 @@ const PR_GRID = {{PRICING_GRID}};
     // ---------- the screen
     let bsFuel = "electricity";
     async function bands(n) {
-      const msg = head("Band set ", "margins", "Margins for every band set. Edits save together, with one reason.");
+      const msg = head("", "Margins", "Margins for every band set of one fuel. Edits save together, with one reason.");
       const body = el("div"); root.append(body);
       let view = null;
       const load = async (note, bad) => {
@@ -3528,137 +3826,29 @@ const PR_GRID = {{PRICING_GRID}};
         if (note) say(msg, note, !!bad);
       };
 
+      // The Margins screen, as Phil Brook's Margins mockup (look agreed 19/11/2026) without its Where
+      // prices stand table and its Live prices and New prices tabs, which are the Supplier files and Live
+      // price book screens. The Fuel switch, Columns and Showing switches and Manage band sets in one row,
+      // then the grid, chart and cell detail (drawGrid), then the foot: Discard changes and Review
+      // changes, the checks, and the review with one reason, whose Save saves every changed band set as
+      // a new version together. Margins have no cap, so there is no cap check.
       function draw(ov, bs) {
         body.textContent = "";
-        const names = supplierNames(ov), editable = can(T.set);
-        let gridView = null, lastCell = null;
+        const editable = can(T.set);
+        let gridView = null, reviewOpen = false;
         const unsaved = () => gridView ? editedNames(gridView.getGrid()) : [];
         const clean = () => { if (!unsaved().length) return true; say(msg, "You have unsaved changes to " + unsaved().join(", ") + ". Save or discard them first.", true); return false; };
+        const fuelCtl = segCtl("Fuel", Object.entries(FUEL), bsFuel, (f) => { if (!clean()) return; bsFuel = f; load(); });
 
-        body.append(el("div", { class: "seg", role: "group", "aria-label": "Fuel" },
-          ...Object.entries(FUEL).map(([f, l]) => el("button", { type: "button", class: "btn small " + (f === bsFuel ? "" : "ghost"), "aria-pressed": String(f === bsFuel), text: l, onclick: () => { if (f === bsFuel || !clean()) return; bsFuel = f; load(); } }))));
-
-        // ---- margins: Manage (the setup actions) above the grid, then the grid, the cell detail once a
-        // cell is picked, and the save bar.
-        body.append(el("p", { class: "hint", text: FUEL[bsFuel] + " ladder version " + bs.ladder.version + ", " + bs.ladder.bands.length + (bs.ladder.bands.length === 1 ? " band" : " bands") + ". £ a year is at the middle of each band, as a guide." }));
-        const manageHost = el("div", { class: "gridtop" }), gridHost = el("div"), detailHost = el("div");
-        const detailHead = el("h2", { class: "sect", text: "Cell detail" }); detailHead.hidden = true;
-        body.append(manageHost, gridHost, detailHead, detailHost);
-        const histCache = new Map();
-        const history = (name) => { if (!histCache.has(name)) histCache.set(name, call("band_set_history", { fuel: bsFuel, name })); return histCache.get(name); };
-        let detailGen = 0;
-        function drawDetail() {
-          const g = gridView.getGrid(), my = ++detailGen;
-          detailHost.textContent = "";
-          const ci = lastCell ? g.columns.findIndex((c) => c.name === lastCell.name) : -1, bi = lastCell ? g.bands.findIndex((b) => b.bandIndex === lastCell.bandIndex) : -1;
-          detailHead.hidden = ci < 0 || bi < 0;
-          if (detailHead.hidden) return;
-          const col = g.columns[ci], band = g.bands[bi], m = col.margins[bi], s = col.shares[bi];
-          const card = el("div", { class: "card white" }, el("h2", { text: col.name + ", band " + (bi + 1) }),
-            el("p", { class: "hint", text: bandText(band) + ". " + (col.product !== col.name ? "Product " + col.product + ". " : "") + pounds(col.costPerMeterPence) + " a year per meter." + (col.stale ? " Made on an older ladder." : "") }));
-          if (editable) {
-            const costIn = el("input", { type: "text", inputmode: "decimal", value: (col.costPerMeterPence / 100).toFixed(2), "aria-label": "Cost per meter in pounds a year for " + col.name });
-            card.append(el("div", { class: "fields" }, field("Cost per meter, £ a year", costIn)),
-              el("div", { class: "actions" }, btn("Set cost per meter", () => {
-                const t = costIn.value.trim().replace(/^£/, "");
-                if (!/^\d+(\.\d{1,2})?$/.test(t)) { gridView.say("Enter the cost per meter in pounds, such as 15 or 15.50.", true); return; }
-                gridView.setGrid(G.setCostPerMeter(gridView.getGrid(), col.name, Math.round(Number(t) * 100)));
-                gridView.say("Cost per meter for " + col.name + " set to " + pounds(Math.round(Number(t) * 100)) + ".", false);
-              }, "ghost small")));
-          }
-          if (m == null) card.append(el("p", { text: "This band has no margin yet." }));
-          else {
-            const sp = G.marginSplit(m, band.eacMinKwh, band.eacMaxKwh, s), mid = (band.eacMinKwh + band.eacMaxKwh) / 2;
-            const lines = [el("li", { text: "Margin " + marginText(m) + "p/kWh: " + GBP.format(G.midpointAnnualPounds(m, band.eacMinKwh, band.eacMaxKwh)) + " a year at " + comma(mid) + " kWh, the middle of the band." })];
-            if (!sp) lines.push(el("li", { text: "No standing charge share yet." }));
-            else lines.push(el("li", { text: "Standing charge share " + s + "%: " + GBP.format(sp.standingPounds) + " a year, " + sp.standingPencePerDay.toFixed(3) + "p a day." }),
-              el("li", { text: "The rest, " + GBP.format(sp.unitPounds) + " a year, is " + sp.unitPencePerKwh.toFixed(3) + "p/kWh." }));
-            card.append(el("ul", { class: "plain" }, ...lines));
-          }
-          const hist = el("div"); card.append(el("h3", { class: "sub", text: "Version history" }), hist);
-          detailHost.append(card);
-          if (col.isNew) { hist.append(el("p", { class: "hint", text: "New band set: no versions yet." })); return; }
-          hist.append(el("p", { class: "hint", text: "Loading…" }));
-          history(col.name).then((r) => {
-            if (!still(n) || my !== detailGen || !hist.isConnected) return;
-            hist.textContent = "";
-            if (!r.versions.length) { hist.append(el("p", { class: "hint", text: "No versions." })); return; }
-            hist.append(table(["Version", "Saved", "By", "Reason", "Cost per meter", "Margin in this band", ""], r.versions.map((v, i) => {
-              const vb = v.bands.find((x) => x.bandIndex === band.bandIndex), vm = vb ? vb.marginMilliPencePerKwh : null;
-              return [String(v.version) + (i === 0 ? " (current)" : ""), when(v.savedAt), v.savedBy || "–", v.reason || "–", pounds(v.costPerMeterPence), vm == null ? "–" : marginText(vm) + "p",
-                editable ? btn("Restore", () => restore(col.name, v), "ghost small") : null];
-            })));
-          }, (err) => { if (still(n) && my === detailGen && hist.isConnected && !(err && err.signedOut)) { hist.textContent = ""; hist.append(el("p", { class: "msg refused", text: explain(err) })); } });
-        }
-        // Loads an older version's margins and shares into the column as unsaved edits; saving makes a new version.
-        function restore(name, v) {
-          let g = gridView.getGrid();
-          const carried = G.carryToLadder(v.bands, g.bands);
-          carried.forEach((cb, i) => {
-            const cell = { name, bandIndex: g.bands[i].bandIndex };
-            g = G.setCells(G.setCells(g, [cell], "margin", cb.marginMilliPencePerKwh), [cell], "share", cb.standingSharePct);
-          });
-          const blanks = carried.filter((cb) => cb.marginMilliPencePerKwh == null || cb.standingSharePct == null).length;
-          gridView.setGrid(g);
-          gridView.say("Version " + v.version + " of " + name + " is back in the grid. Save to keep it as a new version. The cost per meter is unchanged." + (blanks ? " " + blanks + (blanks === 1 ? " band does" : " bands do") + " not line up with the current ladder: fill " + (blanks === 1 ? "it." : "them.") : ""), false);
-        }
-
-        gridView = drawGrid(gridHost, orderColumns(G.makeGrid(bs.ladder.bands, bs.bandSets, bsFuel, bs.ladder.ladderId), bs.bundles), {
-          editable, bundles: bs.bundles,
-          onSelectCell: (cell) => { lastCell = cell; drawDetail(); },
-          onChange: () => { drawDetail(); drawActionsState(); },
-        });
-        drawDetail();
-
-        // ---- actions. The six setup actions sit in Manage above the grid. Save and Discard are in a bar
-        // that stays at the foot of the screen while there are unsaved edits; Save asks for the reason
-        // in the bar itself, and every changed band set becomes a new version together.
         const panel = el("div"), amsg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
-        const bar = el("div", { class: "savebar", role: "region", "aria-label": "Unsaved changes" }); bar.hidden = true;
-        const bmsg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
-        let asking = false, menu = null;
-        function drawActionsState() {
-          if (!editable) return;
-          const ch = G.changedNames(gridView.getGrid());
-          bar.hidden = !ch.length;
-          if (!ch.length) { asking = false; bar.textContent = ""; return; }
-          if (asking) return;
-          bar.textContent = ""; say(bmsg, "");
-          bar.append(el("span", { class: "t", text: (ch.length === 1 ? "1 band set changed: " : ch.length + " band sets changed: ") + andList(ch) + "." }),
-            btn("Save changes", () => savePrompt(), "small go"), btn("Discard", () => load("Changes discarded."), "small onnavy"), bmsg);
-        }
+        let menu = null;
         const open = (card) => { if (menu) menu.open = false; panel.textContent = ""; say(amsg, ""); panel.append(card); card.scrollIntoView({ block: "nearest" }); };
         const close = () => { panel.textContent = ""; };
         const saved = () => bs.bandSets.map((b) => b.name);
         const bandNo = (g, bandIndex) => g.bands.findIndex((b) => b.bandIndex === bandIndex) + 1;
+        const gridHost = el("div");
+        body.append(gridHost);
 
-        function savePrompt() {
-          const g = gridView.getGrid(), changed = G.changedNames(g);
-          if (!changed.length) return;
-          const probs = G.problems(g).filter((p) => changed.includes(p.name));
-          if (probs.length) {
-            say(bmsg, "Fix these before saving. " + probs.slice(0, 5).map((p) => p.name + ", band " + bandNo(g, p.bandIndex) + ": " + p.message).join(" ") + (probs.length > 5 ? " And " + (probs.length - 5) + " more." : ""), true);
-            return;
-          }
-          asking = true;
-          const reason = el("input", { type: "text", maxlength: "200", autocomplete: "off", "aria-label": "Reason for the change", placeholder: "Reason for the change" });
-          const save = btn("Save", async () => {
-            if (!reason.value.trim()) { say(bmsg, "Give a reason for the change.", true); return; }
-            const g2 = gridView.getGrid(), ch2 = G.changedNames(g2);
-            lock(bar, true);
-            try {
-              const r = await call("band_sets_save", G.toSavePayload(g2, ch2, reason.value.trim()));
-              if (!still(n)) return;
-              asking = false;
-              await load("Saved " + andList(r.saved.map((x) => x.name + " version " + x.version)) + ".");
-            } catch (err) { fail(n, bmsg, err); lock(bar, false); }
-          }, "small go");
-          bar.textContent = ""; say(bmsg, "");
-          bar.append(el("span", { class: "t", text: changed.length === 1 ? "Save 1 band set as a new version." : "Save " + changed.length + " band sets as new versions." }), reason, save,
-            btn("Cancel", () => { asking = false; drawActionsState(); }, "small onnavy"), bmsg);
-          reason.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save.click(); } });
-          reason.focus();
-        }
         function newSetPanel() {
           open(newSetCard({
             grid: () => gridView.getGrid(), bundles: bs.bundles, products: ov.products, say: (t, bad) => say(amsg, t, bad), cancel: close,
@@ -3745,15 +3935,85 @@ const PR_GRID = {{PRICING_GRID}};
           open(card);
         }
         if (editable) {
-          menu = el("details", { class: "menu" }, el("summary", { class: "btn ghost small", text: "Manage band sets" }),
-            el("div", { class: "menubox" }, btn("New band set", newSetPanel, "ghost small"), btn("New bundle", () => bundlePanel(""), "ghost small"),
-              btn("Edit bundle members", () => { if (!bs.bundles.length) { say(amsg, "There are no bundles to edit.", true); return; } bundlePanel(bs.bundles[0].bundleId); }, "ghost small"),
-              btn("Edit ladder", ladderPanel, "ghost small"), btn("Retire band set", () => retirePanel("set"), "ghost small"), btn("Retire bundle", () => retirePanel("bundle"), "ghost small")));
-          manageHost.append(menu);
-          manageHost.after(amsg, panel);
-          body.append(bar);
-          drawActionsState();
-        } else manageHost.append(el("p", { class: "hint", text: "View only. You need the Set tick to change margins." }));
+          menu = el("details", { class: "menu" }, el("summary", { class: "btn mk2", text: "Manage band sets" }),
+            el("div", { class: "menubox" }, btn("New band set", newSetPanel, "mk2"), btn("New bundle", () => bundlePanel(""), "mk2"),
+              btn("Edit bundle members", () => { if (!bs.bundles.length) { say(amsg, "There are no bundles to edit.", true); return; } bundlePanel(bs.bundles[0].bundleId); }, "mk2"),
+              btn("Edit ladder", ladderPanel, "mk2"), btn("Retire band set", () => retirePanel("set"), "mk2"), btn("Retire bundle", () => retirePanel("bundle"), "mk2")));
+        }
+        const nb = bs.ladder.bands.length;
+        gridView = drawGrid(gridHost, orderColumns(G.makeGrid(bs.ladder.bands, bs.bandSets, bsFuel, bs.ladder.ladderId), bs.bundles), {
+          editable, bundles: bs.bundles, fuelName: FUEL[bsFuel].toLowerCase(), lead: fuelCtl, tail: menu, afterTop: [amsg, panel],
+          note: FUEL[bsFuel] + " ladder version " + bs.ladder.version + ", " + nb + (nb === 1 ? " band." : " bands.") + (editable ? "" : " View only: you need the Set tick to change margins."),
+          history: (name) => call("band_set_history", { fuel: bsFuel, name }),
+          onChange: () => drawFoot(),
+        });
+
+        // ---- the foot: what is changed, Discard changes and Review changes; the checks; the review.
+        const footBar = el("div", { class: "savebar", role: "region", "aria-label": "Unsaved changes" });
+        const checks = el("div", { class: "warnbox", role: "region", "aria-label": "Check before saving" });
+        const review = el("div", { class: "review", role: "region", "aria-label": "Review changes" });
+        const reason = el("textarea", { id: "prReason", maxlength: "200", rows: "3" });
+        const rmsg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
+        const saveBtn = btn("Save", () => doSave(), "mkp");
+        const discardBtn = btn("Discard changes", () => load("Changes discarded."), "mk2");
+        const reviewBtn = btn("Review changes", () => { reviewOpen = true; drawFoot(); review.scrollIntoView({ block: "nearest" }); reason.focus(); }, "mkp");
+        // The checks the page already makes: a band with no margin or share, a margin not above zero,
+        // a share outside 0 to 100 (G.problems), on the band sets the next Save saves.
+        const changedProblems = () => {
+          const g = gridView.getGrid(), ch = G.changedNames(g);
+          return G.problems(Object.assign({}, g, { columns: g.columns.filter((c) => ch.includes(c.name)) }));
+        };
+        const lowerFirst = (t) => t.charAt(0).toLowerCase() + t.slice(1);
+        reason.addEventListener("input", () => { saveBtn.disabled = !!changedProblems().length || !reason.value.trim(); });
+        function drawFoot() {
+          if (!editable) return;
+          const g = gridView.getGrid(), ch = G.changedNames(g), cells = G.changedCellCount(g), probs = changedProblems();
+          footBar.textContent = "";
+          const sets = (k) => k === 1 ? " band set" : " band sets";
+          footBar.append(el("span", { class: "t" }, ...(!ch.length ? ["No unsaved changes."]
+            : cells ? [el("b", { text: comma(cells) }), cells === 1 ? " changed cell in " : " changed cells in ", el("b", { text: String(ch.length) }), sets(ch.length) + ", not saved yet"]
+            : [el("b", { text: String(ch.length) }), sets(ch.length) + " to save again on the current ladder"])),
+            el("div", { class: "acts" }, discardBtn, reviewBtn));
+          discardBtn.disabled = !ch.length; reviewBtn.disabled = !ch.length;
+          checks.textContent = ""; checks.hidden = !probs.length;
+          if (probs.length) {
+            checks.append(el("h2", { class: "sh", text: "Check before saving (" + probs.length + ")" }),
+              ...probs.slice(0, 8).map((p) => el("div", { class: "warnline block", text: p.name + " · " + G.bandRange(g.bands[bandNo(g, p.bandIndex) - 1]) + " kWh: " + lowerFirst(p.message) })),
+              probs.length > 8 ? el("p", { class: "hint", text: "And " + (probs.length - 8) + " more." }) : "");
+          }
+          if (!ch.length) reviewOpen = false;
+          review.hidden = !reviewOpen;
+          if (!reviewOpen) return;
+          const keep = document.activeElement === reason;
+          review.textContent = "";
+          review.append(el("h2", { class: "sh", text: "Review changes" }),
+            ...ch.map((nm) => {
+              const c = g.columns.find((x) => x.name === nm);
+              return el("div", { class: "rv-set" }, el("div", { class: "rv-title", text: [nm, c.product !== nm ? c.product : null, FUEL[bsFuel]].filter(Boolean).join(" · ") }),
+                ...G.reviewLines(g, nm).map((t) => el("div", { class: "rv-line", text: t })));
+            }),
+            el("label", { for: "prReason", text: "Why the change. Saved with the new version." }), reason,
+            probs.length ? el("div", { class: "warnline block", text: "Fix the items marked above before saving: every band needs a margin above zero and a standing charge share from 0 to 100." }) : "",
+            el("div", { class: "actions" }, saveBtn, btn("Back to the grid", () => { reviewOpen = false; say(rmsg, ""); drawFoot(); }, "mk2")),
+            rmsg,
+            el("p", { text: "Save makes each changed band set a new version, with this reason. No price changes until a file is priced with it on Supplier files." }));
+          saveBtn.disabled = !!probs.length || !reason.value.trim();
+          if (keep) reason.focus();
+        }
+        async function doSave() {
+          const g2 = gridView.getGrid(), ch2 = G.changedNames(g2);
+          if (!ch2.length) return;
+          const probs = changedProblems();
+          if (probs.length) { say(rmsg, "Fix these before saving. " + probs.slice(0, 5).map((p) => p.name + ", band " + bandNo(g2, p.bandIndex) + ": " + p.message).join(" ") + (probs.length > 5 ? " And " + (probs.length - 5) + " more." : ""), true); return; }
+          if (!reason.value.trim()) { say(rmsg, "Give a reason for the change.", true); return; }
+          lock(review, true);
+          try {
+            const r = await call("band_sets_save", G.toSavePayload(g2, ch2, reason.value.trim()));
+            if (!still(n)) return;
+            await load("Saved " + andList(r.saved.map((x) => x.name + " version " + x.version)) + ".");
+          } catch (err) { fail(n, rmsg, err); lock(review, false); }
+        }
+        if (editable) { body.append(footBar, checks, review); drawFoot(); }
         foot();
         return gridView;
       }

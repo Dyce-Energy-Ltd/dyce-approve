@@ -4,6 +4,7 @@ import {
   parseMargin, parseShare, formatMargin, midpointAnnualPounds, makeGrid, addColumn, setCells, shiftCells,
   copyColumn, pasteBlock, changedNames, problems, carryToLadder, toSavePayload, toPreviewItems,
   selectionProblem, chartScale, dragValue, marginSplit, DAYS_PER_YEAR, setCostPerMeter, editedNames, firstGap, isComplete,
+  chartAxis, CHART_MAX, toggleChartPick, syncChartPicks, changedCellCount, cellFacts, reviewLines, midpointText, bandRange,
 } from './grid.js';
 
 // Invented figures only.
@@ -314,4 +315,106 @@ test('firstGap and isComplete: a blank new set stays blank until filled, margins
   g = addColumn(addColumn(g, { name: 'B', product: 'Gold', costPerMeterPence: 0 }), { name: 'C', product: 'Silver', costPerMeterPence: 0, fromName: 'Gas One' });
   assert.deepEqual(firstGap(g), { name: 'B', layer: 'margin' });
   assert.equal(isComplete(g.columns[2]), true, 'a copy of a full set is full');
+});
+
+// ---------- The Margins page's look (Phil Brook's mockup, 19/11/2026)
+
+test('the On chart row takes four band sets at most', () => {
+  assert.equal(CHART_MAX, 4);
+  let picks = [];
+  for (const n of ['A', 'B', 'C', 'D']) {
+    const r = toggleChartPick(picks, n);
+    assert.equal(r.refused, false);
+    picks = r.picks;
+  }
+  assert.deepEqual(picks.map(p => p.slot), [0, 1, 2, 3], 'each in its own slot');
+  const fifth = toggleChartPick(picks, 'E');
+  assert.equal(fifth.refused, true, 'a fifth is refused');
+  assert.equal(fifth.picks, picks, 'and nothing changes');
+  // Untick one: the freed slot goes to the next one ticked.
+  picks = toggleChartPick(picks, 'B').picks;
+  assert.deepEqual(picks.map(p => p.name), ['A', 'C', 'D']);
+  picks = toggleChartPick(picks, 'E').picks;
+  assert.deepEqual(picks.find(p => p.name === 'E'), { name: 'E', slot: 1 });
+  assert.equal(toggleChartPick(picks, 'F').refused, true);
+});
+
+test('the chart starts with the first four and keeps in step with the grid', () => {
+  let s = syncChartPicks([], ['A', 'B', 'C', 'D', 'E', 'F'], null);
+  assert.deepEqual(s.picks.map(p => p.name), ['A', 'B', 'C', 'D'], 'the first four, never more');
+  // Unticked by the person: a later sync does not tick it again.
+  let picks = toggleChartPick(s.picks, 'B').picks;
+  s = syncChartPicks(picks, ['A', 'B', 'C', 'D', 'E', 'F'], s.seen);
+  assert.deepEqual(s.picks.map(p => p.name), ['A', 'C', 'D']);
+  // A band set new to the grid joins while there is room; one that has left the grid leaves the chart.
+  s = syncChartPicks(s.picks, ['A', 'C', 'D', 'E', 'F', 'G'], s.seen);
+  assert.deepEqual(s.picks.map(p => p.name), ['A', 'C', 'D', 'G']);
+  s = syncChartPicks(s.picks, ['C', 'D', 'G', 'H', 'I'], s.seen);
+  assert.deepEqual(s.picks.map(p => p.name), ['C', 'D', 'G', 'H']);
+  assert.ok(s.picks.length <= 4);
+});
+
+test('chartAxis: round gridlines a little above the largest margin', () => {
+  const a = chartAxis([760, 600, null], 164);
+  assert.equal(a.top, 1000);
+  assert.deepEqual(a.ticks, [0, 250, 500, 750, 1000]);
+  assert.equal(a.toY(1000), 0);
+  assert.equal(a.toY(0), 164);
+  assert.equal(dragValue(a, 82), 500, 'dragValue takes the axis as it takes chartScale');
+  assert.equal(chartAxis([], 100).top, 100, 'an empty chart still has a scale');
+  assert.ok(chartAxis([3000], 100).top >= 3450);
+});
+
+test('changedCellCount counts the cells that differ from what was saved', () => {
+  let g = grid0();
+  assert.equal(changedCellCount(g), 0);
+  g = setCells(g, [at('Gold', 0), at('Gold', 1)], 'margin', 5000);
+  g = setCells(g, [at('Silver', 0)], 'share', 12);
+  assert.equal(changedCellCount(g), 3);
+  g = setCells(g, [at('Gold', 0)], 'share', 12);
+  assert.equal(changedCellCount(g), 3, 'a cell with both layers changed counts once');
+  g = addColumn(g, { name: 'New', product: 'Gold', costPerMeterPence: 0 });
+  assert.equal(changedCellCount(g), 3, 'a blank new band set has no changed cells yet');
+  g = setCells(g, [at('New', 2)], 'margin', 300);
+  assert.equal(changedCellCount(g), 4);
+});
+
+test('cellFacts: what the Cell detail panel shows for one band', () => {
+  let g = grid0();
+  const band = g.bands[1];
+  let rows = cellFacts(g.columns[0], band, 1);
+  const v = (k) => (rows.find(r => r.k === k) || {}).v;
+  assert.equal(v('Saved margin'), '1.100 p/kWh');
+  assert.equal(v('New margin'), undefined, 'no new margin until it changes');
+  assert.equal(v('Annual margin at midpoint, saved'), midpointText(1100, band.eacMinKwh, band.eacMaxKwh));
+  assert.equal(v('Standing charge share'), '40%');
+  const mid = (band.eacMinKwh + band.eacMaxKwh) / 2;
+  assert.equal(v('Added to the standing charge'), (1100 * mid / 1000 * 0.4 / 365).toFixed(3) + ' p/day');
+  assert.equal(v('Added to each unit rate'), (1.1 * 0.6).toFixed(3) + ' p/kWh');
+  assert.equal(v('Cost per meter'), '£0.05 a year');
+  assert.equal(v('Product'), 'Gold');
+  g = setCells(g, [at('Gold', 1)], 'margin', 1500);
+  rows = cellFacts(g.columns[0], band, 1);
+  assert.equal(v('New margin'), '1.500 p/kWh');
+  assert.equal(v('Annual margin at midpoint, new'), midpointText(1500, band.eacMinKwh, band.eacMaxKwh));
+  g = addColumn(g, { name: 'Blank', product: 'Silver', costPerMeterPence: 700 });
+  rows = cellFacts(g.columns[2], band, 1);
+  assert.equal(v('Saved margin'), undefined, 'a new band set has nothing saved');
+  assert.equal(v('New margin'), 'none yet');
+  assert.equal(v('Added to each unit rate'), undefined, 'no split without a margin and a share');
+});
+
+test('reviewLines: the changes of one band set, in words', () => {
+  let g = setCells(grid0(), [at('Gold', 0)], 'margin', 1250);
+  g = setCells(g, [at('Gold', 2)], 'share', 35);
+  const lines = reviewLines(g, 'Gold');
+  assert.equal(lines.length, 2);
+  assert.ok(lines[0].startsWith(bandRange(g.bands[0]) + ' kWh: 1.000 to 1.250 p/kWh, annual margin at midpoint '));
+  assert.equal(lines[1], bandRange(g.bands[2]) + ' kWh: standing charge share 40% to 35%');
+  g = setCostPerMeter(g, 'Silver', 900);
+  assert.equal(reviewLines(g, 'Silver')[0], 'Cost per meter £0.05 to £9.00 a year');
+  g = addColumn(g, { name: 'New', product: 'Gold', costPerMeterPence: 1500, fromName: 'Silver' });
+  const nl = reviewLines(g, 'New');
+  assert.equal(nl[0], 'New band set, cost per meter £15.00 a year.');
+  assert.equal(nl.length, 1 + g.bands.length);
 });

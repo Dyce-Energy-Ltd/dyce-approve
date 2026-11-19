@@ -491,6 +491,51 @@ class CommittedPagesTests(unittest.TestCase):
                 failed = [c for c in result["results"] if not c["ok"]]
                 self.assertEqual(failed, [], json.dumps(failed, indent=1, ensure_ascii=False))
 
+    def test_margins_screen_in_a_browser(self):
+        # The Margins screen as Phil Brook's Margins mockup (19/11/2026), driven by
+        # tools/margins-preview-check.js in a headless Chromium: the On chart row takes four band sets at
+        # most; the Cell detail shows the cell's figures and its band set's versions, with Restore as a
+        # new change; Review changes and Save with a reason save through band_sets_save; View only sees
+        # no Manage, Restore or Review.
+        browser = next((b for b in BROWSERS if b and Path(b).is_file()), None)
+        if browser is None:
+            self.skipTest("no Chromium browser found (set DV_BROWSER to one)")
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        shutil.copytree(ASSETS, tmp / "assets")
+        shutil.copytree(ROOT / "parts", tmp / "parts")
+        shutil.copytree(ROOT / "vendor", tmp / "vendor")
+        shutil.copytree(ROOT / "pricing", tmp / "pricing")
+        shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
+        (tmp / "tools").mkdir()
+        shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
+        r = run_build(tmp, "--preview")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        preview = (tmp / "preview" / "hub.html").read_text(encoding="utf-8")
+        signed_in = ("<script>localStorage.clear(); localStorage.setItem('dyce.hub.token', 'stubcheck');"
+                     " localStorage.setItem('dyce.hub.where', JSON.stringify({tool: 'pricing', item: 'bands'}));</script>")
+        check = (ROOT / "tools" / "margins-preview-check.js").read_text(encoding="utf-8").replace("</", "<\\/")
+        i = preview.index("<script")
+        page = preview[:i] + signed_in + preview[i:]
+        j = page.rindex("</body>")
+        page = page[:j] + "<script>" + check + "</script>" + page[j:]
+        (tmp / "check.html").write_text(page, encoding="utf-8")
+        for query in ("as=pricing", "as=pricingview"):
+            with self.subTest(query=query):
+                r = subprocess.run(
+                    [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+                     "--user-data-dir=" + str(tmp / ("profile-" + re.sub(r"\W", "-", query))),
+                     "--virtual-time-budget=120000", "--dump-dom", (tmp / "check.html").as_uri() + "?" + query],
+                    capture_output=True, text=True, encoding="utf-8", timeout=180)
+                found = re.findall(r'<pre id="result">(.*?)</pre>', r.stdout, re.S)
+                self.assertTrue(found and found[-1], "the check wrote no result: %s" % r.stderr[-500:])
+                result = json.loads(html.unescape(found[-1]))
+                if os.environ.get("MARGINS_CHECK_REPORT"):
+                    print(json.dumps(result, indent=1, ensure_ascii=False))
+                self.assertTrue(result["results"], "no checks ran")
+                failed = [c for c in result["results"] if not c["ok"]]
+                self.assertEqual(failed, [], json.dumps(failed, indent=1, ensure_ascii=False))
+
     def test_price_screen_makes_and_saves_band_sets(self):
         # Phil Brook, 19/11/2026: the Price screen makes band sets (the Margins page's form, shared),
         # keeps a blank one blank, waits for every band before previewing, and saves without applying
