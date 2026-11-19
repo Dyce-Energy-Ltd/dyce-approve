@@ -2677,13 +2677,13 @@ const PR_GRID = {{PRICING_GRID}};
       const back = () => { if (stand) stand.hidden = false; list(); };
       // What the person has chosen lives here, so a redraw after a partial save keeps it.
       const ui = { same: true, acq: new Set(), ren: new Set(), region: "", usages: file.fuel === "gas" ? "10000, 30000, 70000" : "2000, 8000, 30000", sale: "acquisition" };
-      let bs = null, sl = null, regions = [], full = null, gridView = null, timer = null, pvGen = 0, lastPv = null;
+      let bs = null, regions = [], full = null, gridView = null, timer = null, pvGen = 0, lastPv = null;
       const stop = () => { clearTimeout(timer); pvGen++; if (gridView) { gridView.destroy(); gridView = null; } };
 
       async function load(note, bad) {
         body.textContent = ""; say(msg, "Loading…");
         try {
-          [bs, sl] = await Promise.all([call("band_sets", { fuel: file.fuel }), call("split_list")]);
+          bs = await call("band_sets", { fuel: file.fuel });
           if (!regions.length) regions = (await call("file_regions", { fileId: file.supplierFileId })).regions || [];
         } catch (err) { fail(n, msg, err); return; }
         if (!still(n)) return;
@@ -2824,8 +2824,7 @@ const PR_GRID = {{PRICING_GRID}};
         body.append(el("h2", { class: "sect", text: "Products" }),
           el("div", { class: "card" }, el("div", { class: "tickrow" }, sameBox, el("label", { for: "prSame", text: "Same for acquisition and renewal" })), chooserBox, probMsg, cfgBox));
 
-        // ---- 2. splits (read only) and the grid
-        body.append(el("h2", { class: "sect", text: "Splits" }), splitsCard());
+        // ---- 2. the grid (splits are on the Splits page only, Phil Brook, 19/11/2026)
         const gridHint = el("div", { class: "empty", text: editable ? "Tick a product to see its margins, or add one with New product." : "Tick a product to see its margins." });
         const gridHost = el("div"), editedLine = el("p", { class: "hint" });
         // New band set (Set tick only): the same form as on Margins. The new band set joins the grid and
@@ -3197,21 +3196,6 @@ const PR_GRID = {{PRICING_GRID}};
         drawChoosers(); say(probMsg, (ui.acq.size || ui.ren.size) ? problemLines().join(" ") : "", true);
         syncGrid(); refreshApply();
         if (chosen().length) schedule(true);
-      }
-
-      // The supplier's published splits, read only. Changing them is on Splits.
-      function splitsCard() {
-        const card = el("div", { class: "card white" });
-        const mine = sl.splits.filter((x) => x.supplier_id === file.supplierId && x.status === "published");
-        if (file.fuel === "gas") card.append(el("p", { class: "hint", text: "Gas has no splits." }));
-        else if (!mine.length) card.append(el("p", { class: "hint", text: "No published splits for " + (names.get(file.supplierId) || file.supplierId) + " yet." }));
-        else card.append(el("ul", { class: "plain" }, ...mine.map((x) => el("li", { text: (STRUCTURE[x.rate_structure] || x.rate_structure) + ": " + figures(x.split, SPLIT_KEYS[x.rate_structure]) }))));
-        if (file.fuel !== "gas") card.append(el("div", { class: "actions" }, btn("Change splits", () => {
-          const ed = gridView ? G.editedNames(gridView.getGrid()) : [];
-          if (ed.length) { say(msg, "You have unsaved changes to " + andList(ed) + ". Save or apply them first, or go back to files to drop them.", true); return; }
-          stop(); showTool("pricing", "splits", "menu");
-        }, "ghost small")));
-        return card;
       }
 
       // The preview, laid out to answer "what changes?": the warnings first, then one row per usage
