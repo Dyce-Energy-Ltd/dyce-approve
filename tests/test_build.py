@@ -446,6 +446,89 @@ class CommittedPagesTests(unittest.TestCase):
                 failed = [c for c in result["results"] if not c["ok"]]
                 self.assertEqual(failed, [], json.dumps(failed, indent=1, ensure_ascii=False))
 
+    def test_price_screen_preview_in_a_browser(self):
+        # The preview hub, signed in through the stub and starting in Pricing > Supplier files, driven by
+        # tools/price-preview-check.js in a headless Chromium (Phil Brook, 19/11/2026): with no gas band
+        # sets the grid shows the ladder and New band set; a blank new set stays blank and the preview
+        # waits until it is filled; Save saves and never applies; Apply saves a new set, then applies;
+        # names already used are refused; View only sees no New band set or Save.
+        browser = next((b for b in BROWSERS if b and Path(b).is_file()), None)
+        if browser is None:
+            self.skipTest("no Chromium browser found (set DV_BROWSER to one)")
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        shutil.copytree(ASSETS, tmp / "assets")
+        shutil.copytree(ROOT / "parts", tmp / "parts")
+        shutil.copytree(ROOT / "vendor", tmp / "vendor")
+        shutil.copytree(ROOT / "pricing", tmp / "pricing")
+        shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
+        (tmp / "tools").mkdir()
+        shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
+        r = run_build(tmp, "--preview")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        preview = (tmp / "preview" / "hub.html").read_text(encoding="utf-8")
+        signed_in = ("<script>localStorage.clear(); localStorage.setItem('dyce.hub.token', 'stubcheck');"
+                     " localStorage.setItem('dyce.hub.where', JSON.stringify({tool: 'pricing', item: 'files'}));</script>")
+        check = (ROOT / "tools" / "price-preview-check.js").read_text(encoding="utf-8").replace("</", "<\\/")
+        i = preview.index("<script")
+        page = preview[:i] + signed_in + preview[i:]
+        j = page.rindex("</body>")
+        page = page[:j] + "<script>" + check + "</script>" + page[j:]
+        (tmp / "check.html").write_text(page, encoding="utf-8")
+        for query in ("as=pricing", "as=pricingview"):
+            with self.subTest(query=query):
+                r = subprocess.run(
+                    [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+                     "--user-data-dir=" + str(tmp / ("profile-" + re.sub(r"\W", "-", query))),
+                     "--virtual-time-budget=120000", "--dump-dom", (tmp / "check.html").as_uri() + "?" + query],
+                    capture_output=True, text=True, encoding="utf-8", timeout=180)
+                found = re.findall(r'<pre id="result">(.*?)</pre>', r.stdout, re.S)
+                self.assertTrue(found and found[-1], "the check wrote no result: %s" % r.stderr[-500:])
+                result = json.loads(html.unescape(found[-1]))
+                if os.environ.get("PRICE_CHECK_REPORT"):
+                    print(json.dumps(result, indent=1, ensure_ascii=False))
+                self.assertTrue(result["results"], "no checks ran")
+                failed = [c for c in result["results"] if not c["ok"]]
+                self.assertEqual(failed, [], json.dumps(failed, indent=1, ensure_ascii=False))
+
+    def test_price_screen_makes_and_saves_band_sets(self):
+        # Phil Brook, 19/11/2026: the Price screen makes band sets (the Margins page's form, shared),
+        # keeps a blank one blank, waits for every band before previewing, and saves without applying
+        # through the same save step Apply uses.
+        src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
+        ws = mine[mine.index("function workspace("): mine.index("function loadCard(")]
+        self.assertEqual(mine.count("function newSetCard("), 1)
+        self.assertIn("newSetCard({", ws)
+        self.assertIn("open(newSetCard({", mine)
+        self.assertEqual(mine.count('btn("Add to the grid"'), 1, "the form is written once")
+        self.assertIn('btn("New band set", () => newSetPanel(), "ghost small")', ws)
+        self.assertIn("const newBtn = editable ?", ws)
+        self.assertIn('const saveBtn = btn("Save", () => dialog("save"), "ghost");', ws)
+        self.assertIn('const applyBtn = btn("Apply", () => dialog("apply"), "");', ws)
+        self.assertEqual(ws.count('call("band_sets_save"'), 1, "Save and Apply share one save step")
+        self.assertEqual(ws.count('call("bundle_save"'), 1)
+        self.assertIn("async function saveStep(", ws)
+        save = ws[ws.index("async function doSave("): ws.index("async function doApply(")]
+        self.assertIn("saveStep(", save)
+        self.assertNotIn('"apply"', save)
+        self.assertNotIn("preview_selection", save)
+        self.assertIn("No price has changed.", save)
+        self.assertIn("saveStep(", ws[ws.index("async function doApply("):])
+        self.assertIn("Fill every band of \" + gap.name + \" to see the preview.", ws)
+        self.assertIn("G.firstGap(", ws)
+        self.assertIn("Change margins here. Save keeps them without changing any price; Apply saves them and puts the prices live.", ws)
+        self.assertNotIn("They are saved when you apply.", mine)
+        # The rules still show their sentences.
+        self.assertIn("Choose at most \" + MAX_PICKS + \" band sets.", ws)
+        self.assertIn("G.selectionProblem(", ws)
+        self.assertIn("STALE_TEXT(c.name)", ws)
+        # The grid shows the ladder's bands when there are no band sets.
+        self.assertIn("opts.emptyText", mine)
+        stub = (ROOT / "tools" / "preview-stub.js").read_text(encoding="utf-8")
+        self.assertIn("Gamma_gas_example_06112026.xlsx", stub)
+        self.assertNotIn('addNamed("gas"', stub)
+
     def test_pricing_tab_is_in_the_built_hub(self):
         page = (ROOT / "hub.html").read_text(encoding="utf-8")
         src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
@@ -560,7 +643,7 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertNotIn("a.label ||", mine)
         self.assertIn("a.rangeMinKwh", mine)
         # Edits are kept unless something was actually saved before a refusal.
-        self.assertIn("if (savedSomething) {", mine)
+        self.assertIn("if (err && err.savedSomething) {", mine)
         self.assertNotIn("afterSave", mine)
         self.assertIn("afterPublish(", mine)
         self.assertIn("makeFiles(", mine)

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   parseMargin, parseShare, formatMargin, midpointAnnualPounds, makeGrid, addColumn, setCells, shiftCells,
   copyColumn, pasteBlock, changedNames, problems, carryToLadder, toSavePayload, toPreviewItems,
-  selectionProblem, chartScale, dragValue, marginSplit, DAYS_PER_YEAR, setCostPerMeter, editedNames,
+  selectionProblem, chartScale, dragValue, marginSplit, DAYS_PER_YEAR, setCostPerMeter, editedNames, firstGap, isComplete,
 } from './grid.js';
 
 // Invented figures only.
@@ -288,4 +288,30 @@ test('makeGrid keeps the ladderId; saves and preview items carry it', () => {
   assert.deepEqual(toSavePayload(g, ['Gold', 'New'], 'r').sets.map(s => s.ladderId), ['ladder-7', 'ladder-7']);
   assert.deepEqual(toPreviewItems(g, [{ name: 'Gold', saleType: 'all' }, { name: 'New', saleType: 'renewal' }]).map(i => i.ladderId), ['ladder-7', 'ladder-7']);
   assert.equal(makeGrid(LADDER, [], 'gas').ladderId, null, 'none given: null');
+});
+
+// The Price screen (19/11/2026): a blank new band set stays blank, and the preview waits until every
+// band of every chosen band set has a margin and a share. firstGap names the first one to fill.
+test('firstGap and isComplete: a blank new set stays blank until filled, margins before shares', () => {
+  let g = makeGrid(LADDER, [], 'gas', 'ladder-1');
+  assert.equal(g.columns.length, 0);
+  assert.equal(g.bands.length, LADDER.length, 'no band sets: the ladder still gives the rows');
+  assert.equal(firstGap(g), null);
+  g = addColumn(g, { name: 'Gas One', product: 'Standard', costPerMeterPence: 800 });
+  assert.ok(g.columns[0].margins.every(v => v == null) && g.columns[0].shares.every(v => v == null), 'nothing is filled in');
+  assert.deepEqual(firstGap(g), { name: 'Gas One', layer: 'margin' });
+  assert.equal(isComplete(g.columns[0]), false);
+  const all = LADDER.map(b => at('Gas One', b.bandIndex));
+  g = setCells(g, all.slice(0, -1), 'margin', 300);
+  assert.deepEqual(firstGap(g), { name: 'Gas One', layer: 'margin' }, 'one band still blank');
+  g = setCells(g, all, 'margin', 300);
+  assert.deepEqual(firstGap(g), { name: 'Gas One', layer: 'share' }, 'then the shares');
+  g = setCells(g, all, 'share', 0);
+  assert.equal(firstGap(g), null);
+  assert.equal(isComplete(g.columns[0]), true);
+  assert.deepEqual(problems(g), []);
+  // The first blank set in grid order is named, not a later one.
+  g = addColumn(addColumn(g, { name: 'B', product: 'Gold', costPerMeterPence: 0 }), { name: 'C', product: 'Silver', costPerMeterPence: 0, fromName: 'Gas One' });
+  assert.deepEqual(firstGap(g), { name: 'B', layer: 'margin' });
+  assert.equal(isComplete(g.columns[2]), true, 'a copy of a full set is full');
 });

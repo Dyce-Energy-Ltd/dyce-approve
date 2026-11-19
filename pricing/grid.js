@@ -294,6 +294,21 @@ export function editedNames(grid) {
   return grid.columns.filter(isEdited).map(c => c.name);
 }
 
+// Every band has a margin and a standing charge share.
+export function isComplete(c) {
+  return complete(c.margins) && complete(c.shares);
+}
+
+// The first band set with a blank band, and the layer that is blank (margin before share), or null.
+// A blank new band set stays blank: nothing is filled in for the person.
+export function firstGap(grid) {
+  for (const c of grid.columns) {
+    if (!complete(c.margins)) return { name: c.name, layer: 'margin' };
+    if (!complete(c.shares)) return { name: c.name, layer: 'share' };
+  }
+  return null;
+}
+
 export function problems(grid) {
   const out = [];
   for (const c of grid.columns) {
