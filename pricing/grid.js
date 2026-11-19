@@ -387,3 +387,126 @@ export function chartScale(milliValues, heightPx) {
 export function dragValue(scale, y) {
   return Math.max(MARGIN_MIN, Math.round(scale.fromY(y) / 10) * 10);
 }
+
+// ---------- The Margins page's look (Phil Brook's mockup, 19/11/2026): the chart's axis, the On chart
+// row, the changed-cell count, the cell detail and the review lines. Display only, never a price.
+
+// The chart's top is four round steps, a little above the largest margin, so the five gridlines read
+// as round figures (0, 0.25, 0.50, 0.75, 1.00 p/kWh, for example). toY and fromY work as chartScale's,
+// so dragValue takes either.
+const AXIS_STEPS = [25, 50, 100, 125, 250, 500, 1000, 1250, 2500, 5000, 10000, 25000, 50000];
+export function chartAxis(milliValues, heightPx) {
+  const vals = (milliValues || []).filter(v => v != null && isFinite(v));
+  const want = Math.max(MARGIN_MIN, vals.length ? Math.max.apply(null, vals) : 0) * 1.15;
+  const step = AXIS_STEPS.find(s => s * 4 >= want) || Math.ceil(want / 4 / 50000) * 50000;
+  const top = step * 4;
+  return {
+    top, ticks: [0, 1, 2, 3, 4].map(k => k * step),
+    toY: milli => heightPx * (1 - milli / top),
+    fromY: y => top * (1 - y / heightPx),
+  };
+}
+
+// The chart shows at most four band sets, each in its own slot (line, colour and marker shape).
+export const CHART_MAX = 4;
+
+function freeSlot(picks, max) {
+  for (let s = 0; s < max; s++) if (!picks.some(p => p.slot === s)) return s;
+  return -1;
+}
+
+// Tick or untick a band set in the On chart row. A fifth is refused: { picks, refused: true }.
+export function toggleChartPick(picks, name, max) {
+  const cap = max || CHART_MAX;
+  if (picks.some(p => p.name === name)) return { picks: picks.filter(p => p.name !== name), refused: false };
+  if (picks.length >= cap) return { picks, refused: true };
+  return { picks: picks.concat([{ name, slot: freeSlot(picks, cap) }]), refused: false };
+}
+
+// Keeps the ticks in step with the grid's columns (names, in the order shown): a band set that has
+// left the grid leaves the chart, and one the grid has not shown before is ticked while there is room.
+// So the chart starts with the first four, and a band set added later joins it if fewer are ticked.
+export function syncChartPicks(picks, names, seen, max) {
+  const cap = max || CHART_MAX;
+  const known = new Set(names);
+  let out = (picks || []).filter(p => known.has(p.name));
+  for (const n of names) {
+    if (seen && seen.has(n)) continue;
+    if (out.length >= cap) break;
+    if (!out.some(p => p.name === n)) out = out.concat([{ name: n, slot: freeSlot(out, cap) }]);
+  }
+  return { picks: out, seen: new Set(names) };
+}
+
+// Cells whose margin or share differs from what was saved (every filled cell of a new band set).
+export function changedCellCount(grid) {
+  let n = 0;
+  for (const c of grid.columns) {
+    for (let i = 0; i < grid.bands.length; i++) {
+      if (c.isNew) { if (c.margins[i] != null || c.shares[i] != null) n++; continue; }
+      if (c.margins[i] !== c.saved.margins[i] || c.shares[i] !== c.saved.shares[i]) n++;
+    }
+  }
+  return n;
+}
+
+const GBP2 = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
+const kwh = n => Number(n).toLocaleString('en-GB');
+const m3 = milli => (milli / 1000).toFixed(3);
+const midPounds = (milli, b) => milli / 1000 * ((b.eacMinKwh + b.eacMaxKwh) / 2) / 100;
+// The annual margin at the band midpoint to the penny, as the strip under each margin shows it.
+export function midpointText(milli, eacMinKwh, eacMaxKwh) {
+  if (milli == null || eacMinKwh == null || eacMaxKwh == null) return '';
+  return GBP2.format(midPounds(milli, { eacMinKwh, eacMaxKwh }));
+}
+export function bandRange(b) { return kwh(b.eacMinKwh) + ' to ' + kwh(b.eacMaxKwh); }
+
+// The Cell detail panel's rows for one band of one band set, as [{k, v}]: the margin (saved, and new
+// when changed), what it earns a year at the band midpoint, the standing charge share and how the
+// margin splits between the standing charge and the unit rate, the cost per meter and the product.
+export function cellFacts(col, band, bi) {
+  const rows = [];
+  const m = col.margins[bi], s = col.shares[bi];
+  const sm = col.isNew ? null : col.saved.margins[bi], ss = col.isNew ? null : col.saved.shares[bi];
+  const mChanged = col.isNew || m !== sm, sChanged = col.isNew || s !== ss;
+  if (!col.isNew) rows.push({ k: 'Saved margin', v: sm == null ? 'none' : m3(sm) + ' p/kWh' });
+  if (mChanged) rows.push({ k: 'New margin', v: m == null ? 'none yet' : m3(m) + ' p/kWh' });
+  if (!col.isNew && sm != null) rows.push({ k: 'Annual margin at midpoint, saved', v: GBP2.format(midPounds(sm, band)) });
+  if (mChanged && m != null) rows.push({ k: 'Annual margin at midpoint, new', v: GBP2.format(midPounds(m, band)) });
+  rows.push({ k: 'Standing charge share', v: (s == null ? 'none yet' : s + '%') + (!col.isNew && sChanged ? ' (saved ' + (ss == null ? 'none' : ss + '%') + ')' : '') });
+  const sp = marginSplit(m, band.eacMinKwh, band.eacMaxKwh, s);
+  if (sp) {
+    rows.push({ k: 'Added to the standing charge', v: sp.standingPencePerDay.toFixed(3) + ' p/day' });
+    rows.push({ k: 'Added to each unit rate', v: sp.unitPencePerKwh.toFixed(3) + ' p/kWh' });
+  }
+  const cost = col.costPerMeterPence, savedCost = col.saved.costPerMeterPence;
+  rows.push({ k: 'Cost per meter', v: (cost == null ? 'none' : GBP2.format(cost / 100) + ' a year') + (!col.isNew && cost !== savedCost && savedCost != null ? ' (saved ' + GBP2.format(savedCost / 100) + ')' : '') });
+  rows.push({ k: 'Product', v: String(col.product == null ? '' : col.product) });
+  return rows;
+}
+
+// What the Review changes panel lists for one changed band set, a sentence a line.
+export function reviewLines(grid, name) {
+  const c = grid.columns[colIndex(grid, name)];
+  const out = [];
+  if (c.isNew) {
+    out.push('New band set, cost per meter ' + (c.costPerMeterPence == null ? 'not given' : GBP2.format(c.costPerMeterPence / 100) + ' a year') + '.');
+    grid.bands.forEach((b, i) => {
+      out.push(bandRange(b) + ' kWh: ' + (c.margins[i] == null ? 'no margin' : m3(c.margins[i]) + ' p/kWh') + ', standing charge share ' + (c.shares[i] == null ? 'none' : c.shares[i] + '%'));
+    });
+    return out;
+  }
+  if (c.costPerMeterPence !== c.saved.costPerMeterPence) {
+    out.push('Cost per meter ' + (c.saved.costPerMeterPence == null ? 'none' : GBP2.format(c.saved.costPerMeterPence / 100)) + ' to ' + GBP2.format(c.costPerMeterPence / 100) + ' a year');
+  }
+  grid.bands.forEach((b, i) => {
+    const om = c.saved.margins[i], nm = c.margins[i], os = c.saved.shares[i], ns = c.shares[i];
+    if (om !== nm) {
+      out.push(bandRange(b) + ' kWh: ' + (om == null ? 'none' : m3(om)) + ' to ' + (nm == null ? 'none' : m3(nm)) + ' p/kWh, annual margin at midpoint ' +
+        (om == null ? 'none' : GBP2.format(midPounds(om, b))) + ' to ' + (nm == null ? 'none' : GBP2.format(midPounds(nm, b))));
+    }
+    if (os !== ns) out.push(bandRange(b) + ' kWh: standing charge share ' + (os == null ? 'none' : os + '%') + ' to ' + (ns == null ? 'none' : ns + '%'));
+  });
+  if (!out.length && c.stale) out.push('Made on an older ladder. Every band carried over, so saving moves it to the current ladder.');
+  return out;
+}
