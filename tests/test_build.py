@@ -494,7 +494,7 @@ class CommittedPagesTests(unittest.TestCase):
     def test_margins_screen_in_a_browser(self):
         # The Margins screen as Phil Brook's Margins mockup (19/11/2026), driven by
         # tools/margins-preview-check.js in a headless Chromium: the On chart row takes four band sets at
-        # most; the Cell detail shows the cell's figures and its band set's versions, with Restore as a
+        # most; the Cell detail shows the cell's figures and its product's versions, with Restore as a
         # new change; Review changes and Save with a reason save through band_sets_save; View only sees
         # no Manage, Restore or Review.
         browser = next((b for b in BROWSERS if b and Path(b).is_file()), None)
@@ -547,7 +547,7 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("newSetCard({", ws)
         self.assertIn("open(newSetCard({", mine)
         self.assertEqual(mine.count('btn("Add to the grid"'), 1, "the form is written once")
-        self.assertIn('btn("New band set", () => newSetPanel(), "ghost small")', ws)
+        self.assertIn('btn("New product", () => newSetPanel(), "ghost small")', ws)
         self.assertIn("const newBtn = editable ?", ws)
         self.assertIn('const saveBtn = btn("Save", () => dialog("save"), "ghost");', ws)
         self.assertIn('const applyBtn = btn("Apply", () => dialog("apply"), "");', ws)
@@ -565,7 +565,7 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("Change margins here. Save keeps them without changing any price; Apply saves them and puts the prices live.", ws)
         self.assertNotIn("They are saved when you apply.", mine)
         # The rules still show their sentences.
-        self.assertIn("Choose at most \" + MAX_PICKS + \" band sets.", ws)
+        self.assertIn("Choose at most \" + MAX_PICKS + \" products.", ws)
         self.assertIn("G.selectionProblem(", ws)
         self.assertIn("STALE_TEXT(c.name)", ws)
         # The grid shows the ladder's bands when there are no band sets.
@@ -676,7 +676,7 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("f.canApply", mine)
         self.assertIn("was made on an older ladder. Open it on Margins and save it again.", mine)
         self.assertIn("Same for acquisition and renewal", mine)
-        self.assertIn("Save these band sets as a product configuration", mine)
+        self.assertIn("Save these products as a product configuration", mine)
         self.assertIn("G.selectionProblem(", mine)
         self.assertIn("G.toPreviewItems(", mine)
         # Attention items are keyed by product and sale type (ruling P8), in camelCase, in the page and the stub.
@@ -703,9 +703,18 @@ class CommittedPagesTests(unittest.TestCase):
         mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
         texts = [t for t in re.findall(r'"([^"\n]*)"', mine) if " " in t]
         self.assertEqual([t for t in texts if re.search(r"(?i)bundle|pricing configuration", t)], [])
+        # Phil Brook, 19/11/2026: a band set is a "product" in what a person reads, and what was the
+        # product (Standard, Gold and so on) is the "product type". Op names such as band_sets_save keep
+        # the old words.
+        self.assertEqual([t for t in texts if re.search(r"(?i)band sets?\b", t)], [])
+        for text in ('"By product type"', 'field("Product type", prod)', '"Manage products"', '"New product"', '"Versions of this product"'):
+            self.assertIn(text, mine, text)
+        grid = (ROOT / "pricing" / "grid.js").read_text(encoding="utf-8")
+        self.assertIn("rows.push({ k: 'Product type', v:", grid)
+        self.assertEqual(re.findall(r"'[^'\n]*band sets?\b[^'\n]*'", grid), [])
         for text in ('"By product configuration"', '"New product configuration"', '"Edit product configuration members"',
                      '"Retire product configuration"', '"Choose a product configuration"', '"Product configuration name"',
-                     '"Save these band sets as a product configuration"'):
+                     '"Save these products as a product configuration"'):
             self.assertIn(text, mine, text)
 
     def test_pricing_plain_words_and_usability(self):
@@ -715,7 +724,7 @@ class CommittedPagesTests(unittest.TestCase):
         src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
         mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
         for text in ("function drawPivot(", '"All rates and margins"', '"Check before applying"', 'class: "savebar"',
-                     '"Manage band sets"', "async function splitsPage(n)", '"Check a price"', 'call("book_check"',
+                     '"Manage products"', "async function splitsPage(n)", '"Check a price"', 'call("book_check"',
                      "const ISSUE_TEXT = {", "const regionText = ", "const personName = ", '"Rebuild files"', '"Abandon update"'):
             self.assertIn(text, mine, text)
         for gone in ('"Engine version"', '"Proposed sell annual cost"', '"Make the files again"', '"Band sets to price with"',

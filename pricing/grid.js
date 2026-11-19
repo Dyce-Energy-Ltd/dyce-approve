@@ -148,7 +148,7 @@ function withColumns(grid, columns) { return Object.assign({}, grid, { columns }
 
 function colIndex(grid, name) {
   const i = grid.columns.findIndex(c => c.name === name);
-  if (i < 0) throw new Error('No band set called ' + name + ' in the grid.');
+  if (i < 0) throw new Error('No product called ' + name + ' in the grid.');
   return i;
 }
 
@@ -160,7 +160,7 @@ function bandPos(grid, bandIndex) {
 
 export function addColumn(grid, spec) {
   if (grid.columns.some(c => c.name === spec.name)) {
-    throw new Error('There is already a band set called ' + spec.name + ' in the grid.');
+    throw new Error('There is already a product called ' + spec.name + ' in the grid.');
   }
   const n = grid.bands.length;
   let margins = blank(n), shares = blank(n);
@@ -263,7 +263,7 @@ export function pasteBlock(grid, start, pasted, layer) {
     errors.push('Pasted ' + rows.length + ' rows; the ladder has ' + grid.bands.length + ' bands.');
   }
   if (wide) {
-    errors.push('Pasted ' + wide + ' columns; there are only ' + (grid.columns.length - si) + ' band sets from ' + start.name + ' onwards.');
+    errors.push('Pasted ' + wide + ' columns; there are only ' + (grid.columns.length - si) + ' products from ' + start.name + ' onwards.');
   }
   return { grid: withColumns(grid, columns), errors };
 }
@@ -354,7 +354,7 @@ export function toPreviewItems(grid, picks) {
   });
 }
 
-// The database's rule: one band set per product for each sale type, 'all' counting as both.
+// The database's rule: one product per product type for each sale type, 'all' counting as both.
 export function selectionProblem(picks, productOf) {
   const seen = { acquisition: new Set(), renewal: new Set() };
   const dup = { acquisition: null, renewal: null };
@@ -367,7 +367,7 @@ export function selectionProblem(picks, productOf) {
     }
   }
   for (const t of ['acquisition', 'renewal']) {
-    if (dup[t] != null) return dup[t] + ' is chosen twice for ' + t + '.';
+    if (dup[t] != null) return 'Two products of product type ' + dup[t] + ' are chosen for ' + t + '. Choose one product per product type.';
   }
   return null;
 }
@@ -481,7 +481,7 @@ export function cellFacts(col, band, bi) {
   }
   const cost = col.costPerMeterPence, savedCost = col.saved.costPerMeterPence;
   rows.push({ k: 'Cost per meter', v: (cost == null ? 'none' : GBP2.format(cost / 100) + ' a year') + (!col.isNew && cost !== savedCost && savedCost != null ? ' (saved ' + GBP2.format(savedCost / 100) + ')' : '') });
-  rows.push({ k: 'Product', v: String(col.product == null ? '' : col.product) });
+  rows.push({ k: 'Product type', v: String(col.product == null ? '' : col.product) });
   return rows;
 }
 
@@ -490,7 +490,7 @@ export function reviewLines(grid, name) {
   const c = grid.columns[colIndex(grid, name)];
   const out = [];
   if (c.isNew) {
-    out.push('New band set, cost per meter ' + (c.costPerMeterPence == null ? 'not given' : GBP2.format(c.costPerMeterPence / 100) + ' a year') + '.');
+    out.push('New product, cost per meter ' + (c.costPerMeterPence == null ? 'not given' : GBP2.format(c.costPerMeterPence / 100) + ' a year') + '.');
     grid.bands.forEach((b, i) => {
       out.push(bandRange(b) + ' kWh: ' + (c.margins[i] == null ? 'no margin' : m3(c.margins[i]) + ' p/kWh') + ', standing charge share ' + (c.shares[i] == null ? 'none' : c.shares[i] + '%'));
     });

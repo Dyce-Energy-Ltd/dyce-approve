@@ -40,15 +40,15 @@
     check(tag + "empty: the selection bar shows Selected: nothing, greyed out", $("#pr .gridbar") && !$("#pr .gridbar").hidden && $("#pr .gridbar .selt").textContent === "Selected: nothing" && button("Select all", $("#pr .gridbar")).disabled);
     const card = $("#pr .chartcard");
     check(tag + "empty: the chart card shows its title and axes over the bands", card && !card.hidden && card.querySelector(".ct-title").textContent === "Margin curve, " + fuel + ": p/kWh by band (kWh a year)" && $$("#pr svg.chart text.axt.ta-m").length === bands && $$("#pr svg.chart .gl").length === 5, card && card.textContent.slice(0, 200));
-    check(tag + "empty: the chart says to add a band set", card && !!card.querySelector(".legend") && card.querySelector(".legend").textContent === (canSet ? "No band sets to plot yet. Add one with New band set." : "No band sets to plot yet. Someone with the Set tick can add one."), card && card.textContent);
+    check(tag + "empty: the chart says to add a product", card && !!card.querySelector(".legend") && card.querySelector(".legend").textContent === (canSet ? "No products to plot yet. Add one with New product." : "No products to plot yet. Someone with the Set tick can add one."), card && card.textContent);
     check(tag + "empty: the grid keeps its corner cells and a row per band", $("#pr table.grid .corner3") && $("#pr table.grid .corner3").textContent === "On chart (up to 4)" && $("#pr table.grid .corner2").textContent === "Band, kWh a year" && $$("#pr table.grid tbody tr").length === bands);
-    check(tag + "empty: New band set is in the grid only with the Set tick", canSet ? !!button("New band set", $("#pr table.grid")) : !$$("#pr table.grid button").some((b) => b.textContent === "New band set"));
+    check(tag + "empty: New product is in the grid only with the Set tick", canSet ? !!button("New product", $("#pr table.grid")) : !$$("#pr table.grid button").some((b) => b.textContent === "New product"));
     check(tag + "empty: the Cell detail asks for a click", $("#pr aside.detail") && !$("#pr aside.detail").hidden && $("#pr aside.detail").textContent.includes("Click a cell to see what it earns at the band midpoint"));
   }
 
   async function common() {
     const heads = $$("#pr table.grid th.colh button").map((b) => b.textContent);
-    check("the electricity grid shows the five band sets", heads.length === 5, heads.join());
+    check("the electricity grid shows the five products", heads.length === 5, heads.join());
     check("the chart sits above the grid", $("#pr .chartcard") && $("#pr .gridrow") && ($("#pr .chartcard").compareDocumentPosition($("#pr .gridrow")) & Node.DOCUMENT_POSITION_FOLLOWING));
     check("the chart title names the fuel", $("#pr .chartcard .ct-title").textContent === "Margin curve, electricity: p/kWh by band (kWh a year)");
     const t = ticks();
@@ -64,12 +64,12 @@
     check("and the first can no longer be ticked", ticks()[0].disabled);
     check("Cell detail asks for a click first", aside() && aside().textContent.includes("Click a cell to see what it earns at the band midpoint"), aside() && aside().textContent);
     cell("Gold", 2).click(); await sleep(30);
-    check("Cell detail names the band set, fuel and band", $("#pr aside.detail .dt-title").textContent === "Gold · Electricity" && $("#pr aside.detail .dt-band").textContent.startsWith("3,001 to 12,500 kWh a year, midpoint 7,750.5 kWh"), aside().textContent.slice(0, 200));
+    check("Cell detail names the product, fuel and band", $("#pr aside.detail .dt-title").textContent === "Gold · Electricity" && $("#pr aside.detail .dt-band").textContent.startsWith("3,001 to 12,500 kWh a year, midpoint 7,750.5 kWh"), aside().textContent.slice(0, 200));
     check("Cell detail gives the margin and what it earns at the midpoint", kv("Saved margin") === "0.620 p/kWh" && kv("Annual margin at midpoint, saved") === "£48.05", kv("Saved margin") + " " + kv("Annual margin at midpoint, saved"));
     check("Cell detail splits it between standing charge and unit rate", /p\/day$/.test(kv("Added to the standing charge") || "") && /p\/kWh$/.test(kv("Added to each unit rate") || ""));
-    check("Cell detail gives the cost per meter and product", kv("Cost per meter") === "£15.00 a year" && kv("Product") === "Gold");
+    check("Cell detail gives the cost per meter and product", kv("Cost per meter") === "£15.00 a year" && kv("Product type") === "Gold");
     const vers = await until(() => { const v = $$("#pr aside.detail .ver"); return v.length ? v : null; });
-    check("Versions of this band set are listed, newest first", vers && vers.length === 3 && vers[0].textContent.startsWith("Version 3") && vers[0].textContent.includes("current"), vers && vers.map((v) => v.textContent).join(" | "));
+    check("Versions of this product are listed, newest first", vers && vers.length === 3 && vers[0].textContent.startsWith("Version 3") && vers[0].textContent.includes("current"), vers && vers.map((v) => v.textContent).join(" | "));
     check("the cell picked is marked", cell("Gold", 2).classList.contains("sel"));
     check("Selected names the cell", $("#pr .gridbar .selt").textContent === "Selected: Gold, 3,001 to 12,500");
     return vers;
@@ -82,10 +82,10 @@
     button("Restore as a new change", vers[2]).click(); await sleep(50);
     check("the restored version is back as a change", cell("Gold", 2).classList.contains("chg") && cell("Gold", 2).querySelector(".cv").textContent === "0.560", cell("Gold", 2).textContent);
     const footText = $("#pr .savebar .t").textContent;
-    check("the foot counts the changed cells and band sets", footText === "6 changed cells in 1 band set, not saved yet", footText);
+    check("the foot counts the changed cells and products", footText === "6 changed cells in 1 product, not saved yet", footText);
     button("Review changes").click(); await sleep(50);
     const rv = $("#pr .review");
-    check("Review changes lists the band set and its bands", rv && !rv.hidden && rv.textContent.includes("Gold · Electricity") && rv.textContent.includes("3,001 to 12,500 kWh: 0.620 to 0.560 p/kWh, annual margin at midpoint £48.05 to £43.40"), rv && rv.textContent.slice(0, 400));
+    check("Review changes lists the product and its bands", rv && !rv.hidden && rv.textContent.includes("Gold · Electricity") && rv.textContent.includes("3,001 to 12,500 kWh: 0.620 to 0.560 p/kWh, annual margin at midpoint £48.05 to £43.40"), rv && rv.textContent.slice(0, 400));
     check("no cap warning", !rv.textContent.includes("cap"));
     check("Save waits for a reason", button("Save", rv).disabled);
     const reason = $("#prReason");
@@ -103,9 +103,9 @@
     valIn.value = "0.2"; valIn.dispatchEvent(new Event("input", { bubbles: true }));
     button("Set to value", $("#pr .gridbar")).click(); await sleep(30);
     check("Set to value changes the selection", cell("Silver", 1).querySelector(".cv").textContent === "0.200");
-    check("Manage band sets keeps New band set", !!button("New band set"));
-    button("New band set").click();
-    check("New band set opens its form", !!(await until(() => button("Add to the grid"))));
+    check("Manage products keeps New product", !!button("New product"));
+    button("New product").click();
+    check("New product opens its form", !!(await until(() => button("Add to the grid"))));
     // Gas has no band sets: its ladder's bands still show. Leaving with a change is refused first.
     button("Gas").click(); await sleep(50);
     check("leaving with unsaved changes is refused", $("#pr > .msg").textContent.startsWith("You have unsaved changes to Silver."), $("#pr > .msg").textContent);
@@ -113,22 +113,22 @@
     await until(() => button("Review changes") && button("Review changes").disabled);
     button("Gas").click();
     const rows = await until(() => { const r = $$("#pr table.grid tbody tr"); return r.length === 5 && !$$("#pr table.grid th.colh").length ? r : null; });
-    check("Gas: the ladder's five bands show with no band sets", !!rows);
+    check("Gas: the ladder's five bands show with no products", !!rows);
     emptyLayout("gas", 5, true, "Gas ");
     check("Gas empty: the foot shows", $("#pr .savebar") && $("#pr .savebar .t").textContent === "No unsaved changes.");
-    button("New band set", $("#pr table.grid")).click();
-    check("Gas empty: the grid's New band set opens the form", !!(await until(() => button("Add to the grid"))));
+    button("New product", $("#pr table.grid")).click();
+    check("Gas empty: the grid's New product opens the form", !!(await until(() => button("Add to the grid"))));
   }
 
   async function view() {
     const vers = await common();
     check("view only: no Restore", vers && !vers.some((v) => button("Restore as a new change", v)));
-    check("view only: no Manage, Review or Shift", !$$("#pr summary").some((s) => s.textContent === "Manage band sets") && !button("Review changes") && !button("Shift by value"));
+    check("view only: no Manage, Review or Shift", !$$("#pr summary").some((s) => s.textContent === "Manage products") && !button("Review changes") && !button("Shift by value"));
     button("Gas").click();
     const rows = await until(() => { const r = $$("#pr table.grid tbody tr"); return r.length === 5 && !$$("#pr table.grid th.colh").length ? r : null; });
     check("view only, Gas: the ladder's five bands show", !!rows);
     emptyLayout("gas", 5, false, "view only, Gas ");
-    check("view only, Gas: the grid says who can add a band set", $("#pr .gridwrap").textContent.includes("No gas band sets yet. Someone with the Set tick can add one."));
+    check("view only, Gas: the grid says who can add a product", $("#pr .gridwrap").textContent.includes("No gas products yet. Someone with the Set tick can add one."));
   }
 
   (async () => {

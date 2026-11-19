@@ -170,10 +170,10 @@ test('toSavePayload and toPreviewItems', () => {
 test('selectionProblem', () => {
   const prod = { 'Gold': 'Gold', 'Gold Voltx': 'Gold', 'Silver': 'Silver' };
   const f = n => prod[n];
-  assert.equal(selectionProblem([{ name: 'Gold', saleType: 'all' }, { name: 'Gold Voltx', saleType: 'acquisition' }], f), 'Gold is chosen twice for acquisition.');
+  assert.equal(selectionProblem([{ name: 'Gold', saleType: 'all' }, { name: 'Gold Voltx', saleType: 'acquisition' }], f), 'Two products of product type Gold are chosen for acquisition. Choose one product per product type.');
   assert.equal(selectionProblem([{ name: 'Gold', saleType: 'acquisition' }, { name: 'Gold Voltx', saleType: 'renewal' }], f), null);
-  assert.equal(selectionProblem([{ name: 'Gold', saleType: 'acquisition' }, { name: 'Gold', saleType: 'acquisition' }], f), 'Gold is chosen twice for acquisition.');
-  assert.equal(selectionProblem([{ name: 'Gold', saleType: 'renewal' }, { name: 'Gold Voltx', saleType: 'all' }], f), 'Gold is chosen twice for renewal.');
+  assert.equal(selectionProblem([{ name: 'Gold', saleType: 'acquisition' }, { name: 'Gold', saleType: 'acquisition' }], f), 'Two products of product type Gold are chosen for acquisition. Choose one product per product type.');
+  assert.equal(selectionProblem([{ name: 'Gold', saleType: 'renewal' }, { name: 'Gold Voltx', saleType: 'all' }], f), 'Two products of product type Gold are chosen for renewal. Choose one product per product type.');
   assert.equal(selectionProblem([{ name: 'Gold', saleType: 'all' }, { name: 'Silver', saleType: 'all' }], f), null);
   assert.equal(selectionProblem([], f), null);
 });
@@ -296,7 +296,7 @@ test('makeGrid keeps the ladderId; saves and preview items carry it', () => {
 test('firstGap and isComplete: a blank new set stays blank until filled, margins before shares', () => {
   let g = makeGrid(LADDER, [], 'gas', 'ladder-1');
   assert.equal(g.columns.length, 0);
-  assert.equal(g.bands.length, LADDER.length, 'no band sets: the ladder still gives the rows');
+  assert.equal(g.bands.length, LADDER.length, 'no products: the ladder still gives the rows');
   assert.equal(firstGap(g), null);
   g = addColumn(g, { name: 'Gas One', product: 'Standard', costPerMeterPence: 800 });
   assert.ok(g.columns[0].margins.every(v => v == null) && g.columns[0].shares.every(v => v == null), 'nothing is filled in');
@@ -319,7 +319,7 @@ test('firstGap and isComplete: a blank new set stays blank until filled, margins
 
 // ---------- The Margins page's look (Phil Brook's mockup, 19/11/2026)
 
-test('the On chart row takes four band sets at most', () => {
+test('the On chart row takes four products at most', () => {
   assert.equal(CHART_MAX, 4);
   let picks = [];
   for (const n of ['A', 'B', 'C', 'D']) {
@@ -374,7 +374,7 @@ test('changedCellCount counts the cells that differ from what was saved', () => 
   g = setCells(g, [at('Gold', 0)], 'share', 12);
   assert.equal(changedCellCount(g), 3, 'a cell with both layers changed counts once');
   g = addColumn(g, { name: 'New', product: 'Gold', costPerMeterPence: 0 });
-  assert.equal(changedCellCount(g), 3, 'a blank new band set has no changed cells yet');
+  assert.equal(changedCellCount(g), 3, 'a blank new product has no changed cells yet');
   g = setCells(g, [at('New', 2)], 'margin', 300);
   assert.equal(changedCellCount(g), 4);
 });
@@ -392,19 +392,19 @@ test('cellFacts: what the Cell detail panel shows for one band', () => {
   assert.equal(v('Added to the standing charge'), (1100 * mid / 1000 * 0.4 / 365).toFixed(3) + ' p/day');
   assert.equal(v('Added to each unit rate'), (1.1 * 0.6).toFixed(3) + ' p/kWh');
   assert.equal(v('Cost per meter'), '£0.05 a year');
-  assert.equal(v('Product'), 'Gold');
+  assert.equal(v('Product type'), 'Gold');
   g = setCells(g, [at('Gold', 1)], 'margin', 1500);
   rows = cellFacts(g.columns[0], band, 1);
   assert.equal(v('New margin'), '1.500 p/kWh');
   assert.equal(v('Annual margin at midpoint, new'), midpointText(1500, band.eacMinKwh, band.eacMaxKwh));
   g = addColumn(g, { name: 'Blank', product: 'Silver', costPerMeterPence: 700 });
   rows = cellFacts(g.columns[2], band, 1);
-  assert.equal(v('Saved margin'), undefined, 'a new band set has nothing saved');
+  assert.equal(v('Saved margin'), undefined, 'a new product has nothing saved');
   assert.equal(v('New margin'), 'none yet');
   assert.equal(v('Added to each unit rate'), undefined, 'no split without a margin and a share');
 });
 
-test('reviewLines: the changes of one band set, in words', () => {
+test('reviewLines: the changes of one product, in words', () => {
   let g = setCells(grid0(), [at('Gold', 0)], 'margin', 1250);
   g = setCells(g, [at('Gold', 2)], 'share', 35);
   const lines = reviewLines(g, 'Gold');
@@ -415,6 +415,6 @@ test('reviewLines: the changes of one band set, in words', () => {
   assert.equal(reviewLines(g, 'Silver')[0], 'Cost per meter £0.05 to £9.00 a year');
   g = addColumn(g, { name: 'New', product: 'Gold', costPerMeterPence: 1500, fromName: 'Silver' });
   const nl = reviewLines(g, 'New');
-  assert.equal(nl[0], 'New band set, cost per meter £15.00 a year.');
+  assert.equal(nl[0], 'New product, cost per meter £15.00 a year.');
   assert.equal(nl.length, 1 + g.bands.length);
 });
