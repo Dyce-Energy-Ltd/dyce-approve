@@ -676,7 +676,7 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("f.canApply", mine)
         self.assertIn("was made on an older ladder. Open it on Margins and save it again.", mine)
         self.assertIn("Same for acquisition and renewal", mine)
-        self.assertIn("Save these band sets as a bundle", mine)
+        self.assertIn("Save these band sets as a product configuration", mine)
         self.assertIn("G.selectionProblem(", mine)
         self.assertIn("G.toPreviewItems(", mine)
         # Attention items are keyed by product and sale type (ruling P8), in camelCase, in the page and the stub.
@@ -694,6 +694,19 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("makeFiles(", mine)
         # afterPublish and makeFiles are not inside a removed screen.
         self.assertIn("async function afterPublish(set, before, box, alive)", mine)
+
+    def test_pricing_says_product_configuration_not_bundle(self):
+        # Phil Brook, 19/11/2026: in what a person reads on the Pricing tab a bundle is a "product
+        # configuration". Code names (bundleId, bundle_save, bundle_retire, the "bundle" switch value)
+        # keep the old word; a text with a space in it is something a person reads.
+        src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
+        texts = [t for t in re.findall(r'"([^"\n]*)"', mine) if " " in t]
+        self.assertEqual([t for t in texts if re.search(r"(?i)bundle|pricing configuration", t)], [])
+        for text in ('"By product configuration"', '"New product configuration"', '"Edit product configuration members"',
+                     '"Retire product configuration"', '"Choose a product configuration"', '"Product configuration name"',
+                     '"Save these band sets as a product configuration"'):
+            self.assertIn(text, mine, text)
 
     def test_pricing_plain_words_and_usability(self):
         # The plain-words change (18/11/2026): the preview as a table of annual cost by usage and
