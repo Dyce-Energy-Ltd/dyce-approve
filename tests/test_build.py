@@ -480,7 +480,7 @@ class CommittedPagesTests(unittest.TestCase):
                 r = subprocess.run(
                     [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
                      "--user-data-dir=" + str(tmp / ("profile-" + re.sub(r"\W", "-", query))),
-                     "--virtual-time-budget=120000", "--dump-dom", (tmp / "check.html").as_uri() + "?" + query],
+                     "--window-size=1440,900", "--virtual-time-budget=120000", "--dump-dom", (tmp / "check.html").as_uri() + "?" + query],
                     capture_output=True, text=True, encoding="utf-8", timeout=180)
                 found = re.findall(r'<pre id="result">(.*?)</pre>', r.stdout, re.S)
                 self.assertTrue(found and found[-1], "the check wrote no result: %s" % r.stderr[-500:])
@@ -525,7 +525,7 @@ class CommittedPagesTests(unittest.TestCase):
                 r = subprocess.run(
                     [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
                      "--user-data-dir=" + str(tmp / ("profile-" + re.sub(r"\W", "-", query))),
-                     "--virtual-time-budget=120000", "--dump-dom", (tmp / "check.html").as_uri() + "?" + query],
+                     "--window-size=1440,900", "--virtual-time-budget=120000", "--dump-dom", (tmp / "check.html").as_uri() + "?" + query],
                     capture_output=True, text=True, encoding="utf-8", timeout=180)
                 found = re.findall(r'<pre id="result">(.*?)</pre>', r.stdout, re.S)
                 self.assertTrue(found and found[-1], "the check wrote no result: %s" % r.stderr[-500:])
@@ -713,7 +713,7 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("rows.push({ k: 'Product type', v:", grid)
         self.assertEqual(re.findall(r"'[^'\n]*band sets?\b[^'\n]*'", grid), [])
         for text in ('"By product configuration"', '"New product configuration"', '"Edit product configuration members"',
-                     '"Retire product configuration"', '"Choose a product configuration"', '"Product configuration name"',
+                     '"Retire product configuration"', '"Loads its products, replacing the choice."', '"Adds one product to the choice."', '"Product configuration name"',
                      '"Save these products as a product configuration"'):
             self.assertIn(text, mine, text)
 

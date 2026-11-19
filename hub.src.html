@@ -491,7 +491,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #pr .legend .key { display: inline-flex; gap: 8px; align-items: center; color: var(--ink); }
 #pr .legend .none { color: var(--muted); }
 #pr .readout { min-height: 22px; font-size: 13px; line-height: 22px; color: var(--ink); font-variant-numeric: tabular-nums; }
-#pr svg.chart { width: 100%; max-width: 1080px; height: auto; display: block; touch-action: none; cursor: crosshair; user-select: none; }
+#pr svg.chart { width: 100%; height: auto; display: block; touch-action: none; cursor: crosshair; user-select: none; }
 #pr svg .gl { stroke: var(--hairline); stroke-width: 1; }
 #pr svg .xh { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; fill: none; }
 #pr svg .axt { fill: var(--muted); font-size: 12px; font-family: var(--font); font-variant-numeric: tabular-nums; }
@@ -512,9 +512,10 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #pr svg.chart .mkr.pt { cursor: ns-resize; }
 #pr svg.chart .mkr.pt:focus-visible { outline: none; stroke: var(--brand-magenta); stroke-width: 3; }
 #pr .gridrow { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; margin-top: 18px; }
+#pr .gridrow > .chartcard { flex: 1 1 380px; min-width: 0; margin-top: 0; }
 #pr .gridwrap { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow-x: auto; border: 1px solid var(--hairline); }
-/* Beside the cell detail on a wide screen; a grid wider than the room scrolls inside its border. */
-@media (min-width: 1100px) { #pr .gridwrap { max-width: calc(100% - 322px); } }
+/* Beside the chart on a wide screen; a grid wider than its share scrolls sideways inside its border. */
+@media (min-width: 1100px) { #pr .gridwrap { max-width: calc(55% - 11px); } }
 #pr .gridwrap:focus-visible { outline: 3px solid var(--brand-magenta); outline-offset: 2px; }
 #pr table.grid { border-collapse: separate; border-spacing: 0; font-size: 13px; line-height: 18px; font-variant-numeric: tabular-nums; color: var(--ink); }
 #pr table.grid th, #pr table.grid td { padding: 0; background: var(--surface); text-align: right; vertical-align: middle; font-weight: 400; }
@@ -549,7 +550,8 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #pr table.grid td.cell.blank { min-width: 180px; cursor: default; }
 #pr table.grid th[scope="row"] .rowt { display: flex; align-items: center; min-height: 58px; padding: 0 10px; font-size: 13px; }
 #pr .gridwrap > .empty { padding: 14px 10px; }
-#pr aside.detail { flex: 1 1 300px; min-width: 0; background: var(--surface-raised); border-radius: var(--r-card); padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+#pr aside.detail { margin-top: 18px; min-width: 0; background: var(--surface-raised); border-radius: var(--r-card); padding: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px 34px; align-items: start; }
+#pr aside.detail .dt-main, #pr aside.detail .dt-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 #pr aside.detail .dt-title { font-size: 17px; line-height: 23px; font-weight: 800; }
 #pr aside.detail .dt-band, #pr aside.detail .dt-note { margin: 0; font-size: 14px; line-height: 22px; color: var(--muted); }
 #pr aside.detail .kv { display: flex; flex-direction: column; }
@@ -584,6 +586,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #pr fieldset.members legend { font-size: 10px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); padding: 0 6px; }
 #pr .twocol { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
 #pr .chooser { display: grid; gap: 10px; align-content: start; }
+#pr .pickpair { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 18px; align-items: start; }
+#pr ul.picklist { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+#pr ul.picklist li { display: inline-flex; align-items: center; gap: 10px; padding: 4px 4px 4px 12px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--surface); font-size: 14px; line-height: 22px; }
 
 /* Commission Engine: the commission-engine function's pages (ce- classes), on the hub's tokens.
    The status tokens are used only on state badges, each with its word (parts/commission.css). */
@@ -2461,7 +2466,8 @@ const PR_GRID = {{PRICING_GRID}};
     const GAS_REGIONS = [["NE", "North East"], ["EA", "East Anglia"], ["EM", "East Midlands"], ["NO", "Northern"], ["NT", "North Thames"], ["NW", "North West"], ["SC", "Scotland"],
       ["SE", "South East"], ["SO", "Southern"], ["SW", "South West"], ["WM", "West Midlands"], ["WN", "Wales North"], ["WS", "Wales South"]];
     const REGION_NAME = new Map(ELEC_REGIONS.concat(GAS_REGIONS));
-    const regionText = (r) => REGION_NAME.has(r) ? r + " " + REGION_NAME.get(r) : r;
+    // The region by its name alone (Phil Brook, 19/11/2026); the code stays the value, and an unknown code shows as itself.
+    const regionText = (r) => REGION_NAME.has(r) ? REGION_NAME.get(r) : r;
     // A Dyce address is first.last@: shown as the person's name. Anything else is shown as it is.
     const personName = (e) => {
       const local = String(e || "").split("@")[0];
@@ -2727,27 +2733,45 @@ const PR_GRID = {{PRICING_GRID}};
         sameBox.addEventListener("change", () => {
           ui.same = sameBox.checked;
           if (!ui.same) ui.ren = new Set(ui.acq); else ui.ren = new Set();
+          if (ui.cfg) ui.cfg.ren = ui.same ? "" : ui.cfg.acq;
           drawChoosers(); changedSelection();
         });
-        function chooser(title, set) {
-          const pick = select([["", "Choose a product configuration"], ...bs.bundles.map((b) => [b.bundleId, b.name])]);
-          const boxes = full.columns.map((c) => ({ c, cb: el("input", { type: "checkbox", checked: set.has(c.name) }) }));
-          boxes.forEach((x) => { x.cb.checked = set.has(x.c.name); });
-          pick.addEventListener("change", () => {
-            const b = bs.bundles.find((x) => x.bundleId === pick.value); if (!b) return;
-            set.clear(); b.members.forEach((m) => { if (known.has(m)) set.add(m); });
-            boxes.forEach((x) => { x.cb.checked = set.has(x.c.name); });
-            changedSelection();
+        // Two dropdowns side by side (Phil Brook, 19/11/2026): Product configuration loads its products
+        // into the choice, replacing it; Product adds one of the fuel's products not already chosen.
+        // The chosen products are listed under them, each with Remove. side is "acq" or "ren".
+        function chooser(title, set, side) {
+          const cfgs = ui.cfg || (ui.cfg = { acq: "", ren: "" });
+          const cfg = select([["", "None"], ...bs.bundles.map((b) => [b.bundleId, b.name])], cfgs[side] || "");
+          const left = full.columns.filter((c) => !set.has(c.name));
+          const label = (c) => c.name + (c.product !== c.name ? " (" + c.product + ")" : "");
+          const add = select([["", left.length ? "Add a product" : "Every product is chosen"], ...left.map((c) => [c.name, label(c)])], "");
+          add.disabled = !left.length;
+          cfg.addEventListener("change", () => {
+            cfgs[side] = cfg.value;
+            const b = bs.bundles.find((x) => x.bundleId === cfg.value);
+            if (b) { set.clear(); b.members.forEach((m) => { if (known.has(m)) set.add(m); }); }
+            drawChoosers(); changedSelection();
           });
-          boxes.forEach((x) => x.cb.addEventListener("change", () => { if (x.cb.checked) set.add(x.c.name); else set.delete(x.c.name); pick.value = ""; changedSelection(); }));
-          return el("div", { class: "chooser" }, title ? el("h3", { class: "sub", text: title }) : null, field("Product configuration", pick, "Choose a product configuration, or tick products yourself."),
-            el("fieldset", { class: "members" }, el("legend", { text: title ? title + ": products" : "Products" }),
-              ...(boxes.length ? boxes.map((x) => el("label", { class: "tickrow" }, x.cb, " " + x.c.name + (x.c.product !== x.c.name ? " (" + x.c.product + ")" : ""))) : [el("div", { class: "empty", text: noSetsText })])));
+          add.addEventListener("change", () => {
+            if (!add.value) return;
+            set.add(add.value); cfgs[side] = "";
+            drawChoosers(); changedSelection();
+          });
+          const chosenCols = full.columns.filter((c) => set.has(c.name));
+          const list = chosenCols.length
+            ? el("ul", { class: "picklist", "aria-label": (title ? title + ": " : "") + "chosen products" }, ...chosenCols.map((c) => el("li", { "data-name": c.name },
+              el("span", { text: label(c) }),
+              btn("Remove", () => { set.delete(c.name); cfgs[side] = ""; drawChoosers(); changedSelection(); }, "ghost small"))))
+            : el("div", { class: "empty", text: full.columns.length ? "No products chosen." : noSetsText });
+          list.querySelectorAll("li").forEach((li) => { const b2 = li.querySelector("button"); b2.setAttribute("aria-label", "Remove " + li.dataset.name); });
+          return el("div", { class: "chooser", "data-side": side }, title ? el("h3", { class: "sub", text: title }) : null,
+            el("div", { class: "pickpair" }, field("Product configuration", cfg, "Loads its products, replacing the choice."), field("Product", add, "Adds one product to the choice.")),
+            list);
         }
         function drawChoosers() {
           chooserBox.textContent = "";
-          if (ui.same) chooserBox.append(chooser("", ui.acq));
-          else chooserBox.append(el("div", { class: "twocol" }, chooser("Acquisition", ui.acq), chooser("Renewal", ui.ren)));
+          if (ui.same) chooserBox.append(chooser("", ui.acq, "acq"));
+          else chooserBox.append(el("div", { class: "twocol" }, chooser("Acquisition", ui.acq, "acq"), chooser("Renewal", ui.ren, "ren")));
         }
         body.append(el("h2", { class: "sect", text: "Products" }),
           el("div", { class: "card" }, el("div", { class: "tickrow" }, sameBox, el("label", { for: "prSame", text: "Same for acquisition and renewal" })), chooserBox, probMsg));
@@ -2776,6 +2800,7 @@ const PR_GRID = {{PRICING_GRID}};
             add: (g2, spec) => {
               full = Object.assign({}, full, { columns: g2.columns });
               const sale = useFor ? useFor.value : "all";
+              if (ui.cfg) { if (sale !== "renewal") ui.cfg.acq = ""; if (sale !== "acquisition") ui.cfg.ren = ""; }
               if (sale !== "renewal") ui.acq.add(spec.name);
               if (!ui.same && sale !== "acquisition") ui.ren.add(spec.name);
               newPanel.textContent = "";
@@ -3378,7 +3403,8 @@ const PR_GRID = {{PRICING_GRID}};
       const chartBox = el("div", { class: "chartcard" });
       const wrap = el("div", { class: "gridwrap", tabindex: "0", role: "group", "aria-label": "Margins grid. Select cells, use the tools above, or paste from Excel with Ctrl and V." });
       const aside = el("aside", { class: "detail", "aria-label": "Cell detail" });
-      host.append(top, ...(opts.afterTop || []), bar, msgG, hint, chartBox, el("div", { class: "gridrow" }, wrap, aside));
+      // The grid and the chart side by side, so both fit on one screen; the Cell detail under them.
+      host.append(top, ...(opts.afterTop || []), bar, msgG, hint, el("div", { class: "gridrow" }, wrap, chartBox), aside);
 
       // The columns in the order shown: by bundle (as the grid was given), or by product.
       function shownCols() {
@@ -3618,13 +3644,23 @@ const PR_GRID = {{PRICING_GRID}};
       }
       document.addEventListener("paste", onPaste);
 
-      // ---------- the chart card, above the grid: the margin by band of the band sets ticked in the On
-      // chart row, with a crosshair and a readout line, and points that drag to change a margin.
-      const CW = 960, CH = 210, PL = 70, PRT = 132, PT = 10, PB = 46, PW = CW - PL - PRT, PH = CH - PT - PB;
+      // ---------- the chart card, beside the grid: the margin by band of the products ticked in the On
+      // chart row, with a crosshair and a readout line, and points that drag to change a margin. It is
+      // drawn at the card's own width in screen pixels, 330 high (Phil Brook, 19/11/2026: chart and grid
+      // on one screen, the chart taller), and drawn again when the card's width changes.
+      const CH = 330, PL = 70, PRT = 110, PT = 10, PB = 46, PH = CH - PT - PB;
+      let CW = 600, PW = CW - PL - PRT, drawnWidth = 0, dragOn = false;
+      const resize = typeof ResizeObserver === "function" ? new ResizeObserver(() => {
+        if (gone || dragOn || !chartBox.isConnected) return;
+        if (Math.abs(chartBox.clientWidth - drawnWidth) > 20) renderChart();
+      }) : null;
+      if (resize) resize.observe(chartBox);
       function renderChart() {
-        // With no band sets the card still shows: its title, the axes over the fuel's bands, and a line
-        // saying to add a band set.
+        // With no products the card still shows: its title, the axes over the fuel's bands, and a line
+        // saying to add a product.
         chartBox.textContent = "";
+        drawnWidth = chartBox.clientWidth;
+        CW = drawnWidth > 340 ? Math.round(drawnWidth - 38) : 600; PW = CW - PL - PRT;
         const series = picks.map((p) => ({ slot: p.slot, c: colOf(p.name) })).filter((s) => s.c).sort((a, b) => a.slot - b.slot);
         const nb = grid.bands.length, xAt = (i) => nb === 1 ? PL + PW / 2 : PL + PW * i / (nb - 1);
         const axis = G.chartAxis(series.length ? series.flatMap((s) => s.c.margins) : [800], PH);
@@ -3633,14 +3669,14 @@ const PR_GRID = {{PRICING_GRID}};
         const names = series.map((s) => s.c.name);
         const root2 = svg("svg", { viewBox: "0 0 " + CW + " " + CH, class: "chart", role: "group", "aria-label": "Margin in pence per kWh by consumption band, for " + (names.length ? andList(names) : "no products") });
         axis.ticks.forEach((v) => { const y = rd(yAt(v)); root2.append(svg("line", { class: "gl", x1: PL, x2: PL + PW, y1: y, y2: y }), svgText("axt ta-e", PL - 8, rd(y + 4), (v / 1000).toFixed(2))); });
-        const spacing = nb > 1 ? PW / (nb - 1) : PW, every = spacing < 52 ? 2 : 1;
+        const spacing = nb > 1 ? PW / (nb - 1) : PW, every = spacing < 64 ? 2 : 1;
         const short = (k) => k >= 1000 ? (Math.round(k / 100) / 10) + "k" : String(k);
         grid.bands.forEach((b, i) => {
           if (i % every) return;
-          const tx = svgText("axt ta-m", rd(xAt(i)), 182, spacing >= 112 ? comma(b.eacMinKwh) + "–" + comma(b.eacMaxKwh) : short(b.eacMinKwh) + "–" + short(b.eacMaxKwh));
+          const tx = svgText("axt ta-m", rd(xAt(i)), CH - 28, spacing >= 112 ? comma(b.eacMinKwh) + "–" + comma(b.eacMaxKwh) : short(b.eacMinKwh) + "–" + short(b.eacMaxKwh));
           tx.append(svgTitle(bandText(b))); root2.append(tx);
         });
-        root2.append(svgText("axtt ta-m", rd(PL + PW / 2), 205, "Consumption band, kWh a year"));
+        root2.append(svgText("axtt ta-m", rd(PL + PW / 2), CH - 5, "Consumption band, kWh a year"));
         const yTitle = svgText("axtt ta-m", 0, 0, "Margin, p/kWh"); yTitle.setAttribute("transform", "translate(14 " + rd(PT + PH / 2) + ") rotate(-90)"); root2.append(yTitle);
         const xh = svg("path", { class: "xh", d: "" }); root2.append(xh);
         const readout = el("div", { class: "readout", role: "status" });
@@ -3686,7 +3722,7 @@ const PR_GRID = {{PRICING_GRID}};
           if (!best) return;
           e.preventDefault();
           try { root2.setPointerCapture(e.pointerId); } catch (err) { /* the drag still works without capture */ }
-          dragging = Object.assign(best, { v: vals[best.si][best.i] });
+          dragging = Object.assign(best, { v: vals[best.si][best.i] }); dragOn = true;
           hoverAt(best.i);
         });
         root2.addEventListener("pointermove", (e) => {
@@ -3705,7 +3741,7 @@ const PR_GRID = {{PRICING_GRID}};
         });
         const drop = () => {
           if (!dragging) return;
-          const d = dragging, c = series[d.si].c; dragging = null;
+          const d = dragging, c = series[d.si].c; dragging = null; dragOn = false;
           if (d.v !== c.margins[d.i]) { focusPoint = { name: c.name, i: d.i }; commit(G.setCells(grid, [{ name: c.name, bandIndex: grid.bands[d.i].bandIndex }], "margin", d.v)); }
           else render();
         };
@@ -3731,20 +3767,23 @@ const PR_GRID = {{PRICING_GRID}};
       function renderDetail() {
         const my = ++detailGen;
         aside.textContent = "";
+        // Two columns under the grid and chart: the cell's figures, then the versions of its product.
+        const main = el("div", { class: "dt-main" }), side = el("div", { class: "dt-side" });
+        aside.append(main, side);
         const col = last ? colOf(last.name) : null, bi = last ? bandPos(last.bandIndex) : -1;
         if (!col || bi < 0) {
-          aside.append(el("div", { class: "dt-title", text: "Cell detail" }),
+          main.append(el("div", { class: "dt-title", text: "Cell detail" }),
             el("p", { class: "dt-note", text: "Click a cell to see what it earns at the band midpoint, how it splits between standing charge and unit rate, and the versions of its product." }));
           return;
         }
         const band = grid.bands[bi];
-        aside.append(el("div", { class: "dt-title", text: [col.name, col.product !== col.name ? col.product : null, FUEL[grid.fuel] || null].filter(Boolean).join(" · ") }),
+        main.append(el("div", { class: "dt-title", text: [col.name, col.product !== col.name ? col.product : null, FUEL[grid.fuel] || null].filter(Boolean).join(" · ") }),
           el("p", { class: "dt-band", text: G.bandRange(band) + " kWh a year, midpoint " + comma((band.eacMinKwh + band.eacMaxKwh) / 2) + " kWh" + (col.stale ? ". Made on an older ladder." : "") }),
           el("div", { class: "kv" }, ...G.cellFacts(col, band, bi).map((r) => el("div", {}, el("span", { class: "k", text: r.k }), el("span", { class: "v", text: r.v })))));
         if (editable) {
           const id = "pr-c" + (++uid);
           const costIn = el("input", { type: "text", id, inputmode: "decimal", value: col.costPerMeterPence == null ? "" : (col.costPerMeterPence / 100).toFixed(2), "aria-label": "Cost per meter in pounds a year for " + col.name });
-          aside.append(el("div", { class: "dt-cost" }, el("label", { for: id, text: "Cost per meter, £ a year" }), costIn, btn("Set cost per meter", () => {
+          main.append(el("div", { class: "dt-cost" }, el("label", { for: id, text: "Cost per meter, £ a year" }), costIn, btn("Set cost per meter", () => {
             const t = costIn.value.trim().replace(/^£/, "");
             if (!/^\d+(\.\d{1,2})?$/.test(t)) { say(msgG, "Enter the cost per meter in pounds, such as 15 or 15.50.", true); return; }
             say(msgG, "Cost per meter for " + col.name + " set to " + pounds(Math.round(Number(t) * 100)) + ".");
@@ -3752,7 +3791,7 @@ const PR_GRID = {{PRICING_GRID}};
           }, "mk2")));
         }
         const vers = el("div", { class: "vers" });
-        aside.append(el("div", { class: "dt-lab", text: "Versions of this product" }), vers);
+        side.append(el("div", { class: "dt-lab", text: "Versions of this product" }), vers);
         if (col.isNew) { vers.append(el("p", { class: "dt-note", text: "New product: no versions yet. Saving makes version 1." })); return; }
         const pending = history(col.name);
         if (!pending) { vers.append(el("p", { class: "dt-note", text: "Versions show on the Margins screen." })); return; }
@@ -3797,7 +3836,7 @@ const PR_GRID = {{PRICING_GRID}};
         setGrid: (g) => { setSel(sel.filter((s) => g.columns.some((c) => c.name === s.name))); commit(g); },
         selection: () => sel.slice(),
         say: (t, bad) => say(msgG, t, bad),
-        destroy: () => { gone = true; document.removeEventListener("paste", onPaste); host.textContent = ""; },
+        destroy: () => { gone = true; if (resize) resize.disconnect(); document.removeEventListener("paste", onPaste); host.textContent = ""; },
       };
     }
 
