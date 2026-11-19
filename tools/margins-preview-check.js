@@ -49,7 +49,6 @@
   async function common() {
     const heads = $$("#pr table.grid th.colh button").map((b) => b.textContent);
     check("the electricity grid shows the five products", heads.length === 5, heads.join());
-    check("the chart sits above the grid", $("#pr .chartcard") && $("#pr .gridrow") && ($("#pr .chartcard").compareDocumentPosition($("#pr .gridrow")) & Node.DOCUMENT_POSITION_FOLLOWING));
     check("the chart title names the fuel", $("#pr .chartcard .ct-title").textContent === "Margin curve, electricity: p/kWh by band (kWh a year)");
     const t = ticks();
     check("On chart: the first four are ticked", t.length === 5 && t.slice(0, 4).every((x) => x.checked) && !t[4].checked, t.map((x) => x.checked).join());
@@ -72,6 +71,18 @@
     check("Versions of this product are listed, newest first", vers && vers.length === 3 && vers[0].textContent.startsWith("Version 3") && vers[0].textContent.includes("current"), vers && vers.map((v) => v.textContent).join(" | "));
     check("the cell picked is marked", cell("Gold", 2).classList.contains("sel"));
     check("Selected names the cell", $("#pr .gridbar .selt").textContent === "Selected: Gold, 3,001 to 12,500");
+    // Chart and grid on one screen at 1440x900 (tests/test_build.py opens the window at that size): with
+    // the grid's row at the top of the window, the chart and the last band row are above the foot bar,
+    // and the plot is at least 1.4 times its old height (about 166 pixels at that width).
+    $("#pr .gridrow").scrollIntoView(); await sleep(50);
+    const rowsNow = $$("#pr table.grid tbody tr"), lastRow = rowsNow[rowsNow.length - 1].getBoundingClientRect(), chartRect = $("#pr .chartcard").getBoundingClientRect();
+    const footBar = $("#pr .savebar"), floor = footBar ? footBar.getBoundingClientRect().top : innerHeight;
+    const gl = $$("#pr svg.chart .gl").map((l) => l.getBoundingClientRect().top), plot = Math.max(...gl) - Math.min(...gl);
+    // A 1440 by 900 window leaves a page about 1424 by 805 in headless Chrome, which is stricter than a 1440 by 900 page.
+    check("layout: the page is about 1440 wide and at most 900 high", innerWidth >= 1420 && innerWidth <= 1440 && innerHeight >= 780 && innerHeight <= 900, innerWidth + "x" + innerHeight);
+    check("layout: the chart and the last band row are both on screen", chartRect.top >= 0 && chartRect.bottom <= floor && lastRow.bottom <= floor, chartRect.top + " " + chartRect.bottom + " " + lastRow.bottom + " " + floor);
+    check("layout: the chart sits beside the grid", Math.abs(chartRect.top - $("#pr .gridwrap").getBoundingClientRect().top) < 2);
+    check("layout: the chart's plot is at least 1.4 times its old height", plot >= 233, plot);
     return vers;
   }
 

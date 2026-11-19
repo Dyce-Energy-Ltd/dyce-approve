@@ -31,6 +31,11 @@
   const calls = () => window.__stub.calls.map((c) => c.op);
   const previewMsg = () => { const h = $$("#pr h2.sect").find((x) => x.textContent === "Preview"); return h ? h.nextElementSibling.querySelector(".msg") : null; };
   const pivot = () => $("#pr table.pivot");
+  // The chosen products, as listed under the two dropdowns (of one sale type's chooser when given).
+  const chosen = (box) => $$("ul.picklist li", box || $("#pr .chooserbox")).map((li) => li.dataset.name);
+  const pickIn = (box, label) => { const f = $$(".field", box).find((x) => x.querySelector("label").textContent === label); return f ? f.querySelector("select") : null; };
+  const choose = (sel, text) => { const o = [...sel.options].find((x) => x.textContent === text); sel.value = o ? o.value : ""; sel.dispatchEvent(new Event("change", { bubbles: true })); return !!o; };
+  const gridHeads = () => $$("#pr table.grid th.colh button").map((b) => b.textContent);
   const newCard = () => $$("#pr .card.white").find((c) => { const h = c.querySelector("h2"); return h && h.textContent === "New product"; }) || null;
   const dialogCard = (title) => $$("#pr .card.white").find((c) => { const h = c.querySelector("h2"); return h && h.textContent === title; }) || null;
   function done() { const p = document.createElement("pre"); p.id = "result"; p.textContent = JSON.stringify({ as, results }); document.body.append(p); }
@@ -95,8 +100,7 @@
     const heads = $$("#pr table.grid th.colh button").map((b) => b.textContent);
     check("the blank product is in the grid", heads.join() === "Gas One", heads.join());
     check("blank stays blank: every cell is empty", $$('#pr table.grid td[data-name="Gas One"]').every((td) => td.textContent.startsWith("–")), $$("#pr table.grid td").map((t) => t.textContent).join("|"));
-    const tick = $$("#pr .chooser label.tickrow").find((l) => l.textContent.includes("Gas One"));
-    check("the new product is ticked", tick && tick.querySelector("input").checked);
+    check("the new product is chosen", chosen().includes("Gas One"), chosen().join());
     await sleep(800);
     check("blank: the preview waits with a plain line naming it", previewMsg() && !previewMsg().hidden && previewMsg().textContent === "Fill every band of Gas One to see the preview." && !previewMsg().classList.contains("refused"), previewMsg() && previewMsg().textContent);
     check("blank: no preview is asked for", !calls().slice(before).includes("preview_selection"), calls().slice(before).join());
@@ -129,8 +133,7 @@
     check("Save calls band_sets_save then bundle_save, and never apply", made.includes("band_sets_save") && made.includes("bundle_save") && made.indexOf("band_sets_save") < made.indexOf("bundle_save") && !made.includes("apply"), made.join());
     const sv = window.__stub.calls.filter((c) => c.op === "band_sets_save").pop();
     check("the new product is saved as new under its name", sv && sv.args.sets.length === 1 && sv.args.sets[0].isNew === true && sv.args.sets[0].name === "Gas One" && sv.args.reason === "First gas margins");
-    const tick2 = await until(() => $$("#pr .chooser label.tickrow").find((l) => l.textContent.includes("Gas One")));
-    check("after Save the product is still ticked", tick2 && tick2.querySelector("input").checked);
+    check("after Save the product is still chosen", !!(await until(() => chosen().includes("Gas One"))), chosen().join());
     check("after Save the preview shows again", !!(await until(pivot)));
     check("after Save the product is saved, not changed", !text().includes("Changed, not saved yet"), text().slice(0, 300));
     check("after Save the product configuration can be chosen", $$("#pr .chooser select option").some((o) => o.textContent === "Gas range"));
@@ -144,11 +147,47 @@
     await addSet("Gold", "", "", "15");
     check("a saved product's name is refused", newMsg().textContent === "There is already a product called Gold in the grid.", newMsg().textContent);
     button("Cancel", newCard()).click();
+    // ---- the two dropdowns (Phil Brook, 19/11/2026): a configuration loads its products, a product is added
+    const box = () => $("#pr .chooser");
+    check("two dropdowns side by side: Product configuration and Product", !!$("#pr .pickpair") && !!pickIn(box(), "Product configuration") && !!pickIn(box(), "Product"));
+    check("the Product configuration dropdown has None", pickIn(box(), "Product configuration").options[0].textContent === "None");
+    choose(pickIn(box(), "Product configuration"), "Core range"); await sleep(50);
+    check("choosing a product configuration loads its products", chosen().join() === "Standard,Gold,Silver", chosen().join());
+    check("the grid follows the choice", gridHeads().join() === "Standard,Gold,Silver", gridHeads().join());
+    const offered = () => [...pickIn(box(), "Product").options].slice(1).map((o) => o.value);
+    check("the Product dropdown offers only products not chosen", offered().join() === "Advanced Saver,Gold renewal", offered().join());
+    choose(pickIn(box(), "Product"), "Advanced Saver"); await sleep(50);
+    check("choosing a product adds it", chosen().join() === "Standard,Gold,Silver,Advanced Saver" && gridHeads().includes("Advanced Saver"), chosen().join());
+    check("adding a product leaves no configuration chosen", pickIn(box(), "Product configuration").value === "");
+    button("Remove", $('#pr ul.picklist li[data-name="Gold"]')).click(); await sleep(50);
+    check("Remove takes a product out of the choice and the grid", chosen().join() === "Standard,Silver,Advanced Saver" && !gridHeads().includes("Gold"), chosen().join() + " | " + gridHeads().join());
+    choose(pickIn(box(), "Product configuration"), "Core range"); await sleep(50);
+    check("a product configuration replaces the choice", chosen().join() === "Standard,Gold,Silver", chosen().join());
+    // The region by name alone; the code stays the value.
+    const regionField = $$("#pr .field").find((f) => f.querySelector("label").textContent === "Region");
+    const ropts = regionField ? [...regionField.querySelector("select").options] : [];
+    check("region names show without their code", ropts.length > 0 && ropts.every((o) => o.textContent && !o.textContent.startsWith(o.value + " ")) && ropts.some((o) => o.textContent !== o.value), ropts.map((o) => o.value + "=" + o.textContent).join());
+    // Chart and grid on one screen at 1440x900 (tests/test_build.py opens the window at that size),
+    // and the chart's plot at least 1.4 times its old height (about 166 pixels at that width).
+    if (await until(pivot)) {
+      $("#pr .gridrow").scrollIntoView(); await sleep(50);
+      const rowsNow = $$("#pr table.grid tbody tr"), lastRow = rowsNow[rowsNow.length - 1].getBoundingClientRect(), chartRect = $("#pr .chartcard").getBoundingClientRect();
+      const gl = $$("#pr svg.chart .gl").map((l) => l.getBoundingClientRect().top), plot = Math.max(...gl) - Math.min(...gl);
+      // A 1440 by 900 window leaves a page about 1424 by 805 in headless Chrome, which is stricter than a 1440 by 900 page.
+      check("layout: the page is about 1440 wide and at most 900 high", innerWidth >= 1420 && innerWidth <= 1440 && innerHeight >= 780 && innerHeight <= 900, innerWidth + "x" + innerHeight);
+      check("layout: the chart and the last band row are both on screen", chartRect.top >= 0 && chartRect.bottom <= innerHeight && lastRow.bottom <= innerHeight, chartRect.top + " " + chartRect.bottom + " " + lastRow.bottom);
+      check("layout: the chart's plot is at least 1.4 times its old height", plot >= 233, plot);
+    } else check("the preview shows for the layout check", false);
     $("#prSame").click(); await sleep(50);
+    const [acq0, ren0] = $$("#pr .chooser");
+    check("kept apart: a pair of dropdowns for each sale type", acq0 && ren0 && acq0.dataset.side === "acq" && ren0.dataset.side === "ren" && !!pickIn(acq0, "Product configuration") && !!pickIn(ren0, "Product"));
+    check("kept apart: renewal starts as a copy of the choice", chosen(ren0).join() === "Standard,Gold,Silver", chosen(ren0).join());
+    choose(pickIn(ren0, "Product configuration"), "Advanced range"); await sleep(50);
+    const [acq1, ren1] = $$("#pr .chooser");
+    check("kept apart: a configuration for renewal changes renewal only", chosen(ren1).join() === "Advanced Saver" && chosen(acq1).join() === "Standard,Gold,Silver", chosen(acq1).join() + " | " + chosen(ren1).join());
     await addSet("Gold renewal two", "", "Gold", "15", "renewal");
     const [acqBox, renBox] = $$("#pr .chooser");
-    const ticked = (box, nm) => { const l = $$("label.tickrow", box).find((x) => x.textContent.includes(nm)); return !!(l && l.querySelector("input").checked); };
-    check("kept apart: the new product is ticked for renewal only", acqBox && renBox && ticked(renBox, "Gold renewal two") && !ticked(acqBox, "Gold renewal two"));
+    check("kept apart: the new product is chosen for renewal only", acqBox && renBox && chosen(renBox).includes("Gold renewal two") && !chosen(acqBox).includes("Gold renewal two"));
 
     // ---- Apply with a new unsaved band set: saved first, then applied
     button("Back to files").click();
