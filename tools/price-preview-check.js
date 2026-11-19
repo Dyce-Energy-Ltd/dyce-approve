@@ -123,20 +123,29 @@
     button("Save").click();
     const dlg = await until(() => dialogCard("Save"));
     check("Save asks for the reason and lists the new product", dlg && dlg.textContent.includes("New product, saved under its name: Gas One.") && !!inputFor("Reason for the change", dlg), dlg && dlg.textContent);
+    check("not from a configuration: save the changed products, or a new product configuration", !!$("#prHowVer") && $("#prHowVer").checked && !!$("#prHowNew") && !$("#prHowUpd"));
     set(inputFor("Reason for the change", dlg), "First gas margins");
-    $("#prBundle").click();
-    set(inputFor("Product configuration name", dlg), "Gas range");
     button("Save products", dlg).click();
     const saidMsg = await until(() => { const m = $("#pr > .msg"); return m && !m.hidden && m.textContent.startsWith("Saved") ? m.textContent : null; });
-    check("Save says what it saved, in words", saidMsg === "Saved Gas One version 1. Product configuration Gas range saved. No price has changed.", saidMsg || $("#pr > .msg").textContent);
+    check("Save says what it saved, in words", saidMsg === "Saved Gas One version 1. No price has changed.", saidMsg || $("#pr > .msg").textContent);
     const made = calls().slice(atSave);
-    check("Save calls band_sets_save then bundle_save, and never apply", made.includes("band_sets_save") && made.includes("bundle_save") && made.indexOf("band_sets_save") < made.indexOf("bundle_save") && !made.includes("apply"), made.join());
+    check("Save calls band_sets_save, and never apply", made.includes("band_sets_save") && !made.includes("bundle_save") && !made.includes("apply"), made.join());
     const sv = window.__stub.calls.filter((c) => c.op === "band_sets_save").pop();
     check("the new product is saved as new under its name", sv && sv.args.sets.length === 1 && sv.args.sets[0].isNew === true && sv.args.sets[0].name === "Gas One" && sv.args.reason === "First gas margins");
     check("after Save the product is still chosen", !!(await until(() => chosen().includes("Gas One"))), chosen().join());
     check("after Save the preview shows again", !!(await until(pivot)));
     check("after Save the product is saved, not changed", !text().includes("Changed, not saved yet"), text().slice(0, 300));
-    check("after Save the product configuration can be chosen", $$("#pr .chooser select option").some((o) => o.textContent === "Gas range"));
+    // Name the choice as a product configuration where you work, with a supplier (Phil Brook, 19/11/2026).
+    const cfgBox = $("#pr .cfgsave");
+    check("the name box and supplier are under the dropdowns", cfgBox && !!inputFor("Name", cfgBox) && inputFor("Supplier", cfgBox).options[0].textContent === "None (all suppliers)" && inputFor("Supplier", cfgBox).value === "");
+    set(inputFor("Name", cfgBox), "Gas range"); set(inputFor("Supplier", cfgBox), "gamma");
+    const atCfg = calls().length;
+    button("Save as product configuration", cfgBox).click();
+    const cfgSaid = await until(() => { const m = $("#pr > .msg"); return m && !m.hidden && m.textContent.startsWith("Product configuration") ? m.textContent : null; });
+    check("the name box saves the choice as a product configuration", cfgSaid === "Product configuration Gas range saved, for Gamma Example Gas.", cfgSaid || $("#pr > .msg").textContent);
+    const bsv = window.__stub.calls.filter((c) => c.op === "bundle_save").pop();
+    check("it carries the chosen supplier and the chosen products", bsv && bsv.args.name === "Gas range" && bsv.args.supplierId === "gamma" && bsv.args.members.join() === "Gas One" && !calls().slice(atCfg).includes("band_sets_save"), JSON.stringify(bsv && bsv.args));
+    check("after it the product configuration is chosen", await until(() => { const c = pickIn($("#pr .chooser"), "Product configuration"); return c && c.options[c.selectedIndex].textContent === "Gas range"; }));
 
     // ---- electricity: names already used, and a new band set for one sale type
     button("Back to files").click();
@@ -154,13 +163,17 @@
     choose(pickIn(box(), "Product configuration"), "Core range"); await sleep(50);
     check("choosing a product configuration loads its products", chosen().join() === "Standard,Gold,Silver", chosen().join());
     check("the grid follows the choice", gridHeads().join() === "Standard,Gold,Silver", gridHeads().join());
+    // Alpha's file: only what is Alpha's or for every supplier. Advanced Saver and Advanced range are
+    // Beta's; Gold is Alpha's; Standard, Silver, Gold renewal and Core range are for every supplier.
+    const cfgOffered = () => [...pickIn(box(), "Product configuration").options].slice(1).map((o) => o.textContent);
+    check("supplier filter: no other supplier's product configuration", !cfgOffered().includes("Advanced range") && cfgOffered().includes("Core range"), cfgOffered().join());
     const offered = () => [...pickIn(box(), "Product").options].slice(1).map((o) => o.value);
-    check("the Product dropdown offers only products not chosen", offered().join() === "Advanced Saver,Gold renewal", offered().join());
-    choose(pickIn(box(), "Product"), "Advanced Saver"); await sleep(50);
-    check("choosing a product adds it", chosen().join() === "Standard,Gold,Silver,Advanced Saver" && gridHeads().includes("Advanced Saver"), chosen().join());
-    check("adding a product leaves no configuration chosen", pickIn(box(), "Product configuration").value === "");
+    check("supplier filter: Beta's product is not offered, untagged ones are", offered().join() === "Gold renewal", offered().join());
+    choose(pickIn(box(), "Product"), "Gold renewal (Gold)"); await sleep(50);
+    check("choosing a product adds it", chosen().join() === "Standard,Gold,Silver,Gold renewal" && gridHeads().includes("Gold renewal"), chosen().join());
+    check("adding a product keeps the configuration it started from", (() => { const c = pickIn(box(), "Product configuration"); return c.options[c.selectedIndex].textContent === "Core range"; })() && box().textContent.includes("Started from Core range."));
     button("Remove", $('#pr ul.picklist li[data-name="Gold"]')).click(); await sleep(50);
-    check("Remove takes a product out of the choice and the grid", chosen().join() === "Standard,Silver,Advanced Saver" && !gridHeads().includes("Gold"), chosen().join() + " | " + gridHeads().join());
+    check("Remove takes a product out of the choice and the grid", chosen().join() === "Standard,Silver,Gold renewal" && !gridHeads().includes("Gold"), chosen().join() + " | " + gridHeads().join());
     choose(pickIn(box(), "Product configuration"), "Core range"); await sleep(50);
     check("a product configuration replaces the choice", chosen().join() === "Standard,Gold,Silver", chosen().join());
     // The region by name alone; the code stays the value.
@@ -182,12 +195,45 @@
     const [acq0, ren0] = $$("#pr .chooser");
     check("kept apart: a pair of dropdowns for each sale type", acq0 && ren0 && acq0.dataset.side === "acq" && ren0.dataset.side === "ren" && !!pickIn(acq0, "Product configuration") && !!pickIn(ren0, "Product"));
     check("kept apart: renewal starts as a copy of the choice", chosen(ren0).join() === "Standard,Gold,Silver", chosen(ren0).join());
-    choose(pickIn(ren0, "Product configuration"), "Advanced range"); await sleep(50);
+    button("Remove", ren0.querySelector('li[data-name="Silver"]')).click(); await sleep(50);
     const [acq1, ren1] = $$("#pr .chooser");
-    check("kept apart: a configuration for renewal changes renewal only", chosen(ren1).join() === "Advanced Saver" && chosen(acq1).join() === "Standard,Gold,Silver", chosen(acq1).join() + " | " + chosen(ren1).join());
+    check("kept apart: a change for renewal changes renewal only", chosen(ren1).join() === "Standard,Gold" && chosen(acq1).join() === "Standard,Gold,Silver", chosen(acq1).join() + " | " + chosen(ren1).join());
     await addSet("Gold renewal two", "", "Gold", "15", "renewal");
     const [acqBox, renBox] = $$("#pr .chooser");
     check("kept apart: the new product is chosen for renewal only", acqBox && renBox && chosen(renBox).includes("Gold renewal two") && !chosen(acqBox).includes("Gold renewal two"));
+
+    // ---- Save as a new product configuration, then Update it (Phil Brook, 19/11/2026)
+    button("Back to files").click();
+    if (!(await openFile("Alpha_electricity_example_12112026.xlsx"))) { check("the electricity file opens for the configuration saves", false); return; }
+    choose(pickIn(box(), "Product configuration"), "Core range"); await until(pivot);
+    await setColumn("Gold", "margin", "0.8");
+    button("Save").click();
+    const sdlg = await until(() => dialogCard("Save"));
+    check("from a configuration: Update it, or save as a new product configuration", sdlg && $("#prHowUpd") && $("#prHowUpd").checked && sdlg.textContent.includes("Update Core range") && !!$("#prHowNew") && !$("#prHowVer"), sdlg && sdlg.textContent.slice(0, 400));
+    $("#prHowNew").click(); await sleep(20);
+    set(inputFor("Product configuration name", sdlg), "Aggressive Pricing"); set(inputFor("Supplier", sdlg), "alpha");
+    set(inputFor("Reason for the change", sdlg), "Sharper Gold for Alpha");
+    const atNew = calls().length;
+    button("Save products", sdlg).click();
+    const newSaid = await until(() => { const m = $("#pr > .msg"); return m && !m.hidden && m.textContent.startsWith("Saved") ? m.textContent : null; });
+    check("Save as a new product configuration says what it saved", newSaid === "Saved Aggressive Pricing Gold version 1. Product configuration Aggressive Pricing saved. No price has changed.", newSaid || $("#pr > .msg").textContent);
+    const nsv = window.__stub.calls.slice(atNew).filter((c) => c.op === "band_sets_save").pop(), nbs = window.__stub.calls.slice(atNew).filter((c) => c.op === "bundle_save").pop();
+    check("the changed product is saved as a new product named <configuration> <product type>, with the supplier", nsv && nsv.args.sets.length === 1 && nsv.args.sets[0].name === "Aggressive Pricing Gold" && nsv.args.sets[0].isNew === true && nsv.args.sets[0].product === "Gold" && nsv.args.sets[0].supplierId === "alpha" && nsv.args.sets[0].bands.every((b) => b.marginMilliPencePerKwh === 800), JSON.stringify(nsv && nsv.args.sets.map((x) => [x.name, x.isNew, x.supplierId])));
+    check("the new configuration holds the new product and the unchanged ones", nbs && !nbs.args.bundleId && nbs.args.name === "Aggressive Pricing" && nbs.args.supplierId === "alpha" && nbs.args.members.slice().sort().join() === "Aggressive Pricing Gold,Silver,Standard", JSON.stringify(nbs && nbs.args));
+    const after = await until(() => { const c = window.__stub.calls.slice(atNew).filter((x) => x.op === "band_sets").pop(); return c && c.answer ? c.answer : null; });
+    const core = after && after.bundles.find((b) => b.name === "Core range");
+    check("the configuration it started from is not changed", core && core.members.join() === "Standard,Gold,Silver" && after.bandSets.find((b) => b.name === "Gold").version === 3, JSON.stringify(core));
+    check("after it the choice is the new configuration", await until(() => chosen().slice().sort().join() === "Aggressive Pricing Gold,Silver,Standard"), chosen().join());
+    button("Remove", $('#pr ul.picklist li[data-name="Silver"]')).click(); await sleep(50);
+    button("Save").click();
+    const udlg = await until(() => dialogCard("Save"));
+    check("Update is offered for the configuration the choice came from", udlg && $("#prHowUpd") && $("#prHowUpd").checked && udlg.textContent.includes("Update Aggressive Pricing"), udlg && udlg.textContent.slice(0, 300));
+    const atUpd = calls().length;
+    button("Save products", udlg).click();
+    const updSaid = await until(() => { const m = $("#pr > .msg"); return m && !m.hidden && m.textContent.startsWith("Product configuration Aggressive Pricing updated") ? m.textContent : null; });
+    check("Update says what it did", updSaid === "Product configuration Aggressive Pricing updated. No price has changed.", updSaid || $("#pr > .msg").textContent);
+    const ubs = window.__stub.calls.slice(atUpd).filter((c) => c.op === "bundle_save").pop();
+    check("Update sets the configuration to the products chosen now, keeping its supplier", ubs && nbs && ubs.args.bundleId === nbs.answer.bundleId && ubs.args.name === "Aggressive Pricing" && ubs.args.supplierId === "alpha" && ubs.args.members.slice().sort().join() === "Aggressive Pricing Gold,Standard" && !calls().slice(atUpd).includes("band_sets_save"), JSON.stringify(ubs && ubs.args));
 
     // ---- Apply with a new unsaved band set: saved first, then applied
     button("Back to files").click();

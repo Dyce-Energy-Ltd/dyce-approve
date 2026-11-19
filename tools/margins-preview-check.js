@@ -67,6 +67,7 @@
     check("Cell detail gives the margin and what it earns at the midpoint", kv("Saved margin") === "0.620 p/kWh" && kv("Annual margin at midpoint, saved") === "£48.05", kv("Saved margin") + " " + kv("Annual margin at midpoint, saved"));
     check("Cell detail splits it between standing charge and unit rate", /p\/day$/.test(kv("Added to the standing charge") || "") && /p\/kWh$/.test(kv("Added to each unit rate") || ""));
     check("Cell detail gives the cost per meter and product", kv("Cost per meter") === "£15.00 a year" && kv("Product type") === "Gold");
+    check("Cell detail gives the product's supplier", kv("Supplier") === "Alpha Example Power", kv("Supplier"));
     const vers = await until(() => { const v = $$("#pr aside.detail .ver"); return v.length ? v : null; });
     check("Versions of this product are listed, newest first", vers && vers.length === 3 && vers[0].textContent.startsWith("Version 3") && vers[0].textContent.includes("current"), vers && vers.map((v) => v.textContent).join(" | "));
     check("the cell picked is marked", cell("Gold", 2).classList.contains("sel"));
@@ -117,11 +118,21 @@
     check("Manage products keeps New product", !!button("New product"));
     button("New product").click();
     check("New product opens its form", !!(await until(() => button("Add to the grid"))));
+    const supOf = (card) => { const f = $$(".field", card).find((x) => x.querySelector("label").textContent === "Supplier"); return f ? f.querySelector("select") : null; };
+    const formCard = (title) => $$("#pr .card.white").find((c) => c.querySelector("h2") && c.querySelector("h2").textContent === title);
+    const nsup = supOf(formCard("New product"));
+    check("New product has an optional Supplier, None by default", nsup && nsup.value === "" && nsup.options[0].textContent === "None (all suppliers)" && [...nsup.options].some((o) => o.textContent === "Alpha Example Power"));
     // Gas has no band sets: its ladder's bands still show. Leaving with a change is refused first.
     button("Gas").click(); await sleep(50);
     check("leaving with unsaved changes is refused", $("#pr > .msg").textContent.startsWith("You have unsaved changes to Silver."), $("#pr > .msg").textContent);
     button("Discard changes").click();
     await until(() => button("Review changes") && button("Review changes").disabled);
+    button("New product configuration").click();
+    const bcard = await until(() => formCard("Product configuration"));
+    check("New product configuration has an optional Supplier", bcard && supOf(bcard) && supOf(bcard).value === "");
+    const pick = bcard && $$(".field", bcard).find((x) => x.querySelector("label").textContent === "Product configuration").querySelector("select");
+    if (pick) { pick.value = [...pick.options].find((o) => o.textContent === "Advanced range").value; pick.dispatchEvent(new Event("change", { bubbles: true })); }
+    check("editing a product configuration shows its supplier", bcard && supOf(bcard).value === "beta", bcard && supOf(bcard).value);
     button("Gas").click();
     const rows = await until(() => { const r = $$("#pr table.grid tbody tr"); return r.length === 5 && !$$("#pr table.grid th.colh").length ? r : null; });
     check("Gas: the ladder's five bands show with no products", !!rows);

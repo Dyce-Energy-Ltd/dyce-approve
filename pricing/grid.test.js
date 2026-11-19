@@ -5,6 +5,7 @@ import {
   copyColumn, pasteBlock, changedNames, problems, carryToLadder, toSavePayload, toPreviewItems,
   selectionProblem, chartScale, dragValue, marginSplit, DAYS_PER_YEAR, setCostPerMeter, editedNames, firstGap, isComplete,
   chartAxis, CHART_MAX, toggleChartPick, syncChartPicks, changedCellCount, cellFacts, reviewLines, midpointText, bandRange,
+  forSupplier, repeatedProductType, newConfigNames,
 } from './grid.js';
 
 // Invented figures only.
@@ -156,7 +157,8 @@ test('toSavePayload and toPreviewItems', () => {
   const p = toSavePayload(g, ['Gold', 'New'], 'Autumn review');
   assert.equal(p.reason, 'Autumn review');
   assert.equal(p.sets.length, 2);
-  assert.deepEqual(Object.keys(p.sets[0]), ['name', 'fuel', 'product', 'costPerMeterPence', 'isNew', 'ladderId', 'bands']);
+  assert.deepEqual(Object.keys(p.sets[0]), ['name', 'fuel', 'product', 'costPerMeterPence', 'isNew', 'ladderId', 'bands', 'supplierId']);
+  assert.equal(p.sets[0].supplierId, null, 'a product for every supplier sends null');
   assert.equal(p.sets[0].isNew, false);
   assert.equal(p.sets[1].isNew, true);
   assert.equal(p.sets[0].fuel, 'electricity');
@@ -417,4 +419,42 @@ test('reviewLines: the changes of one product, in words', () => {
   const nl = reviewLines(g, 'New');
   assert.equal(nl[0], 'New product, cost per meter £15.00 a year.');
   assert.equal(nl.length, 1 + g.bands.length);
+});
+
+// ---------- An optional supplier on products and product configurations (Phil Brook, 19/11/2026)
+
+test('the supplier is kept on columns, given to new ones, and sent on save', () => {
+  let g = makeGrid(LADDER, [set('Gold', 'Gold', 1000, 40, { supplierId: 'yu' }), set('Silver', 'Silver', 800, 30)], 'electricity');
+  assert.equal(g.columns[0].supplierId, 'yu');
+  assert.equal(g.columns[1].supplierId, null);
+  g = addColumn(g, { name: 'Voltx Gold', product: 'Gold', costPerMeterPence: 0, fromName: 'Gold', supplierId: 'voltx' });
+  g = addColumn(g, { name: 'Any', product: 'Silver', costPerMeterPence: 0 });
+  assert.equal(g.columns[2].supplierId, 'voltx', 'a copy takes the supplier it is given, not its source');
+  assert.equal(g.columns[3].supplierId, null);
+  const p = toSavePayload(g, ['Gold', 'Voltx Gold', 'Any'], 'r');
+  assert.deepEqual(p.sets.map(x => x.supplierId), ['yu', 'voltx', null]);
+});
+
+test('forSupplier: no supplier is every supplier', () => {
+  assert.equal(forSupplier({ supplierId: null }, 'yu'), true);
+  assert.equal(forSupplier({}, 'yu'), true);
+  assert.equal(forSupplier({ supplierId: 'yu' }, 'yu'), true);
+  assert.equal(forSupplier({ supplierId: 'voltx' }, 'yu'), false);
+});
+
+test('repeatedProductType: one product per product type in a configuration', () => {
+  const type = { Gold: 'Gold', 'Gold renewal': 'Gold', Silver: 'Silver' };
+  assert.equal(repeatedProductType(['Gold', 'Silver'], n => type[n]), null);
+  assert.equal(repeatedProductType(['Gold', 'Silver', 'Gold renewal'], n => type[n]), 'Gold');
+});
+
+test('newConfigNames: <configuration name> <product type>, refused in plain words when taken', () => {
+  const gold = { name: 'Gold', product: 'Gold' }, std = { name: 'Standard', product: 'Standard' };
+  assert.deepEqual(newConfigNames('Aggressive Pricing', [gold, std], new Set(['Gold', 'Standard'])),
+    [{ from: 'Gold', name: 'Aggressive Pricing Gold' }, { from: 'Standard', name: 'Aggressive Pricing Standard' }]);
+  assert.deepEqual(newConfigNames('Aggressive Pricing', [], new Set()), []);
+  assert.equal(newConfigNames('Aggressive Pricing', [gold], new Set(['Aggressive Pricing Gold'])).error,
+    'There is already a product called Aggressive Pricing Gold. Choose another name for the product configuration.');
+  assert.match(newConfigNames('Aggressive Pricing', [gold, { name: 'Gold renewal', product: 'Gold' }], new Set()).error, /^Two changed products are Gold/);
+  assert.match(newConfigNames('x'.repeat(57), [gold], new Set()).error, /longer than 60 characters/);
 });

@@ -123,6 +123,7 @@ function columnFromSet(set, ladderBands) {
   return {
     name: set.name, product: set.product, costPerMeterPence: set.costPerMeterPence,
     priceConfigId: set.priceConfigId == null ? null : set.priceConfigId,
+    supplierId: set.supplierId == null ? null : set.supplierId,
     isNew: false, stale,
     margins, shares,
     saved: { margins: margins.slice(), shares: shares.slice(), costPerMeterPence: set.costPerMeterPence },
@@ -171,7 +172,7 @@ export function addColumn(grid, spec) {
   }
   const col = {
     name: spec.name, product: spec.product, costPerMeterPence: spec.costPerMeterPence,
-    priceConfigId: null, isNew: true, stale: false, margins, shares,
+    priceConfigId: null, supplierId: spec.supplierId == null ? null : spec.supplierId, isNew: true, stale: false, margins, shares,
     saved: { margins: blank(n), shares: blank(n), costPerMeterPence: null },
   };
   return withColumns(grid, grid.columns.concat([col]));
@@ -331,14 +332,17 @@ function bandsFor(grid, c) {
 }
 
 // The band_sets_save request body: {reason, sets: [{name, fuel, product, costPerMeterPence, isNew,
-// ladderId, bands}]}.
+// ladderId, bands, supplierId}]}. supplierId (19/11/2026) is the product's supplier, or null for a
+// product for every supplier; a new version sends the supplier the product already has.
 export function toSavePayload(grid, names, reason) {
   const sets = names.map(n => {
     const c = grid.columns[colIndex(grid, n)];
-    return {
+    const set = {
       name: c.name, fuel: grid.fuel, product: c.product,
       costPerMeterPence: c.costPerMeterPence, isNew: !!c.isNew, ladderId: grid.ladderId, bands: bandsFor(grid, c),
     };
+    set.supplierId = c.supplierId == null ? null : c.supplierId;
+    return set;
   });
   return { reason, sets };
 }
@@ -508,5 +512,39 @@ export function reviewLines(grid, name) {
     if (os !== ns) out.push(bandRange(b) + ' kWh: standing charge share ' + (os == null ? 'none' : os + '%') + ' to ' + (ns == null ? 'none' : ns + '%'));
   });
   if (!out.length && c.stale) out.push('Made on an older ladder. Every band carried over, so saving moves it to the current ladder.');
+  return out;
+}
+
+// The supplier rule for the Price screen's lists (Phil Brook, 19/11/2026): an item with no supplier is
+// for every supplier; one with a supplier only for that supplier's files.
+export function forSupplier(item, supplierId) {
+  return item.supplierId == null || item.supplierId === supplierId;
+}
+
+// A product configuration holds one product per product type. The first product type chosen twice
+// among names (looked up with productOf), or null.
+export function repeatedProductType(names, productOf) {
+  const seen = new Set();
+  for (const n of names) {
+    const t = productOf(n);
+    if (seen.has(t)) return t;
+    seen.add(t);
+  }
+  return null;
+}
+
+// Save as a new product configuration: each changed product becomes a new product named
+// "<configuration name> <product type>". Returns [{from, name}] or {error} in a plain sentence when a
+// name is too long, already used, or would be used twice.
+export function newConfigNames(configName, changed, taken) {
+  const out = [], used = new Set();
+  for (const c of changed) {
+    const name = configName + ' ' + c.product;
+    if (name.length > 60) return { error: 'The product name ' + name + ' would be longer than 60 characters. Choose a shorter name for the product configuration.' };
+    if (taken.has(name)) return { error: 'There is already a product called ' + name + '. Choose another name for the product configuration.' };
+    if (used.has(name)) return { error: 'Two changed products are ' + c.product + ', so both would be called ' + name + '. Save one of them first, or choose them one per product type.' };
+    used.add(name);
+    out.push({ from: c.name, name });
+  }
   return out;
 }
