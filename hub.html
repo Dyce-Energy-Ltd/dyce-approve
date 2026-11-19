@@ -666,6 +666,10 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #pr fieldset.members legend { font-size: 10px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); padding: 0 6px; }
 #pr .twocol { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
 #pr .chooser { display: grid; gap: 10px; align-content: start; }
+#pr .cfgsave { display: grid; gap: 10px; border-top: 1px solid var(--hairline); padding-top: 14px; }
+#pr .howopt { display: grid; gap: 6px; border: 1px solid var(--hairline); border-radius: 10px; padding: 12px 14px; }
+#pr .howopt .tickrow label { font-size: 15px; font-weight: 800; cursor: pointer; }
+#pr .howbox { display: grid; gap: 10px; }
 #pr .pickpair { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 18px; align-items: start; }
 #pr ul.picklist { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
 #pr ul.picklist li { display: inline-flex; align-items: center; gap: 10px; padding: 4px 4px 4px 12px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--surface); font-size: 14px; line-height: 22px; }
@@ -2408,6 +2412,7 @@ function columnFromSet(set, ladderBands) {
   return {
     name: set.name, product: set.product, costPerMeterPence: set.costPerMeterPence,
     priceConfigId: set.priceConfigId == null ? null : set.priceConfigId,
+    supplierId: set.supplierId == null ? null : set.supplierId,
     isNew: false, stale,
     margins, shares,
     saved: { margins: margins.slice(), shares: shares.slice(), costPerMeterPence: set.costPerMeterPence },
@@ -2456,7 +2461,7 @@ function addColumn(grid, spec) {
   }
   const col = {
     name: spec.name, product: spec.product, costPerMeterPence: spec.costPerMeterPence,
-    priceConfigId: null, isNew: true, stale: false, margins, shares,
+    priceConfigId: null, supplierId: spec.supplierId == null ? null : spec.supplierId, isNew: true, stale: false, margins, shares,
     saved: { margins: blank(n), shares: blank(n), costPerMeterPence: null },
   };
   return withColumns(grid, grid.columns.concat([col]));
@@ -2616,14 +2621,17 @@ function bandsFor(grid, c) {
 }
 
 // The band_sets_save request body: {reason, sets: [{name, fuel, product, costPerMeterPence, isNew,
-// ladderId, bands}]}.
+// ladderId, bands, supplierId}]}. supplierId (19/11/2026) is the product's supplier, or null for a
+// product for every supplier; a new version sends the supplier the product already has.
 function toSavePayload(grid, names, reason) {
   const sets = names.map(n => {
     const c = grid.columns[colIndex(grid, n)];
-    return {
+    const set = {
       name: c.name, fuel: grid.fuel, product: c.product,
       costPerMeterPence: c.costPerMeterPence, isNew: !!c.isNew, ladderId: grid.ladderId, bands: bandsFor(grid, c),
     };
+    set.supplierId = c.supplierId == null ? null : c.supplierId;
+    return set;
   });
   return { reason, sets };
 }
@@ -2796,7 +2804,41 @@ function reviewLines(grid, name) {
   return out;
 }
 
-;return { parseMargin, parseShare, formatMargin, midpointAnnualPounds, DAYS_PER_YEAR, marginSplit, carryToLadder, makeGrid, addColumn, setCostPerMeter, setCells, shiftCells, copyColumn, pasteBlock, isEdited, isChanged, changedNames, editedNames, isComplete, firstGap, problems, toSavePayload, toPreviewItems, selectionProblem, chartScale, dragValue, chartAxis, CHART_MAX, toggleChartPick, syncChartPicks, changedCellCount, midpointText, bandRange, cellFacts, reviewLines };
+// The supplier rule for the Price screen's lists (Phil Brook, 19/11/2026): an item with no supplier is
+// for every supplier; one with a supplier only for that supplier's files.
+function forSupplier(item, supplierId) {
+  return item.supplierId == null || item.supplierId === supplierId;
+}
+
+// A product configuration holds one product per product type. The first product type chosen twice
+// among names (looked up with productOf), or null.
+function repeatedProductType(names, productOf) {
+  const seen = new Set();
+  for (const n of names) {
+    const t = productOf(n);
+    if (seen.has(t)) return t;
+    seen.add(t);
+  }
+  return null;
+}
+
+// Save as a new product configuration: each changed product becomes a new product named
+// "<configuration name> <product type>". Returns [{from, name}] or {error} in a plain sentence when a
+// name is too long, already used, or would be used twice.
+function newConfigNames(configName, changed, taken) {
+  const out = [], used = new Set();
+  for (const c of changed) {
+    const name = configName + ' ' + c.product;
+    if (name.length > 60) return { error: 'The product name ' + name + ' would be longer than 60 characters. Choose a shorter name for the product configuration.' };
+    if (taken.has(name)) return { error: 'There is already a product called ' + name + '. Choose another name for the product configuration.' };
+    if (used.has(name)) return { error: 'Two changed products are ' + c.product + ', so both would be called ' + name + '. Save one of them first, or choose them one per product type.' };
+    used.add(name);
+    out.push({ from: c.name, name });
+  }
+  return out;
+}
+
+;return { parseMargin, parseShare, formatMargin, midpointAnnualPounds, DAYS_PER_YEAR, marginSplit, carryToLadder, makeGrid, addColumn, setCostPerMeter, setCells, shiftCells, copyColumn, pasteBlock, isEdited, isChanged, changedNames, editedNames, isComplete, firstGap, problems, toSavePayload, toPreviewItems, selectionProblem, chartScale, dragValue, chartAxis, CHART_MAX, toggleChartPick, syncChartPicks, changedCellCount, midpointText, bandRange, cellFacts, reviewLines, forSupplier, repeatedProductType, newConfigNames };
 })();
 </script>
 <script>
@@ -4581,6 +4623,10 @@ function reviewLines(grid, name) {
     }
     const fileName = (layout, run) => ("Dyce_" + (layout === "broker" ? "Broker" : "UD_Upload") + "_" + run.supplier + "_" + run.product + "_" + run.sales.join("-") + "_" + day(run.publishedAt).replace(/\//g, "")).replace(/[^A-Za-z0-9_-]+/g, "_") + ".xlsx";
     const supplierNames = (ov) => new Map(ov.suppliers.map((s) => [s.supplier_id, s.supplier_name]));
+    // A product or product configuration may be for one supplier or, with no supplier, for every
+    // supplier (Phil Brook, 19/11/2026). pairs: [[supplier_id, name]].
+    const supplierSelect = (pairs, value) => select([["", "None (all suppliers)"], ...pairs], value || "");
+    const supplierText = (names, id) => id == null || id === "" ? "All suppliers" : (names.get(id) || id);
 
     function show(item, g) {
       hubGen = g; prGen++;
@@ -4726,11 +4772,15 @@ function reviewLines(grid, name) {
         });
         // Two dropdowns side by side (Phil Brook, 19/11/2026): Product configuration loads its products
         // into the choice, replacing it; Product adds one of the fuel's products not already chosen.
-        // The chosen products are listed under them, each with Remove. side is "acq" or "ren".
+        // Both list only what is for this file's supplier or for every supplier (forSupplier); a chosen
+        // product stays in the list under them either way, each with Remove. The configuration the
+        // choice started from stays shown (ui.cfg) after products are added or removed, so Save can
+        // offer to update it. side is "acq" or "ren".
+        const forFile = (x) => G.forSupplier(x, file.supplierId);
         function chooser(title, set, side) {
           const cfgs = ui.cfg || (ui.cfg = { acq: "", ren: "" });
-          const cfg = select([["", "None"], ...bs.bundles.map((b) => [b.bundleId, b.name])], cfgs[side] || "");
-          const left = full.columns.filter((c) => !set.has(c.name));
+          const cfg = select([["", "None"], ...bs.bundles.filter((b) => forFile(b) || b.bundleId === cfgs[side]).map((b) => [b.bundleId, b.name])], cfgs[side] || "");
+          const left = full.columns.filter((c) => !set.has(c.name) && forFile(c));
           const label = (c) => c.name + (c.product !== c.name ? " (" + c.product + ")" : "");
           const add = select([["", left.length ? "Add a product" : "Every product is chosen"], ...left.map((c) => [c.name, label(c)])], "");
           add.disabled = !left.length;
@@ -4742,27 +4792,63 @@ function reviewLines(grid, name) {
           });
           add.addEventListener("change", () => {
             if (!add.value) return;
-            set.add(add.value); cfgs[side] = "";
+            set.add(add.value);
             drawChoosers(); changedSelection();
           });
           const chosenCols = full.columns.filter((c) => set.has(c.name));
           const list = chosenCols.length
             ? el("ul", { class: "picklist", "aria-label": (title ? title + ": " : "") + "chosen products" }, ...chosenCols.map((c) => el("li", { "data-name": c.name },
               el("span", { text: label(c) }),
-              btn("Remove", () => { set.delete(c.name); cfgs[side] = ""; drawChoosers(); changedSelection(); }, "ghost small"))))
+              btn("Remove", () => { set.delete(c.name); drawChoosers(); changedSelection(); }, "ghost small"))))
             : el("div", { class: "empty", text: full.columns.length ? "No products chosen." : noSetsText });
           list.querySelectorAll("li").forEach((li) => { const b2 = li.querySelector("button"); b2.setAttribute("aria-label", "Remove " + li.dataset.name); });
+          const from = bs.bundles.find((b) => b.bundleId === cfgs[side]);
+          const differs = from && (from.members.filter((m) => known.has(m)).length !== set.size || from.members.some((m) => known.has(m) && !set.has(m)));
           return el("div", { class: "chooser", "data-side": side }, title ? el("h3", { class: "sub", text: title }) : null,
             el("div", { class: "pickpair" }, field("Product configuration", cfg, "Loads its products, replacing the choice."), field("Product", add, "Adds one product to the choice.")),
-            list);
+            list, differs ? el("p", { class: "hint", text: "Started from " + from.name + ". The choice has changed since; Save can update " + from.name + " to match." }) : null);
         }
         function drawChoosers() {
           chooserBox.textContent = "";
           if (ui.same) chooserBox.append(chooser("", ui.acq, "acq"));
           else chooserBox.append(el("div", { class: "twocol" }, chooser("Acquisition", ui.acq, "acq"), chooser("Renewal", ui.ren, "ren")));
         }
+        // Name the choice as a product configuration where you work (Set tick): a name, an optional
+        // supplier (None is every supplier), and Save as product configuration. Margins are not saved
+        // here; a choice with unsaved margins is saved through Save below.
+        const cfgBox = editable ? el("div", { class: "cfgsave" }) : null;
+        if (cfgBox) {
+          const cfgName = el("input", { type: "text", maxlength: "60", autocomplete: "off" });
+          const cfgSup = supplierSelect([...names]);
+          const cfgMsg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
+          const go = btn("Save as product configuration", async () => {
+            const nm = cfgName.value.trim(), members = chosen();
+            const productOf = (x) => (full.columns.find((c) => c.name === x) || {}).product;
+            const taken = new Set(bs.bandSets.map((b) => b.name).concat(bs.bundles.map((b) => b.name), full.columns.map((c) => c.name)));
+            const fresh = full.columns.filter((c) => members.includes(c.name) && c.isNew).map((c) => c.name);
+            const rep = G.repeatedProductType(members, productOf);
+            const why = !members.length ? "Choose at least one product first."
+              : !nm || nm.length > 60 ? "Name the product configuration (1 to 60 characters)."
+              : taken.has(nm) ? "There is already a product or product configuration with that name."
+              : fresh.length ? "Save the new products first: " + andList(fresh) + ". Then save the product configuration."
+              : unsavedHere().length ? "Some margins are changed and not saved. Use Save below, where you can save them as a new product configuration."
+              : rep ? "A product configuration holds one product per product type. " + rep + " is chosen more than once."
+              : members.length > 10 ? "A product configuration holds at most 10 products." : "";
+            if (why) { say(cfgMsg, why, true); return; }
+            lock(cfgBox, true);
+            try {
+              const r = await call("bundle_save", { fuel: file.fuel, name: nm, members, supplierId: cfgSup.value || null });
+              if (!still(n)) return;
+              if (ui.cfg && r && r.bundleId) { ui.cfg.acq = r.bundleId; if (!ui.same) ui.cfg.ren = r.bundleId; }
+              await load("Product configuration " + nm + " saved, for " + (cfgSup.value ? supplierText(names, cfgSup.value) : "every supplier") + ".");
+            } catch (err) { fail(n, cfgMsg, err); lock(cfgBox, false); }
+          }, "ghost small");
+          cfgBox.append(el("h3", { class: "sub", text: "Save this choice as a product configuration" }),
+            el("div", { class: "fields" }, field("Name", cfgName), field("Supplier", cfgSup, "None means every supplier.")),
+            el("div", { class: "actions" }, go), cfgMsg);
+        }
         body.append(el("h2", { class: "sect", text: "Products" }),
-          el("div", { class: "card" }, el("div", { class: "tickrow" }, sameBox, el("label", { for: "prSame", text: "Same for acquisition and renewal" })), chooserBox, probMsg));
+          el("div", { class: "card" }, el("div", { class: "tickrow" }, sameBox, el("label", { for: "prSame", text: "Same for acquisition and renewal" })), chooserBox, probMsg, cfgBox));
 
         // ---- 2. splits (read only) and the grid
         body.append(el("h2", { class: "sect", text: "Splits" }), splitsCard());
@@ -4783,7 +4869,7 @@ function reviewLines(grid, name) {
           // Kept apart, the person says which sale type the new band set is for.
           const useFor = ui.same ? null : select([["acquisition", "Acquisition"], ["renewal", "Renewal"], ["all", "Acquisition and renewal"]], ui.sale === "renewal" ? "renewal" : "acquisition");
           const card = newSetCard({
-            grid: () => full, bundles: bs.bundles, products, say: (t, bad) => say(newMsg, t, bad), cancel: () => { newPanel.textContent = ""; say(newMsg, ""); },
+            grid: () => full, bundles: bs.bundles, products, suppliers: [...names], say: (t, bad) => say(newMsg, t, bad), cancel: () => { newPanel.textContent = ""; say(newMsg, ""); },
             extra: useFor ? [field("Use for", useFor)] : [],
             add: (g2, spec) => {
               full = Object.assign({}, full, { columns: g2.columns });
@@ -4905,7 +4991,7 @@ function reviewLines(grid, name) {
           // With no band sets for the fuel the grid still shows the ladder's bands, so there is no dead end.
           gridHint.hidden = g.columns.length > 0 || none;
           if (!g.columns.length && !none) { if (gridView) { gridView.destroy(); gridView = null; } note(); return; }
-          if (!gridView) gridView = drawGrid(gridHost, g, { editable, bundles: bs.bundles, onChange: afterEdit, fuelName: fuelWord, onNew: () => newSetPanel(), history: (name) => call("band_set_history", { fuel: file.fuel, name }), emptyText: noSets + (editable ? "Add one with New product above." : "Someone with the Set tick can add one.") });
+          if (!gridView) gridView = drawGrid(gridHost, g, { editable, bundles: bs.bundles, onChange: afterEdit, fuelName: fuelWord, onNew: () => newSetPanel(), supplierText: (id) => supplierText(names, id), history: (name) => call("band_set_history", { fuel: file.fuel, name }), emptyText: noSets + (editable ? "Add one with New product above." : "Someone with the Set tick can add one.") });
           else { gridView.setGrid(g); }
           note();
         }
@@ -4929,6 +5015,10 @@ function reviewLines(grid, name) {
           const g = shown(), ps = picks(), edited = G.changedNames(g);
           const fresh0 = edited.filter((nm) => g.columns.find((x) => x.name === nm).isNew);
           const existing = new Set(bs.bandSets.map((b) => b.name).concat(bs.bundles.map((b) => b.name), full.columns.map((c) => c.name)));
+          // The product configuration the choice came from: the one shown in the dropdown, the same on
+          // both sale types when they are kept apart (Phil Brook, 19/11/2026).
+          const srcId = !ui.cfg ? "" : ui.same ? ui.cfg.acq : (ui.cfg.acq && ui.cfg.acq === ui.cfg.ren ? ui.cfg.acq : "");
+          const src = bs.bundles.find((b) => b.bundleId === srcId) || null;
           const modes = edited.filter((nm) => !fresh0.includes(nm)).map((nm, i) => {
             const c = g.columns.find((x) => x.name === nm);
             const ver = el("input", { type: "radio", name: "prm" + i, id: "prmv" + i, checked: true }), neu = el("input", { type: "radio", name: "prm" + i, id: "prmn" + i });
@@ -4936,7 +5026,6 @@ function reviewLines(grid, name) {
             return { nm, c, ver, neu, nameIn };
           });
           const reason = el("input", { type: "text", maxlength: "200", autocomplete: "off" });
-          const bundleTick = el("input", { type: "checkbox", id: "prBundle" }), bundleName = el("input", { type: "text", maxlength: "60", autocomplete: "off", "aria-label": "Product configuration name" });
           const readTick = el("input", { type: "checkbox", id: "prRead" });
           const dmsg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true }), prog = el("div");
           // What is applied, in one sentence: the names, then the sale type when every choice shares one.
@@ -4947,29 +5036,46 @@ function reviewLines(grid, name) {
             el("p", { class: "hint", text: applying ? "Pricing " + file.sourceFilename + " with " + what + "." : "Saving products for " + fuelWord + ". No price changes, and nothing goes live." }));
           const warn = applying ? oneSided() : "";
           if (warn) card.append(el("p", { class: "msg", text: warn }));
-          if (fresh0.length) card.append(el("h3", { class: "sub", text: fresh0.length === 1 ? "New product, saved under its name: " + fresh0[0] + "." : "New products, saved under their names: " + andList(fresh0) + "." }));
-          if (modes.length) {
-            card.append(el("h3", { class: "sub", text: "You changed " + (modes.length === 1 ? "1 product. Save it as:" : modes.length + " products. Save each one as:") }));
-            for (const m of modes) {
-              // The name box only when a new band set is chosen.
-              const nameBox = el("div", { class: "fields" }, field("Name", m.nameIn));
-              const sync = () => { nameBox.hidden = !m.neu.checked; };
-              m.ver.addEventListener("change", sync); m.neu.addEventListener("change", () => { sync(); if (m.neu.checked) m.nameIn.focus(); });
-              sync();
-              card.append(el("fieldset", { class: "members" }, el("legend", { text: m.nm }),
-                el("div", { class: "tickrow" }, m.ver, el("label", { for: m.ver.id, text: "New version of " + m.nm })),
-                el("div", { class: "tickrow" }, m.neu, el("label", { for: m.neu.id, text: "New product" })),
-                nameBox));
+
+          // How to save, in plain words. From a product configuration: update it, or save as a new one.
+          // Otherwise: save the changed products (each as a new version, or as a new product with its own
+          // name, as before), or save as a new product configuration.
+          const how = [];
+          const choice = (id, text, hint) => {
+            const r = el("input", { type: "radio", name: "prHow", id });
+            const box = el("div", { class: "howbox" });
+            how.push({ id, r, box });
+            card.append(el("div", { class: "howopt" }, el("div", { class: "tickrow" }, r, el("label", { for: id, text })), hint ? el("p", { class: "hint", text: hint }) : "", box));
+            return { r, box };
+          };
+          const upd = src ? choice("prHowUpd", "Update " + src.name, (edited.length ? "The changed products are saved as new versions, and " : "") + src.name + " is set to hold the products chosen now.") : null;
+          const ver = !src && edited.length ? choice("prHowVer", "Save the changed products", "Each one as a new version, or as a new product with its own name.") : null;
+          const neu = choice("prHowNew", "Save as a new product configuration",
+            (edited.length ? "Each changed product is saved as a new product named after the configuration and its product type: a configuration called Aggressive Pricing saves Aggressive Pricing Gold. Unchanged products are used as they are." : "The products chosen now are put in it as they are.") + (src ? " " + src.name + " is not changed." : ""));
+          const newName = el("input", { type: "text", maxlength: "60", autocomplete: "off" }), newSup = supplierSelect([...names]);
+          neu.box.append(el("div", { class: "fields" }, field("Product configuration name", newName), field("Supplier", newSup, "None means every supplier. The new products take this supplier too.")));
+          if (ver) {
+            if (fresh0.length) ver.box.append(el("h3", { class: "sub", text: fresh0.length === 1 ? "New product, saved under its name: " + fresh0[0] + "." : "New products, saved under their names: " + andList(fresh0) + "." }));
+            if (modes.length) {
+              ver.box.append(el("h3", { class: "sub", text: "You changed " + (modes.length === 1 ? "1 product. Save it as:" : modes.length + " products. Save each one as:") }));
+              for (const m of modes) {
+                // The name box only when a new product is chosen.
+                const nameBox = el("div", { class: "fields" }, field("Name", m.nameIn));
+                const sync = () => { nameBox.hidden = !m.neu.checked; };
+                m.ver.addEventListener("change", sync); m.neu.addEventListener("change", () => { sync(); if (m.neu.checked) m.nameIn.focus(); });
+                sync();
+                ver.box.append(el("fieldset", { class: "members" }, el("legend", { text: m.nm }),
+                  el("div", { class: "tickrow" }, m.ver, el("label", { for: m.ver.id, text: "New version of " + m.nm })),
+                  el("div", { class: "tickrow" }, m.neu, el("label", { for: m.neu.id, text: "New product" })),
+                  nameBox));
+              }
             }
           }
+          (upd || ver || neu).r.checked = true;
+          const showHow = () => { for (const h of how) h.box.hidden = !h.r.checked; };
+          for (const h of how) h.r.addEventListener("change", () => { showHow(); if (neu.r.checked) newName.focus(); });
+          showHow();
           if (edited.length) card.append(el("div", { class: "fields" }, field("Reason for the change", reason)));
-          else if (!applying) card.append(el("p", { class: "hint", text: "No product has changed. You can save these products as a product configuration." }));
-          // The bundle name only when the box is ticked. Saving with nothing changed is for the bundle.
-          const bundleBox = el("div", { class: "fields" }, field("Product configuration name", bundleName));
-          bundleTick.checked = !applying && !edited.length;
-          bundleBox.hidden = !bundleTick.checked;
-          bundleTick.addEventListener("change", () => { bundleBox.hidden = !bundleTick.checked; if (bundleTick.checked) bundleName.focus(); });
-          card.append(el("div", { class: "tickrow" }, bundleTick, el("label", { for: "prBundle", text: "Save these products as a product configuration" })), bundleBox);
           if (seen > 0) card.append(el("p", { class: "msg" , text: seen === 1 ? "1 thing will not go live as shown." : seen + " things will not go live as shown." }),
             el("div", { class: "tickrow" }, readTick, el("label", { for: "prRead", text: seen === 1 ? "I have checked the warning" : "I have checked the " + seen + " warnings" })));
           const go = btn(applying ? "Apply prices" : "Save products", () => (applying ? doApply() : doSave()), ""), cancel = btn("Cancel", () => { panel.textContent = ""; }, "ghost");
@@ -4979,28 +5085,52 @@ function reviewLines(grid, name) {
           // What the person chose, checked, or null with the reason said in the dialog.
           function plan() {
             const rename = new Map();        // old name -> name it will have once saved
-            let g2 = shown();
-            const saveNames = fresh0.slice(), taken = new Set(existing), named = new Set();
-            for (const m of modes) {
-              if (m.neu.checked) {
-                const nm2 = m.nameIn.value.trim();
-                if (!nm2 || nm2.length > 60) { say(dmsg, "Name the new product made from " + m.nm + " (1 to 60 characters).", true); return null; }
-                if (taken.has(nm2) || named.has(nm2)) { say(dmsg, "There is already a product or product configuration with that name.", true); return null; }
-                named.add(nm2);
-                try { g2 = G.addColumn(g2, { name: nm2, product: m.c.product, costPerMeterPence: m.c.costPerMeterPence, fromName: m.nm }); } catch (err) { say(dmsg, err.message, true); return null; }
-                rename.set(m.nm, nm2); saveNames.push(nm2);
-              } else saveNames.push(m.nm);
+            let g2 = shown(), saveNames = [], bundle = null;
+            const taken = new Set(existing), named = new Set();
+            if (ver && ver.r.checked) {
+              saveNames = fresh0.slice();
+              for (const m of modes) {
+                if (m.neu.checked) {
+                  const nm2 = m.nameIn.value.trim();
+                  if (!nm2 || nm2.length > 60) { say(dmsg, "Name the new product made from " + m.nm + " (1 to 60 characters).", true); return null; }
+                  if (taken.has(nm2) || named.has(nm2)) { say(dmsg, "There is already a product or product configuration with that name.", true); return null; }
+                  named.add(nm2);
+                  try { g2 = G.addColumn(g2, { name: nm2, product: m.c.product, costPerMeterPence: m.c.costPerMeterPence, fromName: m.nm, supplierId: m.c.supplierId }); } catch (err) { say(dmsg, err.message, true); return null; }
+                  rename.set(m.nm, nm2); saveNames.push(nm2);
+                } else saveNames.push(m.nm);
+              }
+            } else if (upd && upd.r.checked) {
+              saveNames = edited.slice();
+              bundle = { bundleId: src.bundleId, name: src.name, supplierId: src.supplierId == null ? null : src.supplierId, update: true };
+            } else {
+              const bName = newName.value.trim();
+              if (!bName || bName.length > 60) { say(dmsg, "Name the product configuration (1 to 60 characters).", true); return null; }
+              if (taken.has(bName)) { say(dmsg, "There is already a product or product configuration with that name.", true); return null; }
+              const sup = newSup.value || null;
+              const made = G.newConfigNames(bName, edited.map((nm) => g.columns.find((x) => x.name === nm)), taken);
+              if (made.error) { say(dmsg, made.error, true); return null; }
+              for (const x of made) {
+                const c = g.columns.find((y) => y.name === x.from);
+                try { g2 = G.addColumn(g2, { name: x.name, product: c.product, costPerMeterPence: c.costPerMeterPence, fromName: x.from, supplierId: sup }); } catch (err) { say(dmsg, err.message, true); return null; }
+                rename.set(x.from, x.name); saveNames.push(x.name);
+              }
+              bundle = { name: bName, supplierId: sup, update: false };
             }
             if (saveNames.length && !reason.value.trim()) { say(dmsg, "Give a reason for the changes.", true); return null; }
-            const wantBundle = bundleTick.checked, bName = bundleName.value.trim();
-            if (wantBundle && (!bName || bName.length > 60)) { say(dmsg, "Name the product configuration (1 to 60 characters).", true); return null; }
-            if (wantBundle && (taken.has(bName) || named.has(bName))) { say(dmsg, "There is already a product or product configuration with that name.", true); return null; }
-            if (!saveNames.length && !wantBundle) { say(dmsg, "Nothing to save. Change a margin, add a product, or tick Save these products as a product configuration.", true); return null; }
+            if (!saveNames.length && !bundle) { say(dmsg, "Nothing to save. Change a margin or add a product first.", true); return null; }
             const finalName = (nm) => rename.has(nm) ? rename.get(nm) : nm;
-            return { g2, saveNames, rename, wantBundle, bName, ps2: ps.map((p) => ({ name: finalName(p.name), saleType: p.saleType })), ids: new Map(g.columns.map((c) => [c.name, c.priceConfigId])) };
+            const ps2 = ps.map((p) => ({ name: finalName(p.name), saleType: p.saleType }));
+            const members = [...new Set(ps2.map((x) => x.name))];
+            if (bundle) {
+              const rep = G.repeatedProductType(members, (nm) => (g2.columns.find((c) => c.name === nm) || {}).product);
+              if (rep) { say(dmsg, "A product configuration holds one product per product type. " + rep + " is chosen more than once.", true); return null; }
+              if (members.length > 10) { say(dmsg, "A product configuration holds at most 10 products.", true); return null; }
+            }
+            return { g2, saveNames, rename, bundle, members, ps2, ids: new Map(g.columns.map((c) => [c.name, c.priceConfigId])) };
           }
-          // The one save step, for Save and for Apply: the band sets in one band_sets_save, then the
-          // bundle. It returns what it saved, in words; it throws with saved set when part was saved.
+          // The one save step, for Save and for Apply: the products in one band_sets_save, then the
+          // product configuration (bundle_save, with bundleId when it is updated). It returns what it
+          // saved, in words; it throws with savedSomething set when part was saved.
           async function saveStep(p, go2, ok) {
             let savedNote = "", savedSomething = false;
             try {
@@ -5014,11 +5144,14 @@ function reviewLines(grid, name) {
                 // From here the chosen names are the saved ones, and the grid is read again from the database.
                 for (const s of [ui.acq, ui.ren]) for (const [o, nw] of p.rename) if (s.has(o)) { s.delete(o); s.add(nw); }
               }
-              if (p.wantBundle) {
-                go2("Saving the product configuration " + p.bName);
-                await call("bundle_save", { fuel: file.fuel, name: p.bName, members: p.ps2.map((x) => x.name) });
+              if (p.bundle) {
+                go2((p.bundle.update ? "Updating the product configuration " : "Saving the product configuration ") + p.bundle.name);
+                const r2 = await call("bundle_save", { ...(p.bundle.bundleId ? { bundleId: p.bundle.bundleId } : {}), fuel: file.fuel, name: p.bundle.name, members: p.members, supplierId: p.bundle.supplierId });
                 if (!alive()) return null;
-                ok(); savedSomething = true; savedNote += "Product configuration " + p.bName + " saved. ";
+                ok(); savedSomething = true; savedNote += "Product configuration " + p.bundle.name + (p.bundle.update ? " updated. " : " saved. ");
+                // The choice now comes from this product configuration.
+                const id = (r2 && r2.bundleId) || p.bundle.bundleId;
+                if (id) { ui.cfg = ui.cfg || { acq: "", ren: "" }; ui.cfg.acq = id; if (!ui.same) ui.cfg.ren = id; }
               }
             } catch (err) { err = err || {}; err.savedNote = savedNote; err.savedSomething = savedSomething; throw err; }
             return savedNote;
@@ -5767,7 +5900,7 @@ function reviewLines(grid, name) {
         const band = grid.bands[bi];
         main.append(el("div", { class: "dt-title", text: [col.name, col.product !== col.name ? col.product : null, FUEL[grid.fuel] || null].filter(Boolean).join(" · ") }),
           el("p", { class: "dt-band", text: G.bandRange(band) + " kWh a year, midpoint " + comma((band.eacMinKwh + band.eacMaxKwh) / 2) + " kWh" + (col.stale ? ". Made on an older ladder." : "") }),
-          el("div", { class: "kv" }, ...G.cellFacts(col, band, bi).map((r) => el("div", {}, el("span", { class: "k", text: r.k }), el("span", { class: "v", text: r.v })))));
+          el("div", { class: "kv" }, ...G.cellFacts(col, band, bi).concat([{ k: "Supplier", v: opts.supplierText ? opts.supplierText(col.supplierId) : (col.supplierId || "All suppliers") }]).map((r) => el("div", {}, el("span", { class: "k", text: r.k }), el("span", { class: "v", text: r.v })))));
         if (editable) {
           const id = "pr-c" + (++uid);
           const costIn = el("input", { type: "text", id, inputmode: "decimal", value: col.costPerMeterPence == null ? "" : (col.costPerMeterPence / 100).toFixed(2), "aria-label": "Cost per meter in pounds a year for " + col.name });
@@ -5838,15 +5971,17 @@ function reviewLines(grid, name) {
       const prod = select(opts.products.filter((p) => p.active).map((p) => [p.product, p.product]));
       const from = select([["", "Blank"], ...g0.columns.map((c) => [c.name, "Copy of " + c.name])]);
       const cost = el("input", { type: "number", min: "0", step: "0.01" });
+      // Optional supplier (19/11/2026): None is every supplier.
+      const sup = supplierSelect(opts.suppliers || []);
       from.addEventListener("change", () => { const c = opts.grid().columns.find((x) => x.name === from.value); if (c) { prod.value = c.product; cost.value = String(c.costPerMeterPence / 100); } });
       const card = el("div", { class: "card white" }, el("h2", { text: "New product" }),
-        el("div", { class: "fields" }, field("Name", name, "Must be new for this fuel."), field("Product type", prod), field("Start from", from), field("Cost per meter, £ a year", cost), ...(opts.extra || [])),
+        el("div", { class: "fields" }, field("Name", name, "Must be new for this fuel."), field("Product type", prod), field("Start from", from), field("Cost per meter, £ a year", cost), field("Supplier", sup, "None means every supplier."), ...(opts.extra || [])),
         el("div", { class: "actions" }, btn("Add to the grid", () => {
           const nm = name.value.trim();
           if (!nm || nm.length > 60) { opts.say("Give the product a name of 1 to 60 characters.", true); return; }
           if (opts.bundles.some((b) => b.name === nm)) { opts.say("There is already a product or product configuration with that name.", true); return; }
           if (cost.value === "" || !(Number(cost.value) >= 0)) { opts.say("Give the cost per meter, zero or more.", true); return; }
-          const spec = { name: nm, product: prod.value, costPerMeterPence: Math.round(Number(cost.value) * 100), fromName: from.value || undefined };
+          const spec = { name: nm, product: prod.value, costPerMeterPence: Math.round(Number(cost.value) * 100), fromName: from.value || undefined, supplierId: sup.value || null };
           let g2;
           try { g2 = G.addColumn(opts.grid(), spec); } catch (err) { opts.say(err.message, true); return; }
           opts.add(g2, spec, card);
@@ -5895,7 +6030,7 @@ function reviewLines(grid, name) {
 
         function newSetPanel() {
           open(newSetCard({
-            grid: () => gridView.getGrid(), bundles: bs.bundles, products: ov.products, say: (t, bad) => say(amsg, t, bad), cancel: close,
+            grid: () => gridView.getGrid(), bundles: bs.bundles, products: ov.products, suppliers: [...supplierNames(ov)], say: (t, bad) => say(amsg, t, bad), cancel: close,
             add: (g2, spec) => {
               close(); gridView.setGrid(g2); say(msg, "");
               gridView.say(spec.name + " added to the grid." + (spec.fromName ? "" : " Fill every band, then save."), false);
@@ -5906,12 +6041,13 @@ function reviewLines(grid, name) {
           if (!clean()) return;
           const pick = select([["", "New product configuration"], ...bs.bundles.map((b) => [b.bundleId, b.name])], startId || "");
           const name = el("input", { type: "text", maxlength: "60", autocomplete: "off" });
+          const sup = supplierSelect([...supplierNames(ov)]);
           const boxes = saved().map((nm) => ({ nm, cb: el("input", { type: "checkbox" }) }));
-          const fill = () => { const b = bs.bundles.find((x) => x.bundleId === pick.value); name.value = b ? b.name : ""; boxes.forEach((x) => { x.cb.checked = !!b && b.members.includes(x.nm); }); };
+          const fill = () => { const b = bs.bundles.find((x) => x.bundleId === pick.value); name.value = b ? b.name : ""; sup.value = b && b.supplierId ? b.supplierId : ""; boxes.forEach((x) => { x.cb.checked = !!b && b.members.includes(x.nm); }); };
           pick.addEventListener("change", fill); fill();
           const card = el("div", { class: "card white" }, el("h2", { text: "Product configuration" }),
             el("p", { class: "hint", text: "A product configuration ticks up to 10 products in one go. It does not change margins." }),
-            el("div", { class: "fields" }, field("Product configuration", pick), field("Name", name)),
+            el("div", { class: "fields" }, field("Product configuration", pick), field("Name", name), field("Supplier", sup, "None means every supplier.")),
             el("fieldset", { class: "members" }, el("legend", { text: "Members" }), ...boxes.map((x) => el("label", { class: "tickrow" }, x.cb, " " + x.nm))),
             el("div", { class: "actions" }, btn("Save the product configuration", async () => {
               const members = boxes.filter((x) => x.cb.checked).map((x) => x.nm);
@@ -5919,7 +6055,7 @@ function reviewLines(grid, name) {
               if (members.length < 1 || members.length > 10) { say(amsg, "Tick between 1 and 10 products.", true); return; }
               lock(card, true);
               try {
-                await call("bundle_save", { ...(pick.value ? { bundleId: pick.value } : {}), fuel: bsFuel, name: name.value.trim(), members });
+                await call("bundle_save", { ...(pick.value ? { bundleId: pick.value } : {}), fuel: bsFuel, name: name.value.trim(), members, supplierId: sup.value || null });
                 if (still(n)) await load("Saved the product configuration " + name.value.trim() + ".");
               } catch (err) { fail(n, amsg, err); lock(card, false); }
             }, ""), btn("Cancel", close, "ghost")));
@@ -5989,7 +6125,7 @@ function reviewLines(grid, name) {
           editable, bundles: bs.bundles, fuelName: FUEL[bsFuel].toLowerCase(), lead: fuelCtl, tail: menu, afterTop: [amsg, panel], onNew: newSetPanel,
           emptyText: "No " + FUEL[bsFuel].toLowerCase() + " products yet. " + (editable ? "Add one with New product." : "Someone with the Set tick can add one."),
           note: FUEL[bsFuel] + " ladder version " + bs.ladder.version + ", " + nb + (nb === 1 ? " band." : " bands.") + (editable ? "" : " View only: you need the Set tick to change margins."),
-          history: (name) => call("band_set_history", { fuel: bsFuel, name }),
+          history: (name) => call("band_set_history", { fuel: bsFuel, name }), supplierText: (id) => supplierText(supplierNames(ov), id),
           onChange: () => drawFoot(),
         });
 

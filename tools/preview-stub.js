@@ -840,8 +840,12 @@
   addNamed("electricity", "Silver", "Silver", 1400, [660, 580, 500, 450, 390, 330], [24, 21, 19, 17, 14, 12], prLadder.electricity.bands, 3);
   addNamed("electricity", "Advanced Saver", "Advanced Saver", 1600, [760, 680, 600, 540, 470, 400], [20, 18, 16, 14, 12, 10], prLadder.electricity.bands, 3);
   addNamed("electricity", "Gold renewal", "Gold", 1500, [640, 560, 480, 420, 330], [25, 22, 20, 15, 12], prLadderOld.bands, 2);
-  prBundles.push({ bundleId: pid(851), fuel: "electricity", name: "Core range", members: ["Standard", "Gold", "Silver"] });
-  prBundles.push({ bundleId: pid(852), fuel: "electricity", name: "Advanced range", members: ["Advanced Saver"] });
+  prBundles.push({ bundleId: pid(851), fuel: "electricity", name: "Core range", members: ["Standard", "Gold", "Silver"], supplierId: null });
+  prBundles.push({ bundleId: pid(852), fuel: "electricity", name: "Advanced range", members: ["Advanced Saver"], supplierId: "beta" });
+  // An optional supplier on products and product configurations (spine change of 19/11/2026): null is
+  // every supplier. Gold is for Alpha only and Advanced Saver (with Advanced range) for Beta only;
+  // Standard, Silver, Gold renewal and Core range are for every supplier.
+  prNamed.forEach(function (x) { x.supplierId = x.name === "Gold" ? "alpha" : x.name === "Advanced Saver" ? "beta" : null; });
 
   // The database's rule (pricing.newest_finished_file): only the newest finished file of a supplier and
   // fuel can be priced, whatever its state, so a Live newest file can be priced again.
@@ -916,8 +920,8 @@
       var live = function () { return prNamed.filter(function (x) { return x.fuel === fuel && !x.retired; }); };
       var ladder = prLadder[fuel];
       if (op === "band_sets") {
-        return ok({ ladder: ladder, bandSets: live().map(function (x) { var c = current(x); return { name: x.name, priceConfigId: c.priceConfigId, version: c.version, product: x.product, costPerMeterPence: c.costPerMeterPence, ladderCurrent: c.ladderVersion === ladder.version, savedBy: c.savedBy, savedAt: c.savedAt, bands: c.bands }; }),
-          bundles: prBundles.filter(function (b) { return b.fuel === fuel && !b.retired; }).map(function (b) { return { bundleId: b.bundleId, name: b.name, members: b.members.filter(function (m) { return live().some(function (x) { return x.name === m; }); }) }; }) });
+        return ok({ ladder: ladder, bandSets: live().map(function (x) { var c = current(x); return { name: x.name, priceConfigId: c.priceConfigId, version: c.version, product: x.product, supplierId: x.supplierId == null ? null : x.supplierId, costPerMeterPence: c.costPerMeterPence, ladderCurrent: c.ladderVersion === ladder.version, savedBy: c.savedBy, savedAt: c.savedAt, bands: c.bands }; }),
+          bundles: prBundles.filter(function (b) { return b.fuel === fuel && !b.retired; }).map(function (b) { return { bundleId: b.bundleId, name: b.name, supplierId: b.supplierId == null ? null : b.supplierId, members: b.members.filter(function (m) { return live().some(function (x) { return x.name === m; }); }) }; }) });
       }
       if (op === "band_set_history") {
         var h = live().filter(function (x) { return x.name === body.name; })[0];
@@ -932,6 +936,7 @@
           if (!st || typeof st.name !== "string" || st.name.trim().length < 1 || st.name.length > 60) return bad("A band set name must be 1 to 60 characters.");
           if (st.fuel !== fuel) return bad(label + ": the fuel does not match.");
           if (st.isNew ? nameTaken(st.name) : !live().some(function (x) { return x.name === st.name; })) return bad(st.isNew ? "There is already a band set or bundle with that name." : label + " was not found.");
+          if (st.supplierId != null && !prSuppliers.some(function (sp) { return sp.supplier_id === st.supplierId; })) return bad(label + ": that supplier is not known.");
           var slp = prLadderProblem(st.ladderId, fuel);
           if (slp) return bad(slp);
           if (!Array.isArray(st.bands) || st.bands.length !== ladder.bands.length) return bad(label + ": give a margin and share for each of the " + ladder.bands.length + " bands.");
@@ -943,7 +948,8 @@
         }
         var savedList = body.sets.map(function (st) {
           var x = prNamed.filter(function (y) { return y.name === st.name; })[0];
-          if (!x) { x = { fuel: fuel, name: st.name, product: st.product, versions: [] }; prNamed.push(x); }
+          if (!x) { x = { fuel: fuel, name: st.name, product: st.product, supplierId: null, versions: [] }; prNamed.push(x); }
+          if (st.supplierId !== undefined) x.supplierId = st.supplierId;
           var v = { priceConfigId: pid(900 + (prSeq++)), version: x.versions.length + 1, status: "approved", savedBy: person(me).email, savedAt: now(), reason: String(body.reason).trim(), costPerMeterPence: st.costPerMeterPence, ladderVersion: ladder.version,
             bands: st.bands.map(function (b, k) { return band2(ladder.bands, k, b.marginMilliPencePerKwh, b.standingSharePct); }) };
           x.versions.push(v); x.product = st.product;
@@ -966,8 +972,9 @@
         var existing = body.bundleId ? prBundles.filter(function (b) { return b.bundleId === body.bundleId; })[0] : null;
         if (body.bundleId && !existing) return [404, { ok: false, error: "That bundle was not found." }];
         if ((!existing || existing.name !== body.name) && nameTaken(body.name)) return bad("There is already a band set or bundle with that name.");
-        if (existing) { existing.name = body.name; existing.members = body.members.slice(); return ok({ bundleId: existing.bundleId }); }
-        var nb2 = { bundleId: pid(860 + prBundles.length), fuel: fuel, name: body.name, members: body.members.slice() };
+        if (body.supplierId != null && !prSuppliers.some(function (sp) { return sp.supplier_id === body.supplierId; })) return bad("That supplier is not known.");
+        if (existing) { existing.name = body.name; existing.members = body.members.slice(); if (body.supplierId !== undefined) existing.supplierId = body.supplierId; return ok({ bundleId: existing.bundleId }); }
+        var nb2 = { bundleId: pid(860 + prBundles.length), fuel: fuel, name: body.name, members: body.members.slice(), supplierId: body.supplierId == null ? null : body.supplierId };
         prBundles.push(nb2);
         return ok({ bundleId: nb2.bundleId });
       }
