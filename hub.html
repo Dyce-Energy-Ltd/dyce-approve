@@ -490,6 +490,25 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #pr .card.problem { border-left: 4px solid var(--status-critical); }
 #pr .card > h2 { margin: 0; }
 #pr .card p { margin: 0; }
+/* A grid item's minimum width is its content's, so a wide table would push the card, and the page,
+   sideways. With 0 the table scrolls inside its own .prwide box instead. */
+#pr .card > * { min-width: 0; }
+#pr table.pivot td.n, #pr table.pivot th.n { text-align: right; }
+#pr table.pivot td b { font-weight: 800; }
+#pr table.pivot .chg { display: block; font-size: 11px; line-height: 16px; color: var(--muted); }
+#pr details.more { margin-top: 12px; }
+#pr details.more > summary { cursor: pointer; font-weight: 800; font-size: 13px; }
+#pr details.menu > summary { list-style: none; display: inline-block; }
+#pr details.menu > summary::-webkit-details-marker { display: none; }
+#pr details.menu > .menubox { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+#pr td details.menu > .menubox { flex-direction: column; align-items: flex-start; }
+#pr .gridtop { display: flex; gap: 10px 18px; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; margin-top: 14px; }
+/* The save bar stays at the foot of the screen while there are unsaved edits. */
+#pr .savebar { position: sticky; bottom: 0; z-index: 5; display: flex; gap: 10px 14px; flex-wrap: wrap; align-items: center; background: var(--brand-navy); color: var(--brand-white); border-radius: var(--r-card); padding: 12px 18px; margin-top: 22px; box-shadow: var(--shadow-card); }
+#pr .savebar .t { font-weight: 800; font-size: 14px; flex: 1 1 260px; min-width: 0; }
+#pr .savebar input[type="text"] { font: inherit; font-size: 14px; color: var(--ink); background: var(--brand-white); border: 0; border-radius: 8px; padding: 8px 10px; flex: 1 1 260px; min-width: 0; }
+#pr .savebar .msg { flex-basis: 100%; }
+#pr .savebar .btn.go { background: var(--brand-white); color: var(--brand-navy); border-color: var(--brand-white); }
 #pr h3.sub { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); margin: 6px 0 0; }
 #pr input[type="number"], #pr select { font: inherit; font-size: 15px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; padding: 9px 12px; width: 100%; }
 #pr table.prt input[type="number"], #pr table.prt select { font-size: 13px; padding: 6px 8px; min-width: 96px; }
@@ -2627,8 +2646,8 @@ function dragValue(scale, y) {
       items: [{ id: "boards", label: "Boards" }, { id: "summary", label: "Summary" }],
       render: renderPool },
     { id: "pricing", label: "Pricing", allowed: (t) => t.some((c) => c.startsWith("pricing.")),
-      items: [{ id: "files", label: "Supplier files", need: PR_VIEW }, { id: "bands", label: "Band sets and splits", need: PR_VIEW },
-              { id: "book", label: "Live price book", need: PR_VIEW }],
+      items: [{ id: "files", label: "Supplier files", need: PR_VIEW }, { id: "bands", label: "Margins", need: PR_VIEW },
+              { id: "splits", label: "Splits", need: PR_VIEW }, { id: "book", label: "Live price book", need: PR_VIEW }],
       render: renderPricing },
     // Piece 1 of the Commission Engine is read-only: every page needs View. Later pieces add ticks
     // (commission.*), so the tab shows for any of them.
@@ -4155,7 +4174,7 @@ function dragValue(scale, y) {
   })();
 
   // BEGIN PRICING
-  // ---------- Pricing: Supplier files (with the Price this file workspace), Band sets and splits, Live price book.
+  // ---------- Pricing: Supplier files (with the Price workspace), Margins, Splits, Live price book (with Check a price).
   // It talks to the dna-pricing function, which checks the hub session and the tick for every op;
   // hiding a screen or a button here is tidiness, not the gate. Four ticks: pricing.view (look),
   // pricing.load (load supplier files), pricing.set (band sets and splits), pricing.publish.
@@ -4190,6 +4209,21 @@ function dragValue(scale, y) {
     const LAYOUT_LABEL = { broker: "Broker", ud_upload: "UD Upload" };
     const STATE = { published: "ok", approved: "ok", active: "ok", live: "ok", draft: "info", loaded: "info", failed: "critical", publishing: "warn", unfinished: "warn", rejected: "neutral", retired: "neutral", replaced: "neutral" };
     const GBP = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
+    // Region names as the broker portal shows them (src/lib/pricing/margins.ts there), Yorkshire first
+    // as Dyce's own area. Electricity by DNO id, gas by LDZ.
+    const ELEC_REGIONS = [["23", "Yorkshire"], ["10", "Eastern"], ["11", "East Midlands"], ["12", "London"], ["13", "Merseyside and North Wales"], ["14", "West Midlands"], ["15", "North East"],
+      ["16", "North West"], ["17", "North Scotland"], ["18", "South Scotland"], ["19", "South East"], ["20", "Southern"], ["21", "South Wales"], ["22", "South Western"]];
+    const GAS_REGIONS = [["NE", "North East"], ["EA", "East Anglia"], ["EM", "East Midlands"], ["NO", "Northern"], ["NT", "North Thames"], ["NW", "North West"], ["SC", "Scotland"],
+      ["SE", "South East"], ["SO", "Southern"], ["SW", "South West"], ["WM", "West Midlands"], ["WN", "Wales North"], ["WS", "Wales South"]];
+    const REGION_NAME = new Map(ELEC_REGIONS.concat(GAS_REGIONS));
+    const regionText = (r) => REGION_NAME.has(r) ? r + " " + REGION_NAME.get(r) : r;
+    // A Dyce address is first.last@: shown as the person's name. Anything else is shown as it is.
+    const personName = (e) => {
+      const local = String(e || "").split("@")[0];
+      return /^[a-z]+(\.[a-z]+)+$/i.test(local) ? local.split(".").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") : String(e || "");
+    };
+    // "A", "A and B", "A, B and C".
+    const andList = (xs) => xs.length < 2 ? xs.join("") : xs.slice(0, -1).join(", ") + " and " + xs[xs.length - 1];
     let prGen = 0, hubGen = -1, root = null, epoch = 0, uid = 0;
 
     const can = (c) => ticks().includes(c);
@@ -4217,6 +4251,8 @@ function dragValue(scale, y) {
     const pounds = (pence) => { const n = Number(pence); return (pence == null || pence === "" || !Number.isFinite(n)) ? "–" : GBP.format(n / 100); };
     const words = (s) => String(s == null ? "" : s).replace(/_/g, " ");
     const pctText = (fraction) => String(Math.round(Number(fraction) * 10000) / 100) + "%";
+    // A split in words: "70% day, 30% night".
+    const figures = (split, keys) => keys.map((k) => pctText(split[k]) + " " + KEY_LABEL[k].toLowerCase()).join(", ");
     const badge = (status) => el("span", { class: "badge " + (STATE[status] || "neutral"), text: words(status) });
     const btn = (text, on, cls) => el("button", { type: "button", class: "btn " + (cls || ""), text, onclick: on });
     function field(label, input, hint) {
@@ -4240,7 +4276,11 @@ function dragValue(scale, y) {
     }
     // The demo build (window.__DEMO__, set only by build.py --demo) reads nothing from dyce-prod, so it
     // says what it is instead (final review A7).
-    const foot = () => root.append(el("p", { class: "foot", text: window.__DEMO__ === true ? "Demo: invented prices. Every name, file and figure on this page is invented, and nothing is read from or saved to Dyce." : "Data class: Amber. Prices and margins are read from dyce-prod through the dna-pricing function and are not kept in this page. Costs and margins are for staff only." }));
+    // One footer per screen: a screen drawn again (the workspace, then the files list) replaces it.
+    const foot = () => {
+      for (const f of root.querySelectorAll(":scope > p.foot")) f.remove();
+      root.append(el("p", { class: "foot", text: window.__DEMO__ === true ? "Demo: every name, file and figure here is invented. Nothing is read from or saved to Dyce." : "Data class: Amber. Costs and margins are for Dyce staff only." }));
+    };
     const lock = (box, on) => { for (const b of box.querySelectorAll("button, input, select, textarea")) b.disabled = on; };
     // A list of steps in the order they happen, each with a state in words.
     function steps(parent) {
@@ -4282,7 +4322,7 @@ function dragValue(scale, y) {
     // (so the browser allows it) and sent to the link when it comes; a refusal closes it and shows here.
     function download(layout, runId, msgEl) {
       const w = window.open("", "_blank");
-      if (!w) { say(msgEl, "The browser stopped the new window. Allow pop-ups for this page and try again.", true); return; }
+      if (!w) { say(msgEl, "Your browser blocked the download. Allow pop-ups for this page.", true); return; }
       try { w.opener = null; } catch { /* the link still opens */ }
       say(msgEl, "");
       call("output_link", { priceRunId: runId, layout }).then((r) => {
@@ -4293,7 +4333,7 @@ function dragValue(scale, y) {
         if (me && !(err && err.signedOut)) say(msgEl, explain(err), true);
       });
     }
-    const downloadButtons = (runId, layouts, msgEl) => layouts.map((l) => btn("Download " + (LAYOUT_LABEL[l] || l), () => download(l, runId, msgEl), "ghost small"));
+    const downloadButtons = (runId, layouts, msgEl) => layouts.map((l) => btn((LAYOUT_LABEL[l] || l) + " file", () => download(l, runId, msgEl), "ghost small"));
     // A file made in the page, offered to save. The link is made and dropped at once.
     function saveBytes(bytes, name) {
       const url = URL.createObjectURL(new Blob([bytes], { type: XLSX_TYPE }));
@@ -4307,7 +4347,7 @@ function dragValue(scale, y) {
       hubGen = g; prGen++;
       root = el("div", { id: "pr" }); $("main").append(root);
       const n = prGen;
-      ({ files, bands, book }[item] || files)(n);
+      ({ files, bands, splits: splitsPage, book }[item] || files)(n);
     }
 
     // =====================================================================================
@@ -4315,9 +4355,11 @@ function dragValue(scale, y) {
     // in the workspace below (spec 4.5). The hand-load card is kept for pricing.load only.
     // =====================================================================================
     const FILE_STATE = { loading: "info", awaiting_bandings: "warn", applying: "info", live: "ok", replaced: "neutral", load_failed: "critical" };
-    const fileBadge = (f) => el("span", { class: "badge " + (FILE_STATE[f.state] || "neutral"), text: f.stateLabel || words(f.state) });
+    // The database's label for each state, except the one a person acts on: a file awaiting bandings
+    // is ready to price.
+    const fileBadge = (f) => el("span", { class: "badge " + (FILE_STATE[f.state] || "neutral"), text: f.state === "awaiting_bandings" ? "Ready to price" : f.stateLabel || words(f.state) });
     async function files(n) {
-      const msg = head("Supplier ", "files", "Supplier price files, newest first. A file that is awaiting bandings is priced from here: choose the band sets, check the preview against the live book and apply. Applying is the only step that changes the live price book.");
+      const msg = head("Supplier ", "files", "Price new supplier files here. Prices only change when you press Apply.");
       const body = el("div"); root.append(body);
       const list = async (note) => {
         body.textContent = ""; say(msg, "");
@@ -4329,14 +4371,14 @@ function dragValue(scale, y) {
         const supplier = (id) => names.get(id) || id || "–";
         body.append(el("h2", { class: "sect", text: "Files" }));
         const sorted = ov.files.slice().sort((a, b) => String(b.loadedAt || "").localeCompare(String(a.loadedAt || "")));
-        if (!sorted.length) body.append(el("div", { class: "empty", text: "No files have been loaded yet." }));
-        else body.append(table(["Supplier", "Fuel", "File", "Received", "Rows loaded of source", "Refused", "State", ""],
+        if (!sorted.length) body.append(el("div", { class: "empty", text: "No files yet." }));
+        else body.append(table(["Supplier", "Fuel", "File", "Received", "Rows loaded", "Rejected", "State", ""],
           sorted.map((f) => [supplier(f.supplierId), FUEL[f.fuel] || f.fuel, f.sourceFilename, f.loadedAt ? when(f.loadedAt) : "–", comma(f.rowCountLoaded) + " of " + comma(f.rowCountSource), comma(f.refusedCount), fileBadge(f),
-            f.canApply ? btn("Price this file", () => workspace(n, msg, body, f, names, list), "small") : null])));
+            f.canApply ? btn(f.state === "live" ? "Reprice" : "Price", () => workspace(n, msg, body, f, names, list), "small") : null])));
         if (ov.loadFailures && ov.loadFailures.length) {
-          body.append(el("h2", { class: "sect", text: "Files that did not load" }),
+          body.append(el("h2", { class: "sect", text: "Files that failed to load" }),
             table(["Path", "Supplier", "Fuel", "Reason", "Seen"], ov.loadFailures.map((x) => [x.sourcePath, x.supplierId ? supplier(x.supplierId) : "–", x.fuel ? (FUEL[x.fuel] || x.fuel) : "–", x.reason, x.seenAt ? when(x.seenAt) : "–"])),
-            el("p", { class: "hint", text: "These files were seen in the SharePoint folder but could not be loaded. Nothing is priced from them." }));
+            el("p", { class: "hint", text: "Found in SharePoint but could not be read." }));
         }
         const report = el("div");
         if (can(T.load)) body.append(loadCard(ov, report, msg), report);
@@ -4350,13 +4392,31 @@ function dragValue(scale, y) {
     // against the live book, then apply. Edits are held here until Apply saves them.
     // =====================================================================================
     const MAX_PICKS = 8;
-    const STALE_TEXT = (name) => name + " was saved against an older band ladder. Open it on the margins screen and save it again.";
+    const STALE_TEXT = (name) => name + " was made on an older ladder. Open it on Margins and save it again.";
+    // The attention codes the database gives (pricing.run_attention), as sentences. A code not
+    // listed here is shown with its underscores taken out.
+    const ISSUE_TEXT = {
+      supplier_range_not_banded: "No band covers", range_not_covered: "No band covers",
+      band_without_supplier_price: "The supplier has no price for", hh_not_priced: "Half-hourly rates are not priced",
+      hh_missing_inputs: "Half-hourly rates are missing inputs", tariff_code_not_methodia: "No Methodia tariff code",
+      tariff_code_missing: "No tariff code", tariff_name_missing: "No tariff name", refused_at_load: "Rows rejected at load",
+      no_rates_for_term: "No rates for a term", margin_below_floor: "A margin is below the floor",
+    };
+    const issueText = (a) => {
+      const lo = a.rangeMinKwh, hi = a.rangeMaxKwh, rc = a.rateCount;
+      const head = ISSUE_TEXT[a.issue] || (words(a.issue).charAt(0).toUpperCase() + words(a.issue).slice(1));
+      return head + (lo != null || hi != null ? " " + comma(lo) + " to " + comma(hi) + " kWh" : "") + (rc != null ? " (" + comma(rc) + (Number(rc) === 1 ? " rate)" : " rates)") : "") + "." + (a.detail ? " " + a.detail : "");
+    };
     const pence2 = (v, unit) => (v == null || v === "" || !Number.isFinite(Number(v))) ? "–" : Number(v).toFixed(2) + unit;
-        function workspace(n, msg, body, file, names, back) {
+        function workspace(n, msg, body, file, names, list) {
       const my = epoch, alive = () => my === epoch && !!me;
       const fuelWord = (FUEL[file.fuel] || file.fuel).toLowerCase();
+      // The files list's introduction is about the list, so it is hidden while a file is open.
+      const stand = root.querySelector(":scope > p.stand");
+      if (stand) stand.hidden = true;
+      const back = () => { if (stand) stand.hidden = false; list(); };
       // What the person has chosen lives here, so a redraw after a partial save keeps it.
-      const ui = { same: true, acq: new Set(), ren: new Set(), region: "", usages: file.fuel === "gas" ? "10000, 30000, 70000" : "2000, 8000, 30000" };
+      const ui = { same: true, acq: new Set(), ren: new Set(), region: "", usages: file.fuel === "gas" ? "10000, 30000, 70000" : "2000, 8000, 30000", sale: "acquisition" };
       let bs = null, sl = null, regions = [], full = null, gridView = null, timer = null, pvGen = 0, lastPv = null;
       const stop = () => { clearTimeout(timer); pvGen++; if (gridView) { gridView.destroy(); gridView = null; } };
 
@@ -4387,7 +4447,7 @@ function dragValue(scale, y) {
 
         function problemLines() {
           const g = shown(), ps = picks(), out = [];
-          if (!ps.length) return ["Choose at least one band set."];
+          if (!ps.length) return ["Tick at least one band set."];
           if (ps.length > MAX_PICKS) out.push("Choose at most " + MAX_PICKS + " band sets. " + ps.length + " are chosen.");
           const byName = new Map(g.columns.map((c) => [c.name, c]));
           const sp = G.selectionProblem(ps, (nm) => byName.get(nm).product);
@@ -4400,9 +4460,9 @@ function dragValue(scale, y) {
         }
 
         // ---- header
-        body.append(el("div", { class: "actions" }, btn("Back to the files", () => { stop(); back(); }, "ghost small")),
+        body.append(el("div", { class: "actions" }, btn("Back to files", () => { stop(); back(); }, "ghost small")),
           el("h2", { class: "sect", text: (names.get(file.supplierId) || file.supplierId) + ", " + fuelWord }),
-          el("p", { class: "hint" }, file.sourceFilename + " (" + (FORMAT_LABEL[file.fileFormat] || file.fileFormat || "–") + "). State: ", fileBadge(file)));
+          el("p", { class: "hint" }, file.sourceFilename + " ", fileBadge(file)));
 
         // ---- 1. which band sets
         const probMsg = el("div", { class: "msg refused", role: "status", "aria-live": "polite", hidden: true });
@@ -4425,42 +4485,42 @@ function dragValue(scale, y) {
             changedSelection();
           });
           boxes.forEach((x) => x.cb.addEventListener("change", () => { if (x.cb.checked) set.add(x.c.name); else set.delete(x.c.name); pick.value = ""; changedSelection(); }));
-          return el("div", { class: "chooser" }, title ? el("h3", { class: "sub", text: title }) : null, field("Bundle", pick, "A bundle ticks its band sets. You can then tick or untick others."),
+          return el("div", { class: "chooser" }, title ? el("h3", { class: "sub", text: title }) : null, field("Bundle", pick, "Choose a bundle, or tick band sets yourself."),
             el("fieldset", { class: "members" }, el("legend", { text: title ? title + ": band sets" : "Band sets" }),
-              ...(boxes.length ? boxes.map((x) => el("label", { class: "tickrow" }, x.cb, " " + x.c.name + " (" + x.c.product + ")")) : [el("div", { class: "empty", text: "There are no band sets for " + fuelWord + " yet. Make them on Band sets and splits." })])));
+              ...(boxes.length ? boxes.map((x) => el("label", { class: "tickrow" }, x.cb, " " + x.c.name + (x.c.product !== x.c.name ? " (" + x.c.product + ")" : ""))) : [el("div", { class: "empty", text: "No " + fuelWord + " band sets yet. Make them on Margins." })])));
         }
         function drawChoosers() {
           chooserBox.textContent = "";
           if (ui.same) chooserBox.append(chooser("", ui.acq));
           else chooserBox.append(el("div", { class: "twocol" }, chooser("Acquisition", ui.acq), chooser("Renewal", ui.ren)));
         }
-        body.append(el("h2", { class: "sect", text: "Band sets to price with" }),
+        body.append(el("h2", { class: "sect", text: "Band sets" }),
           el("div", { class: "card" }, el("div", { class: "tickrow" }, sameBox, el("label", { for: "prSame", text: "Same for acquisition and renewal" })), chooserBox, probMsg));
 
         // ---- 2. splits (read only) and the grid
         body.append(el("h2", { class: "sect", text: "Splits" }), splitsCard());
-        const gridHint = el("div", { class: "empty", text: "Choose band sets above to see and edit their margins." });
+        const gridHint = el("div", { class: "empty", text: "Tick a band set to see its margins." });
         const gridHost = el("div"), editedLine = el("p", { class: "hint" });
         body.append(el("h2", { class: "sect", text: "Margins" }),
-          el("p", { class: "hint", text: FUEL[file.fuel] + " band ladder version " + bs.ladder.version + ". " + (editable ? "Edit the margins here to try them. Nothing is saved until you apply, and then you choose how each edit is saved." : "You can look at the margins but not change them. Changing them needs the Set margins and splits tick.") }),
+          el("p", { class: "hint", text: editable ? "Try margin changes here. They are saved when you apply." : "View only. You need the Set tick to change margins." }),
           gridHint, gridHost, editedLine);
 
         // ---- 3. preview
-        const region = select(regions.map((r) => [r, r]), ui.region);
+        const region = select(regions.map((r) => [r, regionText(r)]), ui.region);
         const usagesIn = el("input", { type: "text", value: ui.usages, autocomplete: "off" });
         const pm = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true }), out = el("div");
         region.addEventListener("change", () => { ui.region = region.value; schedule(); });
         usagesIn.addEventListener("change", () => { ui.usages = usagesIn.value; schedule(); });
         body.append(el("h2", { class: "sect", text: "Preview" }),
           el("div", { class: "card" },
-            el("p", { class: "hint", text: "The proposed prices from the file with the margins as they are in the grid, beside the live book's for the same products. Worked out at each usage on the rates to 2 decimal places; the margin is after each band set's cost per meter. It refreshes a moment after your last change." }),
-            el("div", { class: "fields" }, field(file.fuel === "gas" ? "Region (LDZ)" : "Region (DNO id)", region), field("Usages in kWh a year (up to 10, separated by commas)", usagesIn)),
-            el("div", { class: "actions" }, btn("Refresh the preview", () => { ui.usages = usagesIn.value; schedule(true); }, "ghost small")), pm, out));
+            el("p", { class: "hint", text: "New prices from this file against today's live prices. Margin is after the cost per meter." }),
+            el("div", { class: "fields" }, field("Region", region), field("Annual usage, kWh (up to 10)", usagesIn)),
+            el("div", { class: "actions" }, btn("Refresh", () => { ui.usages = usagesIn.value; schedule(true); }, "ghost small")), pm, out));
 
         function schedule(now) {
           clearTimeout(timer); lastPv = null; pvGen++; refreshApply();
           if (!chosen().length || problemLines().length) { out.textContent = ""; say(pm, ""); return; }
-          say(pm, "Working it out after your last change…");
+          say(pm, "Updating…");
           timer = setTimeout(runPreview, now ? 0 : 600);
         }
         async function runPreview() {
@@ -4468,8 +4528,8 @@ function dragValue(scale, y) {
           if (problemLines().length) return;
           if (!ui.region) { say(pm, "There is no region to preview for this file.", true); return; }
           const list = usagesIn.value.split(/[\s,]+/).filter(Boolean).map(Number);
-          if (!list.length || list.length > 10 || !list.every((u) => Number.isSafeInteger(u) && u > 0)) { say(pm, "Give between 1 and 10 usages, each a whole number of kWh above zero.", true); return; }
-          say(pm, "Working it out…");
+          if (!list.length || list.length > 10 || !list.every((u) => Number.isSafeInteger(u) && u > 0)) { say(pm, "Enter 1 to 10 usages, in whole kWh.", true); return; }
+          say(pm, "Updating…");
           let r;
           try { r = await call("preview_selection", { fileId: file.supplierFileId, items: G.toPreviewItems(shown(), picks()), region: ui.region, usages: list }, 60000); }
           catch (err) { if (g === pvGen) fail(n, pm, err); return; }
@@ -4488,15 +4548,16 @@ function dragValue(scale, y) {
           const acq = full.columns.some((c) => ui.acq.has(c.name)), ren = full.columns.some((c) => ui.ren.has(c.name));
           if (acq === ren) return "";
           const side = acq ? "renewal" : "acquisition";
-          return "Nothing is chosen for " + side + ", so " + (names.get(file.supplierId) || file.supplierId) + " " + fuelWord + " will have no " + side + " prices once this is applied.";
+          return "Nothing is ticked for " + side + ", so " + (names.get(file.supplierId) || file.supplierId) + " " + fuelWord + " will have no " + side + " prices after this.";
         }
+        // Greyed out, Apply says the first thing in the way, in words.
         function refreshApply() {
           const lines = problemLines(), warn = oneSided();
           applyBtn.disabled = !!lines.length;
-          applyHint.textContent = lines.length ? "Apply is available when the points above are fixed." : (lastPv ? "Applying makes this choice the live price book for " + (names.get(file.supplierId) || file.supplierId) + " " + fuelWord + " from this file. The old book stays live until the new one is built." : "Apply is available when the preview has appeared.") + (warn ? " " + warn : "");
+          applyHint.textContent = lines.length ? lines[0] : (lastPv ? "Puts these prices live for " + (names.get(file.supplierId) || file.supplierId) + " " + fuelWord + ". Today's prices stay live until the new ones are ready." : "Wait for the preview, then apply.") + (warn ? " " + warn : "");
         }
         body.append(el("h2", { class: "sect", text: "Apply" }));
-        if (!applies) body.append(el("div", { class: "card" }, el("p", { class: "hint", text: "Applying needs the Publish tick. Ask Phil Brook to add it in DNA Admin." })));
+        if (!applies) body.append(el("div", { class: "card" }, el("p", { class: "hint", text: "You need the Publish tick to apply. Ask Phil Brook." })));
         else body.append(el("div", { class: "card" }, applyHint, el("div", { class: "actions" }, applyBtn), amsg, panel));
         foot();
 
@@ -4512,8 +4573,8 @@ function dragValue(scale, y) {
         }
         function note() {
           const ed = G.editedNames(shown()), carried = unsavedHere().filter((nm) => !ed.includes(nm));
-          editedLine.textContent = (ed.length ? "Edited here and not yet saved: " + ed.join(", ") + ". Apply saves them. Edits to band sets you have not chosen are not saved." : "") +
-            (carried.length ? (ed.length ? " " : "") + carried.join(", ") + (carried.length === 1 ? " was" : " were") + " saved against an older band ladder. Every band was carried to the current ladder, and Apply saves " + (carried.length === 1 ? "it" : "them") + " again on the current one." : "");
+          editedLine.textContent = (ed.length ? "Changed, not saved yet: " + andList(ed) + ". Apply saves them." : "") +
+            (carried.length ? (ed.length ? " " : "") + andList(carried) + (carried.length === 1 ? " was" : " were") + " made on an older ladder. Apply saves " + (carried.length === 1 ? "it" : "them") + " on the current one." : "");
         }
         function afterEdit(g) {
           merge(g); note();
@@ -4533,7 +4594,7 @@ function dragValue(scale, y) {
         function dialog() {
           const lines = problemLines();
           if (lines.length) { say(amsg, lines.join(" "), true); return; }
-          if (!lastPv) { say(amsg, "The preview has not appeared yet. Apply when it has, so you have seen the items needing attention.", true); return; }
+          if (!lastPv) { say(amsg, "Wait for the preview, then apply.", true); return; }
           // The preview the person read: Apply sends its count and fingerprint, and refuses when the
           // preview made again with the saved margins differs from it in either (final review A1).
           const seen = Number(lastPv.data.attentionCount) || 0, readFingerprint = lastPv.data.fingerprint, g = shown(), ps = picks(), edited = G.changedNames(g);
@@ -4542,43 +4603,55 @@ function dragValue(scale, y) {
             const c = g.columns.find((x) => x.name === nm);
             const ver = el("input", { type: "radio", name: "prm" + i, id: "prmv" + i, checked: true }), neu = el("input", { type: "radio", name: "prm" + i, id: "prmn" + i });
             const nameIn = el("input", { type: "text", maxlength: "60", autocomplete: "off", "aria-label": "Name of the new band set made from " + nm });
-            nameIn.addEventListener("input", () => { neu.checked = true; });
             return { nm, c, ver, neu, nameIn };
           });
           const reason = el("input", { type: "text", maxlength: "200", autocomplete: "off" });
           const bundleTick = el("input", { type: "checkbox", id: "prBundle" }), bundleName = el("input", { type: "text", maxlength: "60", autocomplete: "off", "aria-label": "Bundle name" });
-          bundleName.addEventListener("input", () => { if (bundleName.value) bundleTick.checked = true; });
           const readTick = el("input", { type: "checkbox", id: "prRead" });
           const dmsg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true }), prog = el("div");
-          const card = el("div", { class: "card white" }, el("h2", { text: "Apply this choice" }),
-            el("p", { class: "hint", text: "The file " + file.sourceFilename + " will be priced with " + ps.map((p) => p.name + " (" + (SALE[p.saleType] || p.saleType).toLowerCase() + ")").join(", ") + ". Region " + ui.region + " in the preview." }));
+          // What is applied, in one sentence: the names, then the sale type when every choice shares one.
+          const sales = [...new Set(ps.map((p) => p.saleType))];
+          const what = sales.length === 1 ? andList(ps.map((p) => p.name)) + ", for " + (sales[0] === "all" ? "acquisition and renewal" : (SALE[sales[0]] || sales[0]).toLowerCase())
+            : andList(ps.map((p) => p.name + " (" + (p.saleType === "all" ? "acquisition and renewal" : (SALE[p.saleType] || p.saleType).toLowerCase()) + ")"));
+          const card = el("div", { class: "card white" }, el("h2", { text: "Apply" }),
+            el("p", { class: "hint", text: "Pricing " + file.sourceFilename + " with " + what + "." }));
           const warn = oneSided();
           if (warn) card.append(el("p", { class: "msg", text: warn }));
           if (modes.length) {
-            card.append(el("h3", { class: "sub", text: "Edited band sets" }), el("p", { class: "hint", text: "Each edited band set is saved first, then the choice is applied." }));
-            for (const m of modes) card.append(el("fieldset", { class: "members" }, el("legend", { text: m.nm }),
-              el("div", { class: "tickrow" }, m.ver, el("label", { for: m.ver.id, text: "Save as a new version of " + m.nm })),
-              el("div", { class: "tickrow" }, m.neu, el("label", { for: m.neu.id, text: "Save as a new band set" })),
-              el("div", { class: "fields" }, field("Name of the new band set", m.nameIn, "Only used for a new band set. 1 to 60 characters."))));
-            card.append(el("div", { class: "fields" }, field("Reason for these changes", reason, "Kept with each new version.")));
+            card.append(el("h3", { class: "sub", text: "You changed " + (modes.length === 1 ? "1 band set. Save it as:" : modes.length + " band sets. Save each one as:") }));
+            for (const m of modes) {
+              // The name box only when a new band set is chosen.
+              const nameBox = el("div", { class: "fields" }, field("Name", m.nameIn));
+              const sync = () => { nameBox.hidden = !m.neu.checked; };
+              m.ver.addEventListener("change", sync); m.neu.addEventListener("change", () => { sync(); if (m.neu.checked) m.nameIn.focus(); });
+              sync();
+              card.append(el("fieldset", { class: "members" }, el("legend", { text: m.nm }),
+                el("div", { class: "tickrow" }, m.ver, el("label", { for: m.ver.id, text: "New version of " + m.nm })),
+                el("div", { class: "tickrow" }, m.neu, el("label", { for: m.neu.id, text: "New band set" })),
+                nameBox));
+            }
+            card.append(el("div", { class: "fields" }, field("Reason for the change", reason)));
           }
-          card.append(el("div", { class: "tickrow" }, bundleTick, el("label", { for: "prBundle", text: "Also save this choice as a bundle" })),
-            el("div", { class: "fields" }, field("Bundle name", bundleName, "Only used if the box above is ticked. It groups the band sets chosen here.")));
-          if (seen > 0) card.append(el("p", { class: "msg" , text: seen + (seen === 1 ? " item needs" : " items need") + " attention in the preview. They are not priced as they are, or are left out." }),
-            el("div", { class: "tickrow" }, readTick, el("label", { for: "prRead", text: "I have read the " + seen + (seen === 1 ? " item" : " items") + " needing attention" })));
-          const go = btn("Apply to " + file.sourceFilename, () => doApply(), ""), cancel = btn("Cancel", () => { panel.textContent = ""; }, "ghost");
+          // The bundle name only when the box is ticked.
+          const bundleBox = el("div", { class: "fields" }, field("Bundle name", bundleName));
+          bundleBox.hidden = true;
+          bundleTick.addEventListener("change", () => { bundleBox.hidden = !bundleTick.checked; if (bundleTick.checked) bundleName.focus(); });
+          card.append(el("div", { class: "tickrow" }, bundleTick, el("label", { for: "prBundle", text: "Save these band sets as a bundle" })), bundleBox);
+          if (seen > 0) card.append(el("p", { class: "msg" , text: seen === 1 ? "1 thing will not go live as shown." : seen + " things will not go live as shown." }),
+            el("div", { class: "tickrow" }, readTick, el("label", { for: "prRead", text: seen === 1 ? "I have checked the warning" : "I have checked the " + seen + " warnings" })));
+          const go = btn("Apply prices", () => doApply(), ""), cancel = btn("Cancel", () => { panel.textContent = ""; }, "ghost");
           card.append(el("div", { class: "actions" }, go, cancel), dmsg, prog);
           panel.textContent = ""; say(amsg, ""); panel.append(card); card.scrollIntoView({ block: "nearest" });
 
           async function doApply() {
-            if (seen > 0 && !readTick.checked) { say(dmsg, "Tick the box to say you have read the items needing attention.", true); return; }
+            if (seen > 0 && !readTick.checked) { say(dmsg, "Tick to confirm you have checked the warnings.", true); return; }
             const rename = new Map();        // old name -> name it will have once saved
             let g2 = shown(), saveNames = [];
             const taken = new Set(existing), fresh = new Set();
             for (const m of modes) {
               if (m.neu.checked) {
                 const nm2 = m.nameIn.value.trim();
-                if (!nm2 || nm2.length > 60) { say(dmsg, "Give " + m.nm + " a new name of 1 to 60 characters.", true); return; }
+                if (!nm2 || nm2.length > 60) { say(dmsg, "Name the new band set made from " + m.nm + " (1 to 60 characters).", true); return; }
                 if (taken.has(nm2) || fresh.has(nm2)) { say(dmsg, "There is already a band set or bundle with that name.", true); return; }
                 fresh.add(nm2);
                 try { g2 = G.addColumn(g2, { name: nm2, product: m.c.product, costPerMeterPence: m.c.costPerMeterPence, fromName: m.nm }); } catch (err) { say(dmsg, err.message, true); return; }
@@ -4587,7 +4660,7 @@ function dragValue(scale, y) {
             }
             if (saveNames.length && !reason.value.trim()) { say(dmsg, "Give a reason for the changes.", true); return; }
             const wantBundle = bundleTick.checked, bName = bundleName.value.trim();
-            if (wantBundle && (!bName || bName.length > 60)) { say(dmsg, "Give the bundle a name of 1 to 60 characters.", true); return; }
+            if (wantBundle && (!bName || bName.length > 60)) { say(dmsg, "Name the bundle (1 to 60 characters).", true); return; }
             if (wantBundle && (taken.has(bName) || fresh.has(bName))) { say(dmsg, "There is already a band set or bundle with that name.", true); return; }
             const finalName = (nm) => rename.has(nm) ? rename.get(nm) : nm;
             const ps2 = ps.map((p) => ({ name: finalName(p.name), saleType: p.saleType }));
@@ -4599,12 +4672,12 @@ function dragValue(scale, y) {
             const ok = (text) => cur(text || curText, "done");
             try {
               if (saveNames.length) {
-                go2("Saving " + saveNames.length + (saveNames.length === 1 ? " edited band set" : " edited band sets"));
+                go2("Saving " + saveNames.length + (saveNames.length === 1 ? " changed band set" : " changed band sets"));
                 const r = await call("band_sets_save", G.toSavePayload(g2, saveNames, reason.value.trim()));
                 if (!alive()) return;
                 savedAny = savedSomething = true; ok();
                 for (const x of r.saved) ids.set(x.name, x.priceConfigId);
-                savedNote = "Your edits were saved as " + r.saved.map((x) => x.name + " version " + x.version).join(", ") + ". ";
+                savedNote = "Saved as " + andList(r.saved.map((x) => x.name + " version " + x.version)) + ". ";
                 // From here the chosen names are the saved ones, and the grid is read again from the database.
                 for (const s of [ui.acq, ui.ren]) for (const [o, nw] of rename) if (s.has(o)) { s.delete(o); s.add(nw); }
               }
@@ -4612,7 +4685,7 @@ function dragValue(scale, y) {
                 go2("Saving the bundle " + bName);
                 await call("bundle_save", { fuel: file.fuel, name: bName, members: ps2.map((p) => p.name) });
                 if (!alive()) return;
-                ok(); savedSomething = true; savedNote += "The bundle " + bName + " was saved. ";
+                ok(); savedSomething = true; savedNote += "Bundle " + bName + " saved. ";
               }
               go2("Checking the preview again with the saved margins");
               const usages = lastPv.usages;
@@ -4620,25 +4693,25 @@ function dragValue(scale, y) {
               if (!alive()) return;
               ok();
               if (Number(p2.attentionCount) !== seen || p2.fingerprint !== readFingerprint) {
-                throw { message: "The list of items needing attention is not the one you read" + (Number(p2.attentionCount) !== seen ? ": it now has " + (Number(p2.attentionCount) || 0) : "") + ". Read the preview again, then apply.", stale: true };
+                throw { message: "The warnings have changed" + (Number(p2.attentionCount) !== seen ? " (now " + (Number(p2.attentionCount) || 0) + ")" : "") + ". Check them again, then apply.", stale: true };
               }
-              go2("Applying to the live price book");
+              go2("Putting the prices live");
               const before = await call("book_live");
               const a = await call("apply", { fileId: file.supplierFileId, selections: ps2.map((p) => ({ priceConfigId: ids.get(p.name), saleType: p.saleType })), attentionSeen: seen, fingerprint: readFingerprint }, 60000);
               if (!alive()) return;
-              ok("Applied. " + comma(a.runsPublishing) + (Number(a.runsPublishing) === 1 ? " run is" : " runs are") + " being built into the price book.");
-              say(msg, "Applied " + file.sourceFilename + ". It shows as Live on the files list once the book is built.");
+              ok("Applied. Building " + comma(a.runsPublishing) + (Number(a.runsPublishing) === 1 ? " run." : " runs."));
+              say(msg, "Applied " + file.sourceFilename + ". It shows as Live once the prices are built.");
               afterPublish({ supplierFileId: file.supplierFileId, supplierId: file.supplierId, fuel: file.fuel }, before, prog, alive);
-              card.append(el("div", { class: "actions" }, btn("Back to the files", () => back(), "ghost small")));
+              card.append(el("div", { class: "actions" }, btn("Back to files", () => back(), "ghost small")));
             } catch (err) {
               if (err && err.signedOut) return;
               if (cur) cur(curText, "failed");
               const sentence = explain(err);
               if (savedSomething) {
                 // Part of it is saved: read the band sets again so a second try does not save them twice.
-                await load(savedNote + "Not applied: " + sentence + " Nothing was published.", true);
+                await load(savedNote + "Not applied: " + sentence + " Nothing went live.", true);
               } else {
-                say(dmsg, sentence + " Nothing was saved or published. Your edits are kept here.", true); lock(card, false); busy(false);
+                say(dmsg, sentence + " Nothing saved. Your edits are still here.", true); lock(card, false); busy(false);
                 if (err && err.stale) schedule(true);
               }
             }
@@ -4651,51 +4724,85 @@ function dragValue(scale, y) {
         if (chosen().length) schedule(true);
       }
 
-      // The supplier's published splits, read only. Changing them is on Band sets and splits.
+      // The supplier's published splits, read only. Changing them is on Splits.
       function splitsCard() {
         const card = el("div", { class: "card white" });
         const mine = sl.splits.filter((x) => x.supplier_id === file.supplierId && x.status === "published");
-        if (file.fuel === "gas") card.append(el("p", { class: "hint", text: "Splits are for electricity rate structures, so there are none for gas." }));
+        if (file.fuel === "gas") card.append(el("p", { class: "hint", text: "Gas has no splits." }));
         else if (!mine.length) card.append(el("p", { class: "hint", text: "No published splits for " + (names.get(file.supplierId) || file.supplierId) + " yet." }));
-        else card.append(el("ul", { class: "plain" }, ...mine.map((x) => el("li", { text: (STRUCTURE[x.rate_structure] || x.rate_structure) + ": " + SPLIT_KEYS[x.rate_structure].map((k) => KEY_LABEL[k] + " " + pctText(x.split[k])).join(", ") + " (version " + x.version + ")." }))));
-        card.append(el("div", { class: "actions" }, btn("Open Band sets and splits", () => {
+        else card.append(el("ul", { class: "plain" }, ...mine.map((x) => el("li", { text: (STRUCTURE[x.rate_structure] || x.rate_structure) + ": " + figures(x.split, SPLIT_KEYS[x.rate_structure]) }))));
+        if (file.fuel !== "gas") card.append(el("div", { class: "actions" }, btn("Change splits", () => {
           const ed = gridView ? G.editedNames(gridView.getGrid()) : [];
-          if (ed.length) { say(msg, "You have unsaved changes to " + ed.join(", ") + " here. Apply them or go back to the files first, or they are lost.", true); return; }
-          stop(); showTool("pricing", "bands", "menu");
+          if (ed.length) { say(msg, "You have unsaved changes to " + andList(ed) + ". Apply them first, or go back to files to drop them.", true); return; }
+          stop(); showTool("pricing", "splits", "menu");
         }, "ghost small")));
         return card;
       }
 
+      // The preview, laid out to answer "what changes?": the warnings first, then one row per usage
+      // and term with a column per band set in the grid's order, each cell the new annual cost with the
+      // change against the live price and the margin under it, for one sale type at a time. Every
+      // figure the function gives is still there, in "All rates and margins" below the table.
       function drawPreview(box, r) {
         box.textContent = "";
         const N = Number(r.attentionCount) || 0;
-        if (!r.rows.length) box.append(el("div", { class: "empty", text: "No prices match that region and those usages for this choice." }));
-        else {
-          const k = new Map();
-          for (const x of r.rows) {
-            const key = [x.label, x.saleType, x.usageKwh, x.termMonths].join("|");
-            if (!k.has(key)) k.set(key, { label: x.label, sale: x.saleType, usage: Number(x.usageKwh), term: Number(x.termMonths) });
-            k.get(key)[x.which] = x;
+        if (N) {
+          box.append(el("h3", { class: "sub", text: "Check before applying" }), el("p", { class: "hint", text: N === 1 ? "1 thing will not go live as shown." : N + " things will not go live as shown." }));
+          const groups = new Map();
+          const saleWord = (t) => t === "all" ? "acquisition and renewal" : (SALE[t] || t || "").toLowerCase();
+          for (const a of r.attention) { const l = a.product + ", " + saleWord(a.saleType); if (!groups.has(l)) groups.set(l, []); groups.get(l).push(a); }
+          for (const [l, items] of groups) box.append(el("div", { class: "attn" }, el("div", { class: "t", text: l }), el("ul", { class: "plain" }, ...items.map((a) => el("li", { text: issueText(a) })))));
+        }
+        if (!r.rows.length) { box.append(el("div", { class: "empty", text: "No prices for that region and usage." })); return; }
+        const rank = new Map(full.columns.map((c, i) => [c.name, i]));
+        const byRank = (a, b) => (rank.has(a) ? rank.get(a) : 1e9) - (rank.has(b) ? rank.get(b) : 1e9) || String(a).localeCompare(String(b));
+        const labels = [...new Set(r.rows.map((x) => x.label))].sort(byRank);
+        const sales = [...new Set(r.rows.map((x) => x.saleType))].sort((a, b) => (a === "acquisition" ? 0 : 1) - (b === "acquisition" ? 0 : 1));
+        if (!sales.includes(ui.sale)) ui.sale = sales[0];
+        const k = new Map();
+        for (const x of r.rows) {
+          const key = [x.label, x.saleType, x.usageKwh, x.termMonths].join("|");
+          if (!k.has(key)) k.set(key, { label: x.label, sale: x.saleType, usage: Number(x.usageKwh), term: Number(x.termMonths) });
+          k.get(key)[x.which] = x;
+        }
+        const change = (p, l) => {
+          if (!p || p.sellAnnualPence == null) return "";
+          if (!l || l.sellAnnualPence == null) return "no live price";
+          const d = Number(p.sellAnnualPence) - Number(l.sellAnnualPence), base = Number(l.sellAnnualPence);
+          const sign = d < 0 ? "−" : "+";
+          return sign + pounds(Math.abs(d)) + (base ? " (" + sign + (Math.abs(d) / base * 100).toFixed(1) + "%)" : "");
+        };
+        const host = el("div");
+        const seg = sales.length > 1 ? el("div", { class: "seg", role: "group", "aria-label": "Sale type" }) : null;
+        function drawPivot() {
+          host.textContent = "";
+          if (seg) {
+            seg.textContent = "";
+            for (const s of sales) seg.append(el("button", { type: "button", class: "btn small " + (s === ui.sale ? "" : "ghost"), "aria-pressed": String(s === ui.sale), text: SALE[s] || s, onclick: () => { ui.sale = s; drawPivot(); } }));
           }
-          const sorted = [...k.values()].sort((a, b) => String(a.label).localeCompare(String(b.label)) || a.usage - b.usage || a.term - b.term || String(a.sale).localeCompare(String(b.sale)));
-          box.append(table(["Band set", "Sale type", "Usage kWh", "Term (months)", "Proposed unit rate", "Proposed standing charge", "Proposed sell annual cost", "Proposed margin", "Live sell annual cost", "Live margin"],
-            sorted.map((x) => [x.label, SALE[x.sale] || x.sale, comma(x.usage), String(x.term), pence2(x.proposed && x.proposed.unitRatePence2dp, "p/kWh"), pence2(x.proposed && x.proposed.standingChargePence2dp, "p/day"),
-              pounds(x.proposed && x.proposed.sellAnnualPence), pounds(x.proposed && x.proposed.marginAnnualPence), pounds(x.live && x.live.sellAnnualPence), pounds(x.live && x.live.marginAnnualPence)])),
-            el("p", { class: "hint", text: "A dash means the live book has no price for that case." }));
+          const cells = [...k.values()].filter((x) => x.sale === ui.sale);
+          const points = [...new Set(cells.map((x) => x.usage + "|" + x.term))].map((p) => p.split("|").map(Number)).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+          const at = new Map(cells.map((x) => [x.label + "|" + x.usage + "|" + x.term, x]));
+          host.append(el("div", { class: "prwide" }, el("table", { class: "prt pivot" },
+            el("thead", {}, el("tr", {}, el("th", { scope: "col", text: "Usage kWh" }), el("th", { scope: "col", text: "Term" }), ...labels.map((l) => el("th", { scope: "col", class: "n", text: l })))),
+            el("tbody", {}, ...points.map(([u, t]) => el("tr", {}, el("td", { text: comma(u) }), el("td", { text: t + " months" }),
+              ...labels.map((l) => {
+                const x = at.get(l + "|" + u + "|" + t), p = x && x.proposed;
+                if (!p) return el("td", { class: "n", text: "–" });
+                return el("td", { class: "n" }, el("b", { text: pounds(p.sellAnnualPence) }), el("span", { class: "chg", text: change(p, x.live) }), el("span", { class: "chg", text: "Margin " + pounds(p.marginAnnualPence) }));
+              })))))));
         }
-        box.append(el("h3", { class: "sub", text: "Items needing attention" }));
-        if (!N) { box.append(el("p", { class: "hint", text: "Nothing needs attention for this choice." })); return; }
-        box.append(el("p", { class: "hint", text: N + (N === 1 ? " item needs" : " items need") + " attention. These prices are not applied as they are, or are left out. Read them before applying." }));
-        const groups = new Map();
-        const saleWord = (t) => t === "all" ? "acquisition and renewal" : (SALE[t] || t || "").toLowerCase();
-        for (const a of r.attention) { const l = a.product + ", " + saleWord(a.saleType); if (!groups.has(l)) groups.set(l, []); groups.get(l).push(a); }
-        for (const [l, items] of groups) {
-          box.append(el("div", { class: "attn" }, el("div", { class: "t", text: l + ": " + items.length + (items.length === 1 ? " item" : " items") }),
-            el("ul", { class: "plain" }, ...items.map((a) => {
-              const lo = a.rangeMinKwh, hi = a.rangeMaxKwh, rc = a.rateCount;
-              return el("li", { text: words(a.issue) + (lo != null || hi != null ? ", " + comma(lo) + " to " + comma(hi) + " kWh" : "") + (rc != null ? ", " + comma(rc) + (Number(rc) === 1 ? " rate" : " rates") : "") + (a.detail ? ". " + a.detail : "") });
-            }))));
-        }
+        drawPivot();
+        // Every figure, as the function gives them, for anyone who wants the rates.
+        const all = [...k.values()].sort((a, b) => byRank(a.label, b.label) || a.usage - b.usage || a.term - b.term || String(a.sale).localeCompare(String(b.sale)));
+        box.append(el("h3", { class: "sub", text: "Annual cost" }),
+          el("p", { class: "hint", text: "Each cell: the new annual cost, the change against today's live price, then the margin." }),
+          seg, host,
+          el("details", { class: "more" }, el("summary", { text: "All rates and margins" }),
+            table(["Band set", "Sale type", "Usage kWh", "Term", "Unit rate", "Standing charge", "New annual cost", "New margin", "Live annual cost", "Live margin"],
+              all.map((x) => [x.label, SALE[x.sale] || x.sale, comma(x.usage), x.term + " months", pence2(x.proposed && x.proposed.unitRatePence2dp, "p/kWh"), pence2(x.proposed && x.proposed.standingChargePence2dp, "p/day"),
+                pounds(x.proposed && x.proposed.sellAnnualPence), pounds(x.proposed && x.proposed.marginAnnualPence), pounds(x.live && x.live.sellAnnualPence), pounds(x.live && x.live.marginAnnualPence)])),
+            el("p", { class: "hint", text: "– means no live price." })));
       }
       load();
     }
@@ -4717,11 +4824,11 @@ function dragValue(scale, y) {
       fuel.addEventListener("change", () => { fill(); clear(); });
       for (const c of [supplier, format, input]) c.addEventListener("change", clear);
       fill();
-      const read = btn("Read the file", () => readFile(), "");
+      const read = btn("Check file", () => readFile(), "");
       const card = el("div", { class: "card" },
-        el("h2", { text: "Load a file by hand (until the SharePoint loader runs)" }),
-        el("p", { class: "hint", text: "Loading a file by hand only loads it. Price it from the list of files above once it is awaiting bandings." }),
-        el("div", { class: "fields" }, field("Supplier", supplier), field("Fuel", fuel), field("File format", format), field("File", input, "Excel (.xlsx or .xls) or CSV, as the format says.")),
+        el("h2", { text: "Load a file by hand" }),
+        el("p", { class: "hint", text: "It then appears in the list above, ready to price." }),
+        el("div", { class: "fields" }, field("Supplier", supplier), field("Fuel", fuel), field("File format", format), field("File", input, "Excel or CSV, to match the format.")),
         el("div", { class: "fields" }, field("Production date (optional)", dates.production), field("Quotes valid from (optional)", dates.from), field("Quotes valid until (optional)", dates.until)),
         el("div", { class: "actions" }, read), summary, progress);
 
@@ -4730,7 +4837,7 @@ function dragValue(scale, y) {
         if (!file) { say(msg, "Choose a file first.", true); return; }
         const ext = ((file.name.match(/\.([A-Za-z0-9]+)$/) || [])[1] || "").toLowerCase();
         if (!CONTENT_TYPE[ext]) { say(msg, "Choose an Excel (.xlsx, .xls) or CSV file.", true); return; }
-        clear(); say(msg, "Reading the file. A large file can take a minute. Keep this page open."); read.disabled = true;
+        clear(); say(msg, "Reading the file. Keep this page open, large files take a minute."); read.disabled = true;
         await pause(40);
         try {
           const buf = await file.arrayBuffer();
@@ -4749,19 +4856,19 @@ function dragValue(scale, y) {
         const reasons = new Map();
         for (const r of p.refused) reasons.set(r.reason, (reasons.get(r.reason) || 0) + 1);
         const refusedBytes = byteLen(JSON.stringify(p.refused));
-        const blocked = !p.rows.length ? "No row could be used, so there is nothing to load." : refusedBytes > MAX_BODY - 2000 ? "Too many rows were refused to report in one go. Check that the supplier, fuel and format match the file." : "";
+        const blocked = !p.rows.length ? "No row could be used, so there is nothing to load." : refusedBytes > MAX_BODY - 2000 ? "Too many rows rejected. Check the supplier, fuel and format match the file." : "";
         summary.append(
-          el("h3", { class: "sub", text: "What the page read" }),
+          el("h3", { class: "sub", text: "What the file holds" }),
           el("ul", { class: "plain" },
             el("li", { text: "Rows in the file: " + comma(p.rowCountSource) }),
             el("li", { text: "Rows that can be loaded: " + comma(p.rows.length) }),
-            el("li", { text: "Rows refused: " + comma(p.refused.length) })));
-        if (reasons.size) summary.append(table(["Reason refused", "Rows"], [...reasons].sort((a, b) => b[1] - a[1]).map(([r, c]) => [r, comma(c)])),
-          el("p", { class: "hint", text: "First rows refused: " + p.refused.slice(0, 8).map((r) => "row " + r.row).join(", ") + (p.refused.length > 8 ? " and others." : ".") }));
+            el("li", { text: "Rows rejected: " + comma(p.refused.length) })));
+        if (reasons.size) summary.append(table(["Reason rejected", "Rows"], [...reasons].sort((a, b) => b[1] - a[1]).map(([r, c]) => [r, comma(c)])),
+          el("p", { class: "hint", text: "First rows rejected: " + p.refused.slice(0, 8).map((r) => "row " + r.row).join(", ") + (p.refused.length > 8 ? " and others." : ".") }));
         if (p.assumptions.length) summary.append(el("h3", { class: "sub", text: "What this format assumes" }), el("ul", { class: "plain" }, ...p.assumptions.map((a) => el("li", { text: a }))));
         if (blocked) { summary.append(el("p", { class: "msg refused", text: blocked })); return; }
         summary.append(el("div", { class: "actions" }, btn("Load this file", () => doLoad(), ""),
-          el("span", { class: "hint", text: "Stay on this page until the load report appears." })));
+          el("span", { class: "hint", text: "Keep this page open until the report appears." })));
       }
 
       async function doLoad() {
@@ -4792,7 +4899,7 @@ function dragValue(scale, y) {
             if (byteLen(JSON.stringify({ op: "file_rows", token, fileId: s.fileId, rows: parts[i] })) > 990000) throw { message: "A part of the rows is too large to send." };
             let r;
             try { r = await call("file_rows", { fileId: s.fileId, rows: parts[i] }, 90000); }
-            catch (err) { if (err && err.signedOut) return; throw { message: "Part " + (i + 1) + " of " + parts.length + " could not be sent: " + explain(err) + " The file is not finished and nothing is published from it. Load the same file again to start clean." }; }
+            catch (err) { if (err && err.signedOut) return; throw { message: "Part " + (i + 1) + " of " + parts.length + " could not be sent: " + explain(err) + " Load the file again." }; }
             if (!alive()) return;
             added += Number(r.added) || 0;
           }
@@ -4800,7 +4907,7 @@ function dragValue(scale, y) {
           go("Finishing the load");
           let f;
           try { f = await call("file_finish", { fileId: s.fileId, refused: st.parsed.refused }, 120000); }
-          catch (err) { if (err && err.signedOut) return; throw { message: "The load could not be finished: " + explain(err) + " Nothing is published from it. Load the same file again to start clean." }; }
+          catch (err) { if (err && err.signedOut) return; throw { message: "Load failed: " + explain(err) + " Load the file again." }; }
           if (!alive()) return;
           done();
           say(msg, "");
@@ -4824,23 +4931,24 @@ function dragValue(scale, y) {
         el("ul", { class: "plain" },
           el("li", { text: "Rows in the file: " + comma(st.parsed.rowCountSource) }),
           el("li", { text: "Rows loaded: " + comma(rep.row_count_loaded) }),
-          el("li", { text: "Rows refused: " + comma(rep.refused_count) })));
+          el("li", { text: "Rows rejected: " + comma(rep.refused_count) })));
       // The count is the database's (finish_supplier_file). A difference from what this page sent
       // means a part went missing on the way; publishing such a file is refused.
       if (rep.row_count_loaded != null && Number(rep.row_count_loaded) !== added) {
-        card.append(el("p", { class: "msg refused", text: "This page sent " + comma(added) + " rows but the database holds " + comma(rep.row_count_loaded) + ". Load the same file again to start clean." }));
+        card.append(el("p", { class: "msg refused", text: "Sent " + comma(added) + " rows but the database has " + comma(rep.row_count_loaded) + ". Load the file again." }));
       }
-      if (by.length) card.append(table(["Reason refused", "Rows"], by.sort((a, b) => b[1] - a[1]).map(([r, c]) => [r, comma(c)])));
+      if (by.length) card.append(table(["Reason rejected", "Rows"], by.sort((a, b) => b[1] - a[1]).map(([r, c]) => [r, comma(c)])));
       const lines = st.parsed.assumptions || [];
       if (lines.length) card.append(el("h3", { class: "sub", text: "What this format assumes" }), el("ul", { class: "plain" }, ...lines.map((a) => el("li", { text: a }))));
-      card.append(el("p", { class: "hint", text: "The file is loaded. Price it from the list of files when it is awaiting bandings." }));
+      card.append(el("p", { class: "hint", text: "File loaded and ready to price." }));
       box.append(card);
     }
 
     // =====================================================================================
-    // Band sets and splits (spec 4.4): the consumption splits at the top, then the margins of every
-    // band set of one fuel against that fuel's band ladder, the chart, the cell detail and the actions.
-    // The grid, chart and selection tools are drawGrid, which the Price this file workspace reuses.
+    // Band sets and splits (spec 4.4), now two screens: Margins (bands, below) is the margins of every
+    // band set of one fuel against that fuel's band ladder, with the chart, the cell detail, Manage
+    // and the save bar; Splits (splitsPage) is each supplier's consumption splits. The grid, chart
+    // and selection tools are drawGrid, which the Price workspace reuses.
     // =====================================================================================
     const G = PR_GRID;
     const LAYER_LABEL = { margin: "Margin (p/kWh)", share: "Standing charge share (%)" };
@@ -4948,10 +5056,10 @@ function dragValue(scale, y) {
             const targets = [...new Set(sel.map((s) => s.name))];
             if (targets.length !== 1) { say(msgG, "Select cells in one band set to copy into.", true); return; }
             if (targets[0] === from.value) { say(msgG, "Choose a different band set to copy from.", true); return; }
-            say(msgG, "Copied margins and shares from " + from.value + " into " + targets[0] + ". They are unsaved changes.");
+            say(msgG, "Copied " + from.value + " into " + targets[0] + ".");
             commit(G.copyColumn(grid, from.value, targets[0]));
           }, "ghost small")));
-        bar.append(el("span", { class: "hint", text: "Click a cell, shift-click for a block, click a heading for a whole column or band. Double-click to type. Ctrl and V pastes a block copied from Excel." }));
+        bar.append(el("span", { class: "hint", text: "Click to select, Shift-click for a block, double-click to type. You can paste from Excel." }));
       }
       const select2 = (options) => el("select", { "aria-label": "Copy column from" }, ...options.map(([v, t]) => el("option", { value: v, text: t })));
 
@@ -4969,10 +5077,10 @@ function dragValue(scale, y) {
           ...groups.map((g) => el("th", { scope: "colgroup", colspan: g.n, class: "grp", text: g.label || (anyBundle ? "Not in a bundle" : "Band sets") })));
         const head2 = el("tr", {}, ...cols.map((c, ci) => el("th", { scope: "col", class: "colh" },
           el("button", { type: "button", class: "linkbtn", text: c.name, title: "Select this whole band set", onclick: () => selectColumn(ci) }),
-          el("span", { class: "sub", text: c.product + ", meter " + pounds(c.costPerMeterPence) }),
+          el("span", { class: "sub", text: (c.product !== c.name ? c.product + ", " : "") + pounds(c.costPerMeterPence) + " per meter" }),
           el("span", { class: "marks" },
             c.isNew ? el("span", { class: "badge info", text: "New" }) : null,
-            c.stale ? el("span", { class: "badge warn", text: "Older ladder", title: "Saved against an older band ladder. Its margins were carried to the current ladder where a band starts at the same point; check it before saving." + (G.isChanged(c) && !G.isEdited(c) ? " Every band was carried, so the next save saves it again on the current ladder." : "") }) : null,
+            c.stale ? el("span", { class: "badge warn", text: "Older ladder", title: "Made on an older ladder. Check its margins before saving." + (G.isChanged(c) && !G.isEdited(c) ? " Every band carried over, so the next save moves it to the current ladder." : "") }) : null,
             (!c.isNew && G.isEdited(c)) ? el("span", { class: "badge info", text: "Changed" }) : null))));
         const rows = grid.bands.map((b, bi) => el("tr", {},
           el("th", { scope: "row" }, el("button", { type: "button", class: "linkbtn", text: (bi + 1) + ": " + bandText(b), title: "Select this band in every band set", onclick: () => selectRow(bi) })),
@@ -5033,7 +5141,7 @@ function dragValue(scale, y) {
         const ci = Math.min(...sel.map((s) => colPos(s.name))), bi = Math.min(...sel.map((s) => grid.bands.findIndex((b) => b.bandIndex === s.bandIndex)));
         const r = G.pasteBlock(grid, cellAt(ci, bi), text, layer);
         commit(r.grid);
-        say(msgG, r.errors.length ? "Pasted what could be read. " + r.errors.slice(0, 4).join(" ") + (r.errors.length > 4 ? " And " + (r.errors.length - 4) + " more." : "") : "Pasted. The cells are unsaved changes.", !!r.errors.length);
+        say(msgG, r.errors.length ? "Pasted what could be read. " + r.errors.slice(0, 4).join(" ") + (r.errors.length > 4 ? " And " + (r.errors.length - 4) + " more." : "") : "Pasted.", !!r.errors.length);
       }
       document.addEventListener("paste", onPaste);
 
@@ -5048,13 +5156,16 @@ function dragValue(scale, y) {
         const scale = G.chartScale(cols.flatMap((c) => c.margins), PH), topVal = scale.fromY(0);
         const nb = grid.bands.length, xAt = (i) => nb === 1 ? L + PW / 2 : L + PW * i / (nb - 1);
         const root2 = svg("svg", { viewBox: "0 0 " + W + " " + H, class: "chart", role: "group", "aria-label": "Margin in pence per kWh for each band, for " + shown.join(", ") });
-        for (let t = 0; t <= 4; t++) {
-          const v = topVal * t / 4, y = T + scale.toY(v);
+        // Gridlines on round steps (0.05p, 0.1p, 0.2p, 0.25p, 0.5p, 1p and so on), up to the top of the drawing.
+        const STEPS = [10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000];
+        const step = STEPS.find((s) => topVal / s <= 5) || STEPS[STEPS.length - 1];
+        for (let v = 0; v <= topVal + 1e-9; v += step) {
+          const y = T + scale.toY(v);
           root2.append(svg("line", { x1: L, x2: W - R, y1: y, y2: y, stroke: "var(--hairline)", "stroke-width": 1 }));
-          const tx = svg("text", { x: L - 8, y: y + 4, "text-anchor": "end", "font-size": 11, fill: "var(--muted)" }); tx.textContent = (v / 1000).toFixed(2) + "p"; root2.append(tx);
+          const tx = svg("text", { x: L - 8, y: y + 4, "text-anchor": "end", "font-size": 11, fill: "var(--muted)" }); tx.textContent = String(Number((v / 1000).toFixed(3))) + "p"; root2.append(tx);
         }
         grid.bands.forEach((b, i) => { const tx = svg("text", { x: xAt(i), y: H - 16, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }); tx.textContent = String(i + 1); const ti = svg("title"); ti.textContent = bandText(b); tx.append(ti); root2.append(tx); });
-        const ax = svg("text", { x: L + PW / 2, y: H - 2, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }); ax.textContent = "Band (kWh ranges are in the grid)"; root2.append(ax);
+        const ax = svg("text", { x: L + PW / 2, y: H - 2, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }); ax.textContent = "Band"; root2.append(ax);
         const tip = svg("text", { x: W - R, y: 12, "text-anchor": "end", "font-size": 12, "font-weight": 800, fill: "var(--ink)" }); root2.append(tip);
         let dragging = null;
         cols.forEach((c, si) => {
@@ -5094,7 +5205,7 @@ function dragValue(scale, y) {
         });
         chartBox.append(el("h3", { class: "sub", text: "Margin by band (p/kWh)" }), root2,
           el("div", { class: "legend" }, ...cols.map((c, si) => el("span", { class: "key" }, (() => { const s2 = svg("svg", { width: 30, height: 10, "aria-hidden": "true" }); if (SERIES[si].casing) s2.append(svg("line", { x1: 0, x2: 30, y1: 5, y2: 5, stroke: SERIES[si].casing, "stroke-width": 6 })); s2.append(svg("line", { x1: 0, x2: 30, y1: 5, y2: 5, stroke: SERIES[si].color, "stroke-width": 3, "stroke-dasharray": SERIES[si].dash || null })); return s2; })(), " " + c.name))),
-          el("p", { class: "hint", text: (names.length > 4 ? "Showing the first four of the " + names.length + " selected band sets. " : picks.length ? "" : "Showing the first four band sets. Select cells to choose others. ") + (editable ? "Drag a point, or focus it and use the up and down keys, to change that cell's margin (0.01p steps)." : "") }));
+          el("p", { class: "hint", text: (names.length > 4 ? "Showing 4 of " + names.length + " band sets. Select cells to choose which. " : "") + (editable ? "Drag a point to change a margin." : "") }));
         if (focusPoint) { const f = chartBox.querySelector('circle.pt[data-name="' + CSS.escape(focusPoint.name) + '"][data-i="' + focusPoint.i + '"]'); if (f) f.focus(); focusPoint = null; }
       }
       function render() { renderBar(); renderTable(); renderChart(); }
@@ -5111,21 +5222,20 @@ function dragValue(scale, y) {
     // ---------- the screen
     let bsFuel = "electricity";
     async function bands(n) {
-      const msg = head("Band sets ", "and splits", "Consumption splits come first, then the margins of every band set of one fuel against that fuel's band ladder. Edits to the grid are held on this page until you save them, together, with one reason.");
+      const msg = head("Band set ", "margins", "Margins for every band set. Edits save together, with one reason.");
       const body = el("div"); root.append(body);
-      const extra = [];     // splits a person asked to see before any exist
       let view = null;
       const load = async (note, bad) => {
         say(msg, "");
-        let ov, sl, bs;
-        try { [ov, sl, bs] = await Promise.all([call("overview"), call("split_list"), call("band_sets", { fuel: bsFuel })]); } catch (err) { fail(n, msg, err); return; }
+        let ov, bs;
+        try { [ov, bs] = await Promise.all([call("overview"), call("band_sets", { fuel: bsFuel })]); } catch (err) { fail(n, msg, err); return; }
         if (!still(n)) return;
         if (view) view.destroy();
-        view = draw(ov, sl, bs);
+        view = draw(ov, bs);
         if (note) say(msg, note, !!bad);
       };
 
-      function draw(ov, sl, bs) {
+      function draw(ov, bs) {
         body.textContent = "";
         const names = supplierNames(ov), editable = can(T.set);
         let gridView = null, lastCell = null;
@@ -5135,16 +5245,12 @@ function dragValue(scale, y) {
         body.append(el("div", { class: "seg", role: "group", "aria-label": "Fuel" },
           ...Object.entries(FUEL).map(([f, l]) => el("button", { type: "button", class: "btn small " + (f === bsFuel ? "" : "ghost"), "aria-pressed": String(f === bsFuel), text: l, onclick: () => { if (f === bsFuel || !clean()) return; bsFuel = f; load(); } }))));
 
-        // ---- splits
-        body.append(el("h2", { class: "sect", text: "Consumption splits" }));
-        const splitsBox = el("div"); body.append(splitsBox);
-        drawSplits(splitsBox, ov, sl, names);
-
-        // ---- margins
-        body.append(el("h2", { class: "sect", text: "Margins" }),
-          el("p", { class: "hint", text: FUEL[bsFuel] + " band ladder version " + bs.ladder.version + ", " + bs.ladder.bands.length + (bs.ladder.bands.length === 1 ? " band" : " bands") + ". Annual margin figures under each margin are at the middle of the band; they are for checking, not prices." }));
-        const gridHost = el("div"), detailHost = el("div");
-        body.append(gridHost, el("h2", { class: "sect", text: "Cell detail" }), detailHost);
+        // ---- margins: Manage (the setup actions) above the grid, then the grid, the cell detail once a
+        // cell is picked, and the save bar.
+        body.append(el("p", { class: "hint", text: FUEL[bsFuel] + " ladder version " + bs.ladder.version + ", " + bs.ladder.bands.length + (bs.ladder.bands.length === 1 ? " band" : " bands") + ". £ a year is at the middle of each band, as a guide." }));
+        const manageHost = el("div", { class: "gridtop" }), gridHost = el("div"), detailHost = el("div");
+        const detailHead = el("h2", { class: "sect", text: "Cell detail" }); detailHead.hidden = true;
+        body.append(manageHost, gridHost, detailHead, detailHost);
         const histCache = new Map();
         const history = (name) => { if (!histCache.has(name)) histCache.set(name, call("band_set_history", { fuel: bsFuel, name })); return histCache.get(name); };
         let detailGen = 0;
@@ -5152,32 +5258,33 @@ function dragValue(scale, y) {
           const g = gridView.getGrid(), my = ++detailGen;
           detailHost.textContent = "";
           const ci = lastCell ? g.columns.findIndex((c) => c.name === lastCell.name) : -1, bi = lastCell ? g.bands.findIndex((b) => b.bandIndex === lastCell.bandIndex) : -1;
-          if (ci < 0 || bi < 0) { detailHost.append(el("div", { class: "empty", text: "Select a cell in the grid to see its detail." })); return; }
+          detailHead.hidden = ci < 0 || bi < 0;
+          if (detailHead.hidden) return;
           const col = g.columns[ci], band = g.bands[bi], m = col.margins[bi], s = col.shares[bi];
           const card = el("div", { class: "card white" }, el("h2", { text: col.name + ", band " + (bi + 1) }),
-            el("p", { class: "hint", text: bandText(band) + ". Product " + col.product + ", cost per meter " + pounds(col.costPerMeterPence) + " a year." + (col.stale ? " Saved against an older ladder; carried to the current one here." : "") }));
+            el("p", { class: "hint", text: bandText(band) + ". " + (col.product !== col.name ? "Product " + col.product + ". " : "") + pounds(col.costPerMeterPence) + " a year per meter." + (col.stale ? " Made on an older ladder." : "") }));
           if (editable) {
             const costIn = el("input", { type: "text", inputmode: "decimal", value: (col.costPerMeterPence / 100).toFixed(2), "aria-label": "Cost per meter in pounds a year for " + col.name });
-            card.append(el("div", { class: "fields" }, field("Cost per meter (£ a year) for " + col.name, costIn, "Whole pence. Held as an unsaved change until you use Save changes.")),
+            card.append(el("div", { class: "fields" }, field("Cost per meter, £ a year", costIn)),
               el("div", { class: "actions" }, btn("Set cost per meter", () => {
                 const t = costIn.value.trim().replace(/^£/, "");
                 if (!/^\d+(\.\d{1,2})?$/.test(t)) { gridView.say("Enter the cost per meter in pounds, such as 15 or 15.50.", true); return; }
                 gridView.setGrid(G.setCostPerMeter(gridView.getGrid(), col.name, Math.round(Number(t) * 100)));
-                gridView.say("Cost per meter for " + col.name + " is " + pounds(Math.round(Number(t) * 100)) + " as an unsaved change.", false);
+                gridView.say("Cost per meter for " + col.name + " set to " + pounds(Math.round(Number(t) * 100)) + ".", false);
               }, "ghost small")));
           }
           if (m == null) card.append(el("p", { text: "This band has no margin yet." }));
           else {
             const sp = G.marginSplit(m, band.eacMinKwh, band.eacMaxKwh, s), mid = (band.eacMinKwh + band.eacMaxKwh) / 2;
-            const lines = [el("li", { text: "Margin " + marginText(m) + "p/kWh. Annual margin at the band midpoint (" + comma(mid) + " kWh): " + GBP.format(G.midpointAnnualPounds(m, band.eacMinKwh, band.eacMaxKwh)) + "." })];
-            if (!sp) lines.push(el("li", { text: "No standing charge share yet, so no split between p/day and p/kWh." }));
-            else lines.push(el("li", { text: "Standing charge share " + s + "%: " + GBP.format(sp.standingPounds) + " a year, which is " + sp.standingPencePerDay.toFixed(3) + "p/day over " + G.DAYS_PER_YEAR + " days." }),
+            const lines = [el("li", { text: "Margin " + marginText(m) + "p/kWh: " + GBP.format(G.midpointAnnualPounds(m, band.eacMinKwh, band.eacMaxKwh)) + " a year at " + comma(mid) + " kWh, the middle of the band." })];
+            if (!sp) lines.push(el("li", { text: "No standing charge share yet." }));
+            else lines.push(el("li", { text: "Standing charge share " + s + "%: " + GBP.format(sp.standingPounds) + " a year, " + sp.standingPencePerDay.toFixed(3) + "p a day." }),
               el("li", { text: "The rest, " + GBP.format(sp.unitPounds) + " a year, is " + sp.unitPencePerKwh.toFixed(3) + "p/kWh." }));
-            card.append(el("ul", { class: "plain" }, ...lines), el("p", { class: "hint", text: "Worked out on this page from the margin and the share, as arithmetic. It is not a supplier figure." }));
+            card.append(el("ul", { class: "plain" }, ...lines));
           }
           const hist = el("div"); card.append(el("h3", { class: "sub", text: "Version history" }), hist);
           detailHost.append(card);
-          if (col.isNew) { hist.append(el("p", { class: "hint", text: "This band set is new and not saved, so it has no versions yet." })); return; }
+          if (col.isNew) { hist.append(el("p", { class: "hint", text: "New band set: no versions yet." })); return; }
           hist.append(el("p", { class: "hint", text: "Loading…" }));
           history(col.name).then((r) => {
             if (!still(n) || my !== detailGen || !hist.isConnected) return;
@@ -5186,7 +5293,7 @@ function dragValue(scale, y) {
             hist.append(table(["Version", "Saved", "By", "Reason", "Cost per meter", "Margin in this band", ""], r.versions.map((v, i) => {
               const vb = v.bands.find((x) => x.bandIndex === band.bandIndex), vm = vb ? vb.marginMilliPencePerKwh : null;
               return [String(v.version) + (i === 0 ? " (current)" : ""), when(v.savedAt), v.savedBy || "–", v.reason || "–", pounds(v.costPerMeterPence), vm == null ? "–" : marginText(vm) + "p",
-                editable ? btn("Restore as a new change", () => restore(col.name, v), "ghost small") : null];
+                editable ? btn("Restore", () => restore(col.name, v), "ghost small") : null];
             })));
           }, (err) => { if (still(n) && my === detailGen && hist.isConnected && !(err && err.signedOut)) { hist.textContent = ""; hist.append(el("p", { class: "msg refused", text: explain(err) })); } });
         }
@@ -5200,7 +5307,7 @@ function dragValue(scale, y) {
           });
           const blanks = carried.filter((cb) => cb.marginMilliPencePerKwh == null || cb.standingSharePct == null).length;
           gridView.setGrid(g);
-          gridView.say("Version " + v.version + " of " + name + " is in the grid as an unsaved change. Save changes to make it a new version. The cost per meter is not changed." + (blanks ? " " + blanks + (blanks === 1 ? " band does" : " bands do") + " not line up with the current ladder and need filling." : ""), false);
+          gridView.say("Version " + v.version + " of " + name + " is back in the grid. Save to keep it as a new version. The cost per meter is unchanged." + (blanks ? " " + blanks + (blanks === 1 ? " band does" : " bands do") + " not line up with the current ladder: fill " + (blanks === 1 ? "it." : "them.") : ""), false);
         }
 
         gridView = drawGrid(gridHost, orderColumns(G.makeGrid(bs.ladder.bands, bs.bandSets, bsFuel, bs.ladder.ladderId), bs.bundles), {
@@ -5210,41 +5317,54 @@ function dragValue(scale, y) {
         });
         drawDetail();
 
-        // ---- actions
+        // ---- actions. The six setup actions sit in Manage above the grid. Save and Discard are in a bar
+        // that stays at the foot of the screen while there are unsaved edits; Save asks for the reason
+        // in the bar itself, and every changed band set becomes a new version together.
         const panel = el("div"), amsg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
-        const saveLine = el("p", { class: "hint" }), saveBtn = btn("Save changes", () => savePanel(), "");
+        const bar = el("div", { class: "savebar", role: "region", "aria-label": "Unsaved changes" }); bar.hidden = true;
+        const bmsg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
+        let asking = false, menu = null;
         function drawActionsState() {
+          if (!editable) return;
           const ch = G.changedNames(gridView.getGrid());
-          saveLine.textContent = ch.length ? "Changed band sets: " + ch.join(", ") + "." : "No changes to save.";
-          saveBtn.textContent = ch.length ? "Save changes (" + ch.length + ")" : "Save changes";
+          bar.hidden = !ch.length;
+          if (!ch.length) { asking = false; bar.textContent = ""; return; }
+          if (asking) return;
+          bar.textContent = ""; say(bmsg, "");
+          bar.append(el("span", { class: "t", text: (ch.length === 1 ? "1 band set changed: " : ch.length + " band sets changed: ") + andList(ch) + "." }),
+            btn("Save changes", () => savePrompt(), "small go"), btn("Discard", () => load("Changes discarded."), "small onnavy"), bmsg);
         }
-        const open = (card) => { panel.textContent = ""; say(amsg, ""); panel.append(card); card.scrollIntoView({ block: "nearest" }); };
+        const open = (card) => { if (menu) menu.open = false; panel.textContent = ""; say(amsg, ""); panel.append(card); card.scrollIntoView({ block: "nearest" }); };
         const close = () => { panel.textContent = ""; };
         const saved = () => bs.bandSets.map((b) => b.name);
         const bandNo = (g, bandIndex) => g.bands.findIndex((b) => b.bandIndex === bandIndex) + 1;
 
-        function savePanel() {
+        function savePrompt() {
           const g = gridView.getGrid(), changed = G.changedNames(g);
-          if (!changed.length) { say(amsg, "There is nothing to save.", true); return; }
+          if (!changed.length) return;
           const probs = G.problems(g).filter((p) => changed.includes(p.name));
           if (probs.length) {
-            say(amsg, "Fix these before saving. " + probs.slice(0, 5).map((p) => p.name + ", band " + bandNo(g, p.bandIndex) + ": " + p.message).join(" ") + (probs.length > 5 ? " And " + (probs.length - 5) + " more." : ""), true);
+            say(bmsg, "Fix these before saving. " + probs.slice(0, 5).map((p) => p.name + ", band " + bandNo(g, p.bandIndex) + ": " + p.message).join(" ") + (probs.length > 5 ? " And " + (probs.length - 5) + " more." : ""), true);
             return;
           }
-          const reason = el("input", { type: "text", maxlength: "200", autocomplete: "off" });
-          const card = el("div", { class: "card white" }, el("h2", { text: "Save changes" }),
-            el("p", { class: "hint", text: changed.length + (changed.length === 1 ? " band set becomes" : " band sets become") + " a new version together: " + changed.join(", ") + "." }),
-            el("div", { class: "fields" }, field("Reason for this change", reason, "Kept with each new version.")),
-            el("div", { class: "actions" }, btn("Save", async () => {
-              if (!reason.value.trim()) { say(amsg, "Give a reason for the change.", true); return; }
-              lock(card, true);
-              try {
-                const r = await call("band_sets_save", G.toSavePayload(g, changed, reason.value.trim()));
-                if (!still(n)) return;
-                await load("Saved " + r.saved.length + (r.saved.length === 1 ? " band set" : " band sets") + " as new versions: " + r.saved.map((x) => x.name + " (version " + x.version + ")").join(", ") + ".");
-              } catch (err) { fail(n, amsg, err); lock(card, false); }
-            }, ""), btn("Cancel", close, "ghost")));
-          open(card);
+          asking = true;
+          const reason = el("input", { type: "text", maxlength: "200", autocomplete: "off", "aria-label": "Reason for the change", placeholder: "Reason for the change" });
+          const save = btn("Save", async () => {
+            if (!reason.value.trim()) { say(bmsg, "Give a reason for the change.", true); return; }
+            const g2 = gridView.getGrid(), ch2 = G.changedNames(g2);
+            lock(bar, true);
+            try {
+              const r = await call("band_sets_save", G.toSavePayload(g2, ch2, reason.value.trim()));
+              if (!still(n)) return;
+              asking = false;
+              await load("Saved " + andList(r.saved.map((x) => x.name + " version " + x.version)) + ".");
+            } catch (err) { fail(n, bmsg, err); lock(bar, false); }
+          }, "small go");
+          bar.textContent = ""; say(bmsg, "");
+          bar.append(el("span", { class: "t", text: changed.length === 1 ? "Save 1 band set as a new version." : "Save " + changed.length + " band sets as new versions." }), reason, save,
+            btn("Cancel", () => { asking = false; drawActionsState(); }, "small onnavy"), bmsg);
+          reason.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save.click(); } });
+          reason.focus();
         }
         function newSetPanel() {
           const g = gridView.getGrid();
@@ -5254,8 +5374,7 @@ function dragValue(scale, y) {
           const cost = el("input", { type: "number", min: "0", step: "0.01" });
           from.addEventListener("change", () => { const c = g.columns.find((x) => x.name === from.value); if (c) { prod.value = c.product; cost.value = String(c.costPerMeterPence / 100); } });
           const card = el("div", { class: "card white" }, el("h2", { text: "New band set" }),
-            el("p", { class: "hint", text: "It is added to the grid as a new column. Nothing is saved until you use Save changes." }),
-            el("div", { class: "fields" }, field("Name", name, "Unique among this fuel's band sets and bundles."), field("Product", prod), field("Start from", from), field("Cost per meter (£ a year)", cost, "Saved in pence.")),
+            el("div", { class: "fields" }, field("Name", name, "Must be new for this fuel."), field("Product", prod), field("Start from", from), field("Cost per meter, £ a year", cost)),
             el("div", { class: "actions" }, btn("Add to the grid", () => {
               const nm = name.value.trim();
               if (!nm || nm.length > 60) { say(amsg, "Give the band set a name of 1 to 60 characters.", true); return; }
@@ -5265,7 +5384,7 @@ function dragValue(scale, y) {
               try { g2 = G.addColumn(g, { name: nm, product: prod.value, costPerMeterPence: Math.round(Number(cost.value) * 100), fromName: from.value || undefined }); }
               catch (err) { say(amsg, err.message, true); return; }
               close(); gridView.setGrid(g2); say(msg, "");
-              gridView.say(nm + " is in the grid as a new, unsaved band set." + (from.value ? "" : " Fill every band, then Save changes."), false);
+              gridView.say(nm + " added to the grid." + (from.value ? "" : " Fill every band, then save."), false);
             }, ""), btn("Cancel", close, "ghost")));
           open(card);
         }
@@ -5277,13 +5396,13 @@ function dragValue(scale, y) {
           const fill = () => { const b = bs.bundles.find((x) => x.bundleId === pick.value); name.value = b ? b.name : ""; boxes.forEach((x) => { x.cb.checked = !!b && b.members.includes(x.nm); }); };
           pick.addEventListener("change", fill); fill();
           const card = el("div", { class: "card white" }, el("h2", { text: "Bundle" }),
-            el("p", { class: "hint", text: "A bundle groups saved band sets of this fuel, up to 10. Changing it does not change any margin." }),
+            el("p", { class: "hint", text: "A bundle ticks up to 10 band sets in one go. It does not change margins." }),
             el("div", { class: "fields" }, field("Bundle", pick), field("Name", name)),
             el("fieldset", { class: "members" }, el("legend", { text: "Members" }), ...boxes.map((x) => el("label", { class: "tickrow" }, x.cb, " " + x.nm))),
             el("div", { class: "actions" }, btn("Save the bundle", async () => {
               const members = boxes.filter((x) => x.cb.checked).map((x) => x.nm);
-              if (!name.value.trim() || name.value.trim().length > 60) { say(amsg, "Give the bundle a name of 1 to 60 characters.", true); return; }
-              if (members.length < 1 || members.length > 10) { say(amsg, "Choose between 1 and 10 band sets.", true); return; }
+              if (!name.value.trim() || name.value.trim().length > 60) { say(amsg, "Name the bundle (1 to 60 characters).", true); return; }
+              if (members.length < 1 || members.length > 10) { say(amsg, "Tick between 1 and 10 band sets.", true); return; }
               lock(card, true);
               try {
                 await call("bundle_save", { ...(pick.value ? { bundleId: pick.value } : {}), fuel: bsFuel, name: name.value.trim(), members });
@@ -5305,10 +5424,10 @@ function dragValue(scale, y) {
           };
           drawRows();
           const card = el("div", { class: "card white" }, el("h2", { text: "Edit the " + FUEL[bsFuel].toLowerCase() + " ladder" }),
-            el("p", { class: "hint", text: "Saving makes a new version of the ladder. Band sets keep their margin at a band's start point where one still lines up; the others are marked and need checking. Files already live are not repriced." }),
+            el("p", { class: "hint", text: "Saves a new ladder. Margins carry over where bands line up, and the rest are flagged to check. Live prices do not change." }),
             el("div", { class: "prwide" }, el("table", { class: "prt bands" }, el("thead", {}, el("tr", {}, ...["Band", "Minimum kWh", "Maximum kWh", ""].map((h) => el("th", { scope: "col", text: h })))), tbody)),
             el("div", { class: "actions" }, btn("Add a band", () => { const last = rows[rows.length - 1]; rows.push({ min: last && last.max !== "" ? String(Number(last.max) + 1) : "0", max: "" }); drawRows(); }, "ghost small")),
-            el("div", { class: "fields" }, field("Reason for this change", reason)),
+            el("div", { class: "fields" }, field("Reason for the change", reason)),
             el("div", { class: "actions" }, btn("Save the ladder", async () => {
               if (!rows.length || rows.length > 20) { say(amsg, "A ladder needs between 1 and 20 bands.", true); return; }
               for (let i = 0; i < rows.length; i++) {
@@ -5321,7 +5440,7 @@ function dragValue(scale, y) {
               lock(card, true);
               try {
                 await call("ladder_save", { fuel: bsFuel, bands: rows.map((a) => ({ eacMinKwh: Number(a.min), eacMaxKwh: Number(a.max) })), reason: reason.value.trim() });
-                if (still(n)) await load("Saved a new version of the " + FUEL[bsFuel].toLowerCase() + " ladder. Band sets marked Older ladder need their margins checked.");
+                if (still(n)) await load("New " + FUEL[bsFuel].toLowerCase() + " ladder saved. Check the band sets marked Older ladder.");
               } catch (err) { fail(n, amsg, err); lock(card, false); }
             }, ""), btn("Cancel", close, "ghost")));
           open(card);
@@ -5346,58 +5465,78 @@ function dragValue(scale, y) {
           open(card);
         }
         if (editable) {
-          body.append(el("h2", { class: "sect", text: "Changes" }), el("div", { class: "card" }, saveLine,
-            el("div", { class: "actions" }, saveBtn, btn("New band set", newSetPanel, "ghost"), btn("New bundle", () => bundlePanel(""), "ghost"),
-              btn("Edit bundle members", () => { if (!bs.bundles.length) { say(amsg, "There are no bundles to edit.", true); return; } bundlePanel(bs.bundles[0].bundleId); }, "ghost"),
-              btn("Edit ladder", ladderPanel, "ghost"), btn("Retire band set", () => retirePanel("set"), "ghost"), btn("Retire bundle", () => retirePanel("bundle"), "ghost"),
-              btn("Discard changes", () => load("Changes discarded."), "ghost")), amsg, panel));
+          menu = el("details", { class: "menu" }, el("summary", { class: "btn ghost small", text: "Manage band sets" }),
+            el("div", { class: "menubox" }, btn("New band set", newSetPanel, "ghost small"), btn("New bundle", () => bundlePanel(""), "ghost small"),
+              btn("Edit bundle members", () => { if (!bs.bundles.length) { say(amsg, "There are no bundles to edit.", true); return; } bundlePanel(bs.bundles[0].bundleId); }, "ghost small"),
+              btn("Edit ladder", ladderPanel, "ghost small"), btn("Retire band set", () => retirePanel("set"), "ghost small"), btn("Retire bundle", () => retirePanel("bundle"), "ghost small")));
+          manageHost.append(menu);
+          manageHost.after(amsg, panel);
+          body.append(bar);
           drawActionsState();
-        } else body.append(el("p", { class: "hint", text: "You can look at the margins but not change them. Changing them needs the Set margins and splits tick." }));
+        } else manageHost.append(el("p", { class: "hint", text: "View only. You need the Set tick to change margins." }));
         foot();
         return gridView;
       }
 
-      // The splits of each supplier, as v1 drew them, with no repricing: publishing only publishes. Splits
-      // are for electricity rate structures, so gas has none. Saving or publishing redraws this box only,
-      // so unsaved margins below stay as they are.
-      function drawSplits(box, ov, sl, names) {
-        box.textContent = "";
-        if (bsFuel === "gas") { box.append(el("div", { class: "empty", text: "Splits are for electricity rate structures (day and night, evening and weekend, half-hourly), so there are none for gas." })); return; }
-        const refresh = async (note) => {
-          let nl;
-          try { nl = await call("split_list"); } catch (err) { fail(n, msg, err); return; }
-          if (!still(n)) return;
-          drawSplits(box, ov, nl, names);
-          if (note) say(msg, note);
-        };
-        box.append(el("p", { class: "hint", text: "How each supplier splits a customer's use between day, night and evening and weekend rates. The split solved from the latest file is a starting point to check with the supplier, not a figure the supplier has given." }));
+      load();
+    }
+
+    // =====================================================================================
+    // Splits: how each supplier splits electricity use between rates (gas has none). One card per
+    // supplier and rate structure: the live split, a draft waiting to be published, the estimate
+    // solved from the latest file, and behind Change split the form for a new draft. Publishing only
+    // publishes: nothing is repriced. Saving or publishing redraws the cards.
+    // =====================================================================================
+    async function splitsPage(n) {
+      const msg = head("Supplier ", "splits", "How each supplier splits electricity use between rates. Check an estimate with the supplier before you publish it.");
+      const body = el("div"); root.append(body);
+      const extra = [];     // splits a person asked to add before any exist
+      let ov = null;
+      const load = async (note) => {
+        let sl;
+        try { [ov, sl] = await Promise.all([call("overview"), call("split_list")]); } catch (err) { fail(n, msg, err); return; }
+        if (!still(n)) return;
+        drawSplits(sl);
+        say(msg, note || "");
+        foot();
+      };
+      const refresh = async (note) => {
+        let sl;
+        try { sl = await call("split_list"); } catch (err) { fail(n, msg, err); return; }
+        if (!still(n)) return;
+        drawSplits(sl);
+        if (note) say(msg, note);
+      };
+      function drawSplits(sl) {
+        body.textContent = "";
+        const names = supplierNames(ov);
         const pairs = new Map();
         const add = (s, st) => pairs.set(s + "|" + st, [s, st]);
         sl.splits.forEach((x) => add(x.supplier_id, x.rate_structure)); sl.solved.forEach((x) => add(x.supplier_id, x.rate_structure)); extra.forEach(([s, st]) => add(s, st));
         if (can(T.set)) {
           const sup = select(ov.suppliers.map((s) => [s.supplier_id, s.supplier_name])), st = select(Object.entries(STRUCTURE));
-          box.append(el("div", { class: "card" }, el("h2", { text: "Add a split" }),
+          body.append(el("div", { class: "card" }, el("h2", { text: "Add a split" }),
             el("div", { class: "fields" }, field("Supplier", sup), field("Rate structure", st)),
-            el("div", { class: "actions" }, btn("Show it", () => { extra.push([sup.value, st.value]); drawSplits(box, ov, sl, names); }, ""))));
+            el("div", { class: "actions" }, btn("Add", () => { extra.push([sup.value, st.value]); drawSplits(sl); }, ""))));
         }
-        if (!pairs.size) box.append(el("div", { class: "empty", text: "No splits yet." }));
+        if (!pairs.size) body.append(el("div", { class: "empty", text: "No splits yet." }));
         const list = [...pairs.values()].sort((a, b) => (names.get(a[0]) || a[0]).localeCompare(names.get(b[0]) || b[0]) || Object.keys(STRUCTURE).indexOf(a[1]) - Object.keys(STRUCTURE).indexOf(b[1]));
-        for (const [s, st] of list) box.append(splitCard(s, st, names.get(s) || s, sl, refresh));
+        for (const [s, st] of list) body.append(splitCard(s, st, names.get(s) || s, sl));
       }
-      const figures = (split, keys) => keys.map((k) => KEY_LABEL[k] + " " + pctText(split[k])).join(", ");
-      function splitCard(supplierId, structure, name, sl, refresh) {
+      function splitCard(supplierId, structure, name, sl) {
         const keys = SPLIT_KEYS[structure];
         const mine = sl.splits.filter((x) => x.supplier_id === supplierId && x.rate_structure === structure).sort((a, b) => b.version - a.version);
         const published = mine.find((x) => x.status === "published"), draft = mine.find((x) => x.status === "draft" && (!published || x.version > published.version));
         const solved = sl.solved.find((x) => x.supplier_id === supplierId && x.rate_structure === structure);
         const c = el("div", { class: "card white" }, el("h2", { text: name + ": " + (STRUCTURE[structure] || structure) }));
-        const saidText = (x) => (x.supplier_said ? "The supplier said: " + x.supplier_said : "No note of what the supplier said.") + (x.supplier_said_on ? " (" + day(x.supplier_said_on) + ")" : "");
+        // Where the figures came from, as one sentence: "Source: Said on a call, 02/11/2026."
+        const source = (x) => (x.supplier_said ? "Source: " + String(x.supplier_said).trim().replace(/\.+$/, "") : "No source noted") + (x.supplier_said_on ? ", " + day(x.supplier_said_on) : "") + ".";
         c.append(published
-          ? el("div", {}, el("p", {}, badge("published"), " " + figures(published.split, keys)), el("p", { class: "hint", text: "Version " + published.version + ". " + saidText(published) + " Published " + when(published.published_at) + (published.published_by ? " by " + published.published_by : "") + "." }))
-          : el("p", { class: "hint", text: "No published split." }));
+          ? el("div", {}, el("p", {}, badge("live"), " " + figures(published.split, keys)), el("p", { class: "hint", text: "Version " + published.version + ". " + source(published) + " Published " + when(published.published_at) + (published.published_by ? " by " + personName(published.published_by) : "") + "." }))
+          : el("p", { class: "hint", text: "No live split." }));
         const msgC = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
         if (draft) {
-          const pub = can(T.set) ? btn("Publish this draft", async () => {
+          const pub = can(T.set) ? btn("Publish", async () => {
             lock(c, true);
             try {
               await call("split_publish", { supplierSplitId: draft.supplier_split_id });
@@ -5405,31 +5544,41 @@ function dragValue(scale, y) {
               await refresh("Published the split for " + name + ".");
             } catch (err) { fail(n, msgC, err); lock(c, false); }
           }, "small") : null;
-          c.append(el("div", { class: "draftbox" }, el("p", {}, badge("draft"), " " + figures(draft.split, keys)), el("p", { class: "hint", text: "Version " + draft.version + ". " + saidText(draft) }), pub ? el("div", { class: "actions" }, pub) : null));
+          c.append(el("div", { class: "draftbox" }, el("p", {}, badge("draft"), " " + figures(draft.split, keys)), el("p", { class: "hint", text: "Version " + draft.version + ". " + source(draft) }), pub ? el("div", { class: "actions" }, pub) : null));
         }
+        // The form for a new draft, shut until Change split (or Use these figures) opens it.
         const inputs = {};
-        const saidIn = el("input", { type: "text", maxlength: "300", placeholder: "What the supplier said, for example by email or on a call" });
+        const saidIn = el("input", { type: "text", maxlength: "300", placeholder: "Email from the account manager" });
         const saidOn = el("input", { type: "date" });
         const totalEl = el("div", { class: "hint" });
-        const total = () => { const t = keys.reduce((a, k) => a + (Number(inputs[k].value) || 0), 0); totalEl.textContent = "Total: " + (Math.round(t * 100) / 100).toFixed(2) + "%. It must be 100.00%."; return t; };
+        const total = () => {
+          const t = keys.reduce((a, k) => a + (Number(inputs[k].value) || 0), 0);
+          totalEl.textContent = Math.abs(t - 100) < 0.0001 ? "Total 100%" : "Total " + (Math.round(t * 100) / 100).toFixed(2) + "%. It must be 100%.";
+          return t;
+        };
+        const form = el("div", { class: "draftform" }); form.hidden = true;
+        const label = published || draft ? "Change split" : "Enter split";
+        const toggle = can(T.set) ? btn(label, () => { form.hidden = !form.hidden; toggle.textContent = form.hidden ? label : "Close"; if (!form.hidden) inputs[keys[0]].focus(); }, "ghost small") : null;
         if (solved) {
           const useIt = can(T.set) ? btn("Use these figures", () => {
             // Each figure to 2 decimal places, then the last one takes the difference so the total is exactly 100.00.
             const cents = keys.map((k) => Math.round(Number(solved.split[k]) * 10000));
             cents[cents.length - 1] += 10000 - cents.reduce((a, b) => a + b, 0);
             keys.forEach((k, i) => { inputs[k].value = (cents[i] / 100).toFixed(2); });
-            saidIn.value = "Solved from " + solved.source_filename + " of " + day(solved.loaded_at) + "; to be confirmed with the supplier.";
+            saidIn.value = "Estimate from " + solved.source_filename + " (" + day(solved.loaded_at) + "). To confirm with the supplier.";
             saidOn.value = ""; total();
-            say(msgC, "The figures are in the form below. Check them with the supplier, then save a draft.");
+            form.hidden = false; toggle.textContent = "Close";
+            say(msgC, "The figures are in the form. Check them with the supplier, then save a draft.");
           }, "ghost small") : null;
-          c.append(el("div", { class: "solvedbox" }, el("p", {}, el("b", { text: "Solved from the latest file: " }), figures(solved.split, keys)),
-            el("p", { class: "hint", text: solved.source_filename + " of " + day(solved.loaded_at) + ", " + comma(solved.pairs_matched) + " rate pairs matched. This is worked out from the file's prices, not stated by the supplier." }), useIt ? el("div", { class: "actions" }, useIt) : null));
+          c.append(el("div", { class: "solvedbox" },
+            el("p", { title: solved.source_filename + " of " + day(solved.loaded_at) + ", " + comma(solved.pairs_matched) + " rate pairs matched" }, el("b", { text: "Estimate from the latest file: " }), figures(solved.split, keys)),
+            useIt ? el("div", { class: "actions" }, useIt) : null));
         }
         if (can(T.set)) {
           for (const k of keys) { inputs[k] = el("input", { type: "number", min: "0", max: "100", step: "0.01", value: published ? String(Math.round(Number(published.split[k]) * 10000) / 100) : "" }); inputs[k].addEventListener("input", total); }
           total();
-          c.append(el("div", { class: "draftform" }, el("h3", { class: "sub", text: "New draft" }),
-            el("div", { class: "fields" }, ...keys.map((k) => field(KEY_LABEL[k] + " (%)", inputs[k])), field("What the supplier said", saidIn), field("Said on (optional)", saidOn)),
+          form.append(el("h3", { class: "sub", text: "New draft" }),
+            el("div", { class: "fields" }, ...keys.map((k) => field(KEY_LABEL[k] + " (%)", inputs[k])), field("Source", saidIn), field("Date (optional)", saidOn)),
             totalEl,
             el("div", { class: "actions" }, btn("Save as a draft", async () => {
               const pcts = keys.map((k) => inputs[k].value === "" ? NaN : Number(inputs[k].value));
@@ -5440,9 +5589,10 @@ function dragValue(scale, y) {
               try {
                 await call("split_save", { supplierId, rateStructure: structure, split, supplierSaid: saidIn.value.trim() || null, supplierSaidOn: saidOn.value || null });
                 if (!still(n)) return;
-                await refresh("Saved as a draft for " + name + ". Publish it to use it.");
+                await refresh("Draft saved for " + name + ". Publish it to use it.");
               } catch (err) { fail(n, msgC, err); lock(c, false); }
-            }, "small"))));
+            }, "small")));
+          c.append(el("div", { class: "actions" }, toggle), form);
         }
         c.append(msgC);
         return c;
@@ -5450,38 +5600,38 @@ function dragValue(scale, y) {
       load();
     }
 
-    // After Publish: wait for the book to be built, then make the files. If anything fails the book
-    // is still live and the files can be made again from the Live price book screen.
+    // After Apply: wait for the book to be built, then make the files. If anything fails the prices
+    // are still live and the files can be rebuilt from the Live price book screen.
     async function afterPublish(set, before, box, alive) {
       box.textContent = "";
       const line = steps(box);
-      line("Published. The runs are being built into the price book.", "done");
-      const wait = line("Waiting for the price book to be built", "working");
+      line("Applied.", "done");
+      const wait = line("Building the prices", "working");
       const known = new Set(before.live.filter((x) => x.supplier_file_id === set.supplierFileId).map((x) => x.price_run_id));
       const knownProblem = (before.problems.find((p) => p.supplier === set.supplierId && p.fuel === set.fuel) || {}).when;
       const started = Date.now(); let checks = 0, fresh = null;
       for (;;) {
         let r;
-        try { r = await call("book_live"); } catch (err) { if (err && err.signedOut) return; wait("Could not check the book: " + explain(err) + " Look at the Live price book screen.", "failed"); return; }
+        try { r = await call("book_live"); } catch (err) { if (err && err.signedOut) return; wait("Could not check progress: " + explain(err) + " See Live price book.", "failed"); return; }
         if (!alive()) return;
         checks += 1;
         const problem = r.problems.find((p) => p.supplier === set.supplierId && p.fuel === set.fuel && p.when !== knownProblem);
-        if (problem) { wait("The build failed: " + problem.message + " Open the Live price book to abandon this set.", "failed"); return; }
+        if (problem) { wait("The build failed: " + problem.message + " Abandon it on Live price book.", "failed"); return; }
         const mine = r.live.filter((x) => x.supplier_file_id === set.supplierFileId && !known.has(x.price_run_id));
         if (mine.length && mine.every((x) => Number(x.publishing_runs) === 0)) { fresh = mine; break; }
-        if (Date.now() - started >= POLL_MAX_MS) { wait("The book is not live after 5 minutes. Look at the Live price book screen later; if a problem appears there you can abandon the set.", "failed"); return; }
-        wait("Waiting for the price book to be built. Checked " + checks + (checks === 1 ? " time" : " times") + ", again in 10 seconds.", "working");
+        if (Date.now() - started >= POLL_MAX_MS) { wait("Still building after 5 minutes. Check Live price book later.", "failed"); return; }
+        wait("Building the prices (checked " + checks + (checks === 1 ? " time)" : " times)"), "working");
         await pause(POLL_MS);
         if (!alive()) return;
       }
-      wait("The price book is live.", "done");
+      wait("The prices are live.", "done");
       const runsLive = new Map();
       for (const x of fresh) {
         if (!runsLive.has(x.price_run_id)) runsLive.set(x.price_run_id, { id: x.price_run_id, fuel: x.fuel, product: x.product, supplier: x.supplier_id, publishedAt: x.published_at, sales: [] });
         runsLive.get(x.price_run_id).sales.push(x.sale_type);
       }
       const electricity = [...runsLive.values()].filter((x) => x.fuel === "electricity");
-      if (!electricity.length) { line("There are no Broker or UD Upload files for gas yet, so none are made.", "done"); return; }
+      if (!electricity.length) { line("No Broker or UD Upload files for gas yet.", "done"); return; }
       await makeFiles(electricity, box, alive);
     }
 
@@ -5489,10 +5639,10 @@ function dragValue(scale, y) {
     // here, store each, record them. A run's book is read in pages of BOOK_PAGE rows.
     async function makeFiles(runList, box, alive) {
       const line = steps(box);
-      const failed = (set, err) => { set("The files could not be made: " + explain(err) + " The price book is live. Make the files again from the Live price book screen.", "failed"); };
+      const failed = (set, err) => { set("The files could not be made: " + explain(err) + " The prices are live. Rebuild the files from Live price book.", "failed"); };
       for (const run of runList) {
         const tag = run.product + ", " + run.sales.map((s) => (SALE[s] || s).toLowerCase()).join(" and ");
-        const set = line("Reading the price book for " + tag, "working");
+        const set = line("Reading prices for " + tag, "working");
         let rows = [];
         try {
           let after = null;
@@ -5501,9 +5651,9 @@ function dragValue(scale, y) {
             if (!alive()) return;
             for (const x of r.rows) rows.push(x);
             after = r.next;
-            set("Reading the price book for " + tag + ": " + comma(rows.length) + " rows", "working");
+            set("Reading prices for " + tag + ": " + comma(rows.length) + " rows", "working");
           } while (after);
-          set("Reading the price book for " + tag + ": " + comma(rows.length) + " rows", "done");
+          set("Reading prices for " + tag + ": " + comma(rows.length) + " rows", "done");
         } catch (err) { if (err && err.signedOut) return; failed(set, err); return; }
         const made = [], recorded = [];
         for (const layout of ["broker", "ud_upload"]) {
@@ -5516,11 +5666,11 @@ function dragValue(scale, y) {
             await putFile(u.uploadUrl, bytes, XLSX_TYPE);
             recorded.push({ layout, path: u.path, sha256: await sha256(bytes) });
             made.push([layout, bytes]);
-            s("The " + LAYOUT_LABEL[layout] + " file for " + tag + " is made and stored.", "done");
+            s(LAYOUT_LABEL[layout] + " file for " + tag + " made.", "done");
           } catch (err) { if (err && err.signedOut) return; failed(s, err); return; }
         }
         const rec = line("Recording the files for " + tag, "working");
-        try { await call("output_record", { priceRunId: run.id, files: recorded }); rec("The files for " + tag + " are recorded on the run.", "done"); }
+        try { await call("output_record", { priceRunId: run.id, files: recorded }); rec("Files for " + tag + " recorded.", "done"); }
         catch (err) { if (err && err.signedOut) return; failed(rec, err); return; }
         rows = null;
         box.append(el("div", { class: "actions" }, ...made.map(([layout, bytes]) => btn("Save the " + LAYOUT_LABEL[layout] + " file for " + tag, () => saveBytes(bytes, fileName(layout, run)), "ghost small"))));
@@ -5528,10 +5678,10 @@ function dragValue(scale, y) {
     }
 
     // =====================================================================================
-    // Live price book
+    // Live price book: any failed build first, then Check a price, then what is live.
     // =====================================================================================
     async function book(n) {
-      const msg = head("Live price ", "book", "The runs that are live now, one row for each supplier, fuel, product and sale type. A build that failed shows here with the reason.");
+      const msg = head("Live price ", "book", "What is live now, by supplier and product.");
       const body = el("div"); root.append(body);
       const load = async (note) => {
         let ov, b;
@@ -5548,15 +5698,15 @@ function dragValue(scale, y) {
           const set = ov.files.filter((f) => f.supplierId === p.supplier && f.fuel === p.fuel && f.state === "applying");
           const reason = el("input", { type: "text", maxlength: "200", placeholder: "Reason" }); reason.hidden = true;
           const m = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
-          const card = el("div", { class: "card problem" }, el("h2", { text: "A build has a problem" }),
+          const card = el("div", { class: "card problem" }, el("h2", { text: "This price update failed" }),
             el("p", {}, badge("failed"), " " + (names.get(p.supplier) || p.supplier) + ", " + (FUEL[p.fuel] || p.fuel).toLowerCase() + ". Last failed " + when(p.when) + "."),
             el("p", { class: "msg", text: p.message }),
-            el("p", { class: "hint", text: "The old book stays live. Abandoning this set rejects its runs. The file can then be priced again from Supplier files." }));
+            el("p", { class: "hint", text: "Today's prices are still live. Abandon the update to price the file again." }));
           if (can(T.publish)) {
-            const go = btn("Abandon this set", async () => {
-              if (reason.hidden) { reason.hidden = false; go.textContent = "Confirm: abandon this set"; reason.focus(); return; }
+            const go = btn("Abandon update", async () => {
+              if (reason.hidden) { reason.hidden = false; go.textContent = "Confirm: abandon update"; reason.focus(); return; }
               if (!reason.value.trim()) { say(m, "Give a reason for abandoning it.", true); return; }
-              if (!set.length) { say(m, "No set in building was found for this supplier and fuel. Refresh the page and try again.", true); return; }
+              if (!set.length) { say(m, "Nothing is being built for this supplier and fuel now. Refresh the page.", true); return; }
               lock(card, true);
               try {
                 let abandoned = 0;
@@ -5570,25 +5720,70 @@ function dragValue(scale, y) {
           card.append(m);
           body.append(card);
         }
-        body.append(el("h2", { class: "sect", text: "Live runs" }));
+        if (b.live.length) body.append(checkCard(b, names));
+        body.append(el("h2", { class: "sect", text: "Live prices" }));
         if (!b.live.length) body.append(el("div", { class: "empty", text: "Nothing is live yet." }));
         const seen = new Set(), rows = [];
         const filesBox = el("div"), dlMsg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true });
         for (const r of b.live) {
           const first = !seen.has(r.price_run_id); seen.add(r.price_run_id);
-          rows.push([names.get(r.supplier_id) || r.supplier_id, FUEL[r.fuel] || r.fuel, r.product, SALE[r.sale_type] || r.sale_type, r.source_filename, when(r.published_at) + (r.published_by ? ", " + r.published_by : ""), comma(r.row_count), r.engine_version || "–",
-            Number(r.publishing_runs) > 0 ? badge("publishing") : badge("live"),
-            first && r.fuel === "electricity" ? el("div", { class: "actions" }, ...downloadButtons(r.price_run_id, ["broker", "ud_upload"], dlMsg),
-              can(T.publish) ? btn("Make the files again", (e) => remake(e.currentTarget, r, filesBox, b), "ghost small") : null) : null]);
+          // One Files menu per run (its rows share it): the two stored files and, with Publish, Rebuild.
+          const files = first && r.fuel === "electricity" ? el("details", { class: "menu" }, el("summary", { class: "btn ghost small", text: "Files" }),
+            el("div", { class: "menubox" }, ...downloadButtons(r.price_run_id, ["broker", "ud_upload"], dlMsg),
+              can(T.publish) ? btn("Rebuild files", (e) => remake(e.currentTarget, r, filesBox, b), "ghost small") : null)) : null;
+          rows.push([names.get(r.supplier_id) || r.supplier_id, FUEL[r.fuel] || r.fuel, r.product, SALE[r.sale_type] || r.sale_type, r.source_filename, when(r.published_at) + (r.published_by ? ", " + personName(r.published_by) : ""), comma(r.row_count),
+            Number(r.publishing_runs) > 0 ? badge("publishing") : badge("live"), files]);
         }
-        if (b.live.length) body.append(table(["Supplier", "Fuel", "Product", "Sale type", "File", "Published", "Rows", "Engine version", "State", ""], rows));
-        body.append(dlMsg, filesBox, el("p", { class: "hint", text: "Download opens a file already made for that run; it says so if none has been recorded. Make the files again builds the Broker and UD Upload files from the live book here in the page, stores them and records them on the run. Gas has no Broker or UD Upload layout yet." }));
+        if (b.live.length) body.append(table(["Supplier", "Fuel", "Product", "Sale type", "File", "Published", "Rows", "State", ""], rows));
+        body.append(dlMsg, filesBox, el("p", { class: "hint", text: "No Broker or UD Upload files for gas yet." }));
         foot();
+      }
+      // Check a price: what each live product of one supplier and fuel costs in a region at a usage.
+      // book_check answers one live run at a time with the database's own figures (pricing.preview_run):
+      // single-rate standard prices, terms 12, 24 and 36.
+      function checkCard(b, names) {
+        const pairs = [...new Set(b.live.map((x) => x.supplier_id + "|" + x.fuel))];
+        const pair = select(pairs.map((k) => { const [s, f] = k.split("|"); return [k, (names.get(s) || s) + ", " + (FUEL[f] || f).toLowerCase()]; }));
+        const region = select([]), usage = el("input", { type: "text", inputmode: "numeric", autocomplete: "off" });
+        const fillRegions = () => {
+          const gas = pair.value.split("|")[1] === "gas";
+          region.textContent = "";
+          for (const [code, nm] of gas ? GAS_REGIONS : ELEC_REGIONS) region.append(el("option", { value: code, text: code + " " + nm }));
+          usage.value = gas ? "25000" : "10000";
+        };
+        pair.addEventListener("change", fillRegions); fillRegions();
+        const cm = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true }), out = el("div");
+        let gen = 0;
+        const go = btn("Check", async () => {
+          const u = Number(usage.value.replace(/[\s,]/g, ""));
+          if (!Number.isSafeInteger(u) || u <= 0) { say(cm, "Enter the annual usage in whole kWh.", true); return; }
+          const [s, f] = pair.value.split("|");
+          const runs = new Map();
+          for (const x of b.live) if (x.supplier_id === s && x.fuel === f && !runs.has(x.price_run_id)) runs.set(x.price_run_id, x.product);
+          const my = ++gen; out.textContent = ""; say(cm, "Checking…"); go.disabled = true;
+          let answers;
+          try { answers = await Promise.all([...runs].map(([id, product]) => call("book_check", { priceRunId: id, region: region.value, usages: [u] }).then((r) => r.rows.map((x) => Object.assign({ product }, x))))); }
+          catch (err) { if (still(n) && my === gen) fail(n, cm, err); return; }
+          finally { go.disabled = false; }
+          if (!still(n) || my !== gen) return;
+          const found = answers.flat();
+          if (!found.length) { say(cm, "No single-rate price for " + regionText(region.value) + " at " + comma(u) + " kWh.", true); return; }
+          say(cm, "");
+          // By product (in the order the book lists them), then acquisition before renewal, then term.
+          const order = [...runs.values()];
+          found.sort((a, c) => order.indexOf(a.product) - order.indexOf(c.product) || (a.saleType === "acquisition" ? 0 : 1) - (c.saleType === "acquisition" ? 0 : 1) || a.termMonths - c.termMonths);
+          out.append(table(["Product", "Sale type", "Term", "Unit rate", "Standing charge", "Annual cost"],
+            found.map((x) => [x.product, SALE[x.saleType] || x.saleType, x.termMonths + " months", pence2(x.unitRatePence2dp, "p/kWh"), pence2(x.standingChargePence2dp, "p/day"), pounds(x.sellAnnualPence)])),
+            el("p", { class: "hint", text: "Single-rate standard prices for " + regionText(region.value) + " at " + comma(u) + " kWh a year. Annual cost is a year of standing charge plus the usage at the unit rate." }));
+        }, "");
+        return el("div", { class: "card" }, el("h2", { text: "Check a price" }),
+          el("div", { class: "fields" }, field("Supplier", pair), field("Region", region), field("Annual usage, kWh", usage)),
+          el("div", { class: "actions" }, go), cm, out);
       }
       function remake(button, r, box, b) {
         const my = epoch, alive = () => my === epoch && !!me;
         button.disabled = true; box.textContent = "";
-        box.append(el("h3", { class: "sub", text: "Making the files for " + r.product }));
+        box.append(el("h3", { class: "sub", text: "Rebuilding the files for " + r.product }));
         makeFiles([{ id: r.price_run_id, fuel: r.fuel, product: r.product, supplier: r.supplier_id, publishedAt: r.published_at, sales: b.live.filter((x) => x.price_run_id === r.price_run_id).map((x) => x.sale_type) }], box, alive).finally(() => { button.disabled = false; });
       }
       load();

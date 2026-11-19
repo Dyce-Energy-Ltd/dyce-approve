@@ -701,7 +701,7 @@
   var PR_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/dna-pricing";
   var PR_UPLOAD = DV_STORAGE + "object/upload/sign/pricing-files/";
   var PR_TICK = {
-    "overview": "pricing.view", "split_list": "pricing.view", "book_live": "pricing.view", "book_rows": "pricing.view",
+    "overview": "pricing.view", "split_list": "pricing.view", "book_live": "pricing.view", "book_rows": "pricing.view", "book_check": "pricing.view",
     "band_sets": "pricing.view", "band_set_history": "pricing.view", "file_regions": "pricing.view", "preview_selection": "pricing.view",
     "file_start": "pricing.load", "file_rows": "pricing.load", "file_finish": "pricing.load", "file_reject": "pricing.load",
     "band_set_retire": "pricing.set", "band_sets_save": "pricing.set", "bundle_save": "pricing.set", "bundle_retire": "pricing.set", "ladder_save": "pricing.set", "split_save": "pricing.set", "split_publish": "pricing.set",
@@ -1007,6 +1007,27 @@
       var all = prBookRows(body.priceRunId), after = body.after, lim = Math.min(Math.max(Number(body.limit) || 1000, 1), 5000);
       var from = after ? all.findIndex(function (r) { return r.product_key === after; }) + 1 : 0, page = all.slice(from, from + lim);
       return ok({ rows: page, next: page.length === lim && from + lim < all.length ? page[page.length - 1].product_key : null });
+    }
+    // The Live price book's price check: a live run's single-rate prices at the usages given, terms
+    // 12, 24 and 36, for the sale types the run is live for. INVENTED ARITHMETIC, as prPreview's.
+    if (op === "book_check") {
+      if (!body.region) return bad("Give the region.");
+      if (!Array.isArray(body.usages) || body.usages.length < 1 || body.usages.length > 10 || !body.usages.every(function (u) { return Number.isSafeInteger(u) && u > 0; })) return bad("Give between 1 and 10 usages.");
+      var liveRows = prLive.filter(function (x) { return x.price_run_id === body.priceRunId; });
+      var cinfo = prRuns[body.priceRunId] || (liveRows[0] ? { product: liveRows[0].product } : null);
+      if (!cinfo) return ok({ rows: [] });
+      var cbump = Math.max(0, prProducts.map(function (x) { return x.product; }).indexOf(cinfo.product)) * 0.35;
+      var csales = liveRows.length ? liveRows.map(function (x) { return x.sale_type; }) : ["acquisition", "renewal"];
+      var crows = [];
+      body.usages.forEach(function (u) {
+        [12, 24, 36].forEach(function (t) {
+          csales.forEach(function (st) {
+            var unit = Math.round((20 + cbump + t * 0.02 + (st === "renewal" ? 0.1 : 0)) * 100) / 100, stand = Math.round((40 + cbump * 2) * 100) / 100;
+            crows.push({ saleType: st, usageKwh: u, termMonths: t, unitRatePence2dp: unit, standingChargePence2dp: stand, sellAnnualPence: Math.round(unit * u + stand * 365) });
+          });
+        });
+      });
+      return ok({ rows: crows });
     }
     if (op === "file_start") {
       if (!/^[0-9a-f]{64}$/.test(body.sha256 || "")) return bad("The file checksum must be 64 lower-case hexadecimal characters.");
