@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BOOKS, bookHealth, ageText } from './health.js';
+import { BOOKS, bookHealth, ageText, folderUrl } from './health.js';
 
 // Invented files and failures only.
 const NOW = Date.parse('2026-11-23T09:00:00Z');
@@ -62,4 +62,18 @@ test('age in UK calendar days, in words', () => {
   assert.equal(ageText('2026-11-17T08:00:00Z', NOW), '6 days ago');
   assert.equal(ageText(null, NOW), '');
   assert.equal(ageText('not a date', NOW), '');
+});
+
+test('each book carries its SharePoint folder, as in dyce-data-pipelines pricing_loader/folders.js', () => {
+  assert.deepEqual(BOOKS.map((b) => b.folder), [
+    'Voltx Power/Pricing Files/Base Prices',
+    'YU Energy/Pricing Matrix/Base Prices/YU Energy/Electricity',
+    'YU Energy/Pricing Matrix/Base Prices/YU Energy/Gas',
+    'Jellyfish/Pricing Files/Base Prices/Electricity',
+    'Jellyfish/Pricing Files/Base Prices/Gas',
+  ]);
+  assert.equal(bookHealth([], [], NOW)[1].folder, BOOKS[1].folder);
+  assert.equal(folderUrl('Voltx Power/Pricing Files/Base Prices'),
+    'https://dyceenergy.sharepoint.com/sites/Partnersales/Shared%20Documents/Forms/AllItems.aspx?id=' +
+    '%2Fsites%2FPartnersales%2FShared%20Documents%2FVoltx%20Power%2FPricing%20Files%2FBase%20Prices');
 });

@@ -542,7 +542,7 @@ class CommittedPagesTests(unittest.TestCase):
         # through the same save step Apply uses.
         src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
         mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
-        ws = mine[mine.index("function workspace("): mine.index("function loadCard(")]
+        ws = mine[mine.index("function workspace("): mine.index("// Band sets and splits (spec 4.4)")]
         self.assertEqual(mine.count("function newSetCard("), 1)
         self.assertIn("newSetCard({", ws)
         self.assertIn("open(newSetCard({", mine)
@@ -629,8 +629,7 @@ class CommittedPagesTests(unittest.TestCase):
 
     def test_pricing_stub_answers_every_op_with_four_ticks(self):
         stub = (ROOT / "tools" / "preview-stub.js").read_text(encoding="utf-8")
-        ops = ("overview split_list book_live book_rows book_check file_start file_rows "
-               "file_finish file_reject band_set_retire "
+        ops = ("overview split_list book_live book_rows book_check band_set_retire "
                "split_save split_publish apply publish_abandon output_upload_url output_record "
                "output_link band_sets band_set_history band_sets_save bundle_save bundle_retire ladder_save "
                "file_regions preview_selection").split()
@@ -641,8 +640,16 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("pricing:", stub)
         # Ops no screen calls any more have no stub answer (task 9).
         mine = stub[stub.index("// ---------- Pricing: the dna-pricing"): stub.index("// ---------- Commission Engine")]
-        for gone in ("run_set", "run_set_prepare", "preview", "band_set_get", "band_set_new", "band_set_copy", "band_set_save", "band_set_approve", "publish"):
+        for gone in ("file_start", "file_rows", "file_finish", "file_reject", "run_set", "run_set_prepare", "preview", "band_set_get", "band_set_new", "band_set_copy", "band_set_save", "band_set_approve", "publish"):
             self.assertNotIn('"%s"' % gone, mine, gone)
+
+    def test_supplier_files_has_no_hand_load_and_links_each_price_book_to_its_folder(self):
+        src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
+        self.assertIn('PR_HEALTH.folderUrl(b.folder), target: "_blank", rel: "noopener"', mine)
+        self.assertNotIn("Load a file by hand", mine)
+        for gone in ("loadCard", "file_start", "file_rows", "file_finish", "drawReport", "splitRows", "T.load"):
+            self.assertNotIn(gone, mine, gone)
 
     def test_band_sets_and_splits_screen_calls_the_v2_ops(self):
         src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
@@ -665,14 +672,12 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("sellAnnualPence", mine)
         self.assertIn("marginAnnualPence", mine)
         self.assertNotIn("sell_tac_pence", mine)
-        self.assertIn("rep.row_count_loaded", mine)
         self.assertNotIn('"Rows loaded: " + comma(added)', mine)
         self.assertNotIn("runs_prepared", mine)
         self.assertNotIn("run_set_prepare", mine)
-        self.assertIn('"Load a file by hand"', mine)
+        self.assertNotIn("Load a file by hand", mine)
         stub = (ROOT / "tools" / "preview-stub.js").read_text(encoding="utf-8")
         self.assertIn("sellAnnualPence", stub)
-        self.assertIn("row_count_loaded", stub)
         self.assertNotIn("runs_prepared", stub)
 
     def test_price_this_file_workspace_calls_the_v2_ops(self):
