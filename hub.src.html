@@ -3307,7 +3307,7 @@ const PR_GRID = {{PRICING_GRID}};
         try {
           const buf = await file.arrayBuffer();
           const wb = ext === "csv" ? PR_XLSX.read(new TextDecoder("utf-8").decode(buf), { type: "string", raw: true }) : PR_XLSX.read(new Uint8Array(buf), { type: "array" });
-          const parsed = PR_ADAPTERS.parseSupplierFile(format.value, wb);
+          const parsed = PR_ADAPTERS.parseSupplierFile(format.value, wb, { filename: file.name });
           staged = { file, ext, buf, parsed, supplierId: supplier.value, fuel: fuel.value, format: format.value };
           say(msg, "");
           drawSummary(parsed);
@@ -3325,7 +3325,8 @@ const PR_GRID = {{PRICING_GRID}};
         summary.append(
           el("h3", { class: "sub", text: "What the file holds" }),
           el("ul", { class: "plain" },
-            el("li", { text: "Rows in the file: " + comma(p.rowCountSource) }),
+            el("li", { text: "Rows in the file: " + comma(p.rowCountSource + (p.leftOut || 0)) }),
+            ...(p.leftOut ? [el("li", { text: "Rows left out on purpose: " + comma(p.leftOut) + " (see What this format assumes)" })] : []),
             el("li", { text: "Rows that can be loaded: " + comma(p.rows.length) }),
             el("li", { text: "Rows rejected: " + comma(p.refused.length) })));
         if (reasons.size) summary.append(table(["Reason rejected", "Rows"], [...reasons].sort((a, b) => b[1] - a[1]).map(([r, c]) => [r, comma(c)])),
@@ -3394,7 +3395,8 @@ const PR_GRID = {{PRICING_GRID}};
       const card = el("div", { class: "card white" }, el("h2", { text: "Load report" }),
         el("p", { class: "hint", text: st.file.name }),
         el("ul", { class: "plain" },
-          el("li", { text: "Rows in the file: " + comma(st.parsed.rowCountSource) }),
+          el("li", { text: "Rows in the file: " + comma(st.parsed.rowCountSource + (st.parsed.leftOut || 0)) }),
+          ...(st.parsed.leftOut ? [el("li", { text: "Rows left out on purpose: " + comma(st.parsed.leftOut) })] : []),
           el("li", { text: "Rows loaded: " + comma(rep.row_count_loaded) }),
           el("li", { text: "Rows rejected: " + comma(rep.refused_count) })));
       // The count is the database's (finish_supplier_file). A difference from what this page sent
