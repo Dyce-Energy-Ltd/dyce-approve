@@ -1557,8 +1557,8 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
 const PR_ADAPTERS = (function () {
 // Supplier file adapters for the DNA Hub Pricing tab.
 //
-// parseSupplierFile(format, workbook) turns an already-parsed SheetJS workbook into
-// pricing.base_rate rows. No browser globals, and no import of SheetJS: the caller parses the file
+// parseSupplierFile(format, workbook, { filename }) turns an already-parsed SheetJS workbook into
+// pricing.base_rate rows. The filename is optional; it is used only to refuse a file by its name. No browser globals, and no import of SheetJS: the caller parses the file
 // and passes the workbook object, so the page and the Node tests each bring their own copy.
 //
 // How to parse the file (the caller's job):
@@ -1647,7 +1647,7 @@ const ASSUMPTIONS = {
   jellyfish_elec_v1: [
     'The region letter is mapped to a DNO id by the standard industry mapping; Jellyfish does not state it.',
     'A night or evening and weekend rate of 0 is read as no such rate.',
-    'No green column: green_energy is false on every row. No line loss band is given.',
+    'No green column: green_energy is false on every row.',
     'The file has no product name, so the name column is used as the product name.',
   ],
   jellyfish_gas_v1: [
@@ -1714,6 +1714,10 @@ function pickSheet(workbook, name) {
 
 class Refusal extends Error {}
 const refuse = (reason) => { throw new Refusal(reason); };
+
+// A row left out on purpose (not refused): counted by `kind` and reported in the assumptions.
+class LeftOut extends Error {}
+const leaveOut = (kind) => { throw new LeftOut(kind); };
 
 function numberOf(v) {
   if (typeof v === 'number') return Number.isFinite(v) ? v : NaN;
@@ -1982,6 +1986,8 @@ function jfCommon(g, r, rowNumber) {
   const id = g('id');
   r.source_price_id = id === undefined ? null : String(id);
   r.term_months = termOf(g('term'));
+  // Dyce does not offer 3-month contracts (Chris Beardsmore's change note, w/c 16/11/2026).
+  if (r.term_months === 3) leaveOut('term3');
   [r.supplier_eac_min_kwh, r.supplier_eac_max_kwh] = rangeOf(g('minAq'), g('maxAq'));
   [r.contract_start_earliest, r.contract_start_latest] =
     startWindow(g('effectiveFrom'), g('effectiveTo'), 'dmy-slash');
@@ -1995,7 +2001,11 @@ const JF_METERS = {
   EWN: { structure: 'evening_weekend_night', need: ['day', 'night', 'ew'] },
 };
 
-function jellyfishElecRow(g, rowNumber) {
+// The tariff a Jellyfish electricity row was priced for, kept beside the row (not a base_rate
+// column) so the MHHS rule can be applied once every row is read.
+const JF_TARIFF = new WeakMap();
+
+function jellyfishElecRow(g, rowNumber, has) {
   const r = blankRow();
   jfCommon(g, r, rowNumber);
 
@@ -2015,6 +2025,26 @@ function jellyfishElecRow(g, rowNumber) {
   if (!Number.isInteger(pc)) refuse('unknown profile class');
   r.profile_class = pc;
   r.green_energy = false;
+
+  // The NDA band, in the files from 16/11/2026 on. An older file without the column has no band.
+  if (has('tnuosResidualBand')) {
+    const band = g('tnuosResidualBand');
+    if (band === undefined) refuse('blank NDA band');
+    const m = /^LV_NoMIC_([1-4])$/i.exec(String(band));
+    if (!m) refuse('unknown NDA band');
+    r.llf_band_group = 'nda';
+    r.llf_band_number = Number(m[1]);
+    r.llf_band_source = String(band);
+  }
+  // LLFC, or DUOS_TARIFF_ID for a row priced for MHHS-migrated meters. No column: an LLFC price.
+  let type = 'LLFC';
+  if (has('tariffIdentifierType')) {
+    const t = g('tariffIdentifierType');
+    type = t === undefined ? '' : String(t).toUpperCase();
+    if (type !== 'LLFC' && type !== 'DUOS_TARIFF_ID') refuse('unknown tariff identifier type');
+  }
+  const tid = g('tariffIdentifier');
+  JF_TARIFF.set(r, { type, id: tid === undefined ? '' : String(tid), region: letter });
 
   const v = { day: g('allOrDayUnitRate'), night: jfRate(g('nightRate')), ew: jfRate(g('eveningWeekendRate')) };
   const slot = s.structure === 'single' ? 'unit_rate_single_milli_pence_per_kwh'
@@ -2050,18 +2080,88 @@ const ROW_PARSERS = {
 };
 
 // ---------------------------------------------------------------------------------------------
+// Jellyfish electricity: one row per price key
+// ---------------------------------------------------------------------------------------------
+
+// The columns of base_rate's unique index base_rate_price_key (20260923120000_pricing_schema.sql).
+// Two rows with the same values here cannot both be loaded.
+const PRICE_KEY = [
+  'product_name', 'dno_id', 'ldz', 'exit_zone', 'meter_type', 'profile_class', 'rate_structure',
+  'llf_band_group', 'llf_band_number', 'min_kva', 'max_kva', 'term_months',
+  'contract_start_earliest', 'green_energy', 'carbon_offset', 'supplier_eac_min_kwh',
+];
+// What may differ between two rows that hold the same price: where they came from.
+const NOT_PRICE = new Set(['source_row_number', 'source_price_id']);
+
+// Jellyfish price each NDA band once per LLFC, and again by DUoS tariff ID for MHHS-migrated
+// meters. Base rates are held per band, so, for each price key:
+//   - an LLFC price wins: DUoS tariff ID rows are left out where any LLFC row has the key;
+//   - DUoS tariff ID rows are kept only where no LLFC row has the key (Jellyfish gave no LLFC price);
+//   - rows left that repeat one price (several LLFCs in one band) are loaded once;
+//   - rows left that give different prices are all refused: there is no telling which is right.
+// Returns { rows, refused, counts } with rows in sheet order.
+function settleJellyfishElec(items) {
+  const groups = new Map();
+  for (const it of items) {
+    const k = JSON.stringify(PRICE_KEY.map((c) => it.r[c]));
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(it);
+  }
+  const priceCols = ROW_KEYS.filter((c) => !NOT_PRICE.has(c));
+  const sig = (r) => JSON.stringify(priceCols.map((c) => r[c]));
+  const rows = [];
+  const refused = [];
+  const counts = { mhhsOut: 0, mhhsKept: 0, repeats: 0, kept: new Set() };
+  for (const group of groups.values()) {
+    const llfc = group.filter((it) => JF_TARIFF.get(it.r).type !== 'DUOS_TARIFF_ID');
+    const duos = group.filter((it) => JF_TARIFF.get(it.r).type === 'DUOS_TARIFF_ID');
+    let use = llfc;
+    if (llfc.length) {
+      counts.mhhsOut += duos.length;
+    } else {
+      use = duos;
+      counts.mhhsKept += duos.length;
+      for (const it of duos) {
+        const t = JF_TARIFF.get(it.r);
+        counts.kept.add(`region ${t.region} ${t.id} NDA band ${it.r.llf_band_number} ${it.r.rate_structure_source}`);
+      }
+    }
+    if (new Set(use.map((it) => sig(it.r))).size === 1) {
+      rows.push(use[0].r);
+      counts.repeats += use.length - 1;
+    } else {
+      for (const it of use) refused.push({ row: it.rn, reason: 'another row has the same price key with different prices' });
+    }
+  }
+  rows.sort((a, b) => a.source_row_number - b.source_row_number);
+  return { rows, refused, counts };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------------------------
 
-// Returns { rows, refused, rowCountSource, assumptions }.
+// Jellyfish's LLFC-only price book of 16/11/2026, told apart by its name (it ends -llfc.csv, or
+// -llfc (1).csv for a downloaded copy). No copy of it was at hand to find a difference in content.
+const JF_LLFC_ONLY = /-llfc(?: \(\d+\))?\.csv$/i;
+
+// Returns { rows, refused, rowCountSource, leftOut, assumptions }.
 //   rows            base_rate rows (rates in integer milli-pence), keys exactly ROW_KEYS
 //   refused         [{ row, reason }], row is the 1-based sheet row number
-//   rowCountSource  data rows read (rows + refused); wholly blank rows are not counted
-//   assumptions     the inferences this format makes, plus any unit-check flag, for the load report
+//   rowCountSource  rows + refused: the count the database checks before a file is published
+//   leftOut         data rows left out on purpose, each kind counted in the assumptions; the file
+//                   holds rowCountSource + leftOut data rows. Wholly blank rows are not counted.
+//   assumptions     the inferences this format makes, the rows left out, and any unit-check flag,
+//                   for the load report
 // Throws Error('Missing columns: a, b') if a required header is absent, and returns nothing.
-function parseSupplierFile(format, workbook) {
+// Throws Error for a file refused by its name (options.filename), before reading it.
+function parseSupplierFile(format, workbook, options) {
   const layout = LAYOUTS[format];
   if (!layout) throw new Error(`Unknown format: ${format}`);
+  const filename = options && options.filename ? String(options.filename) : '';
+  if (format === 'jellyfish_elec_v1' && JF_LLFC_ONLY.test(filename)) {
+    throw new Error('This is Jellyfish\'s LLFC-only price book of 16/11/2026. Load the blended version instead.');
+  }
   const ws = pickSheet(workbook, layout.sheet);
   const range = sheetRange(ws);
   if (!range || range.lastRow < layout.headerRow) {
@@ -2077,25 +2177,55 @@ function parseSupplierFile(format, workbook) {
   if (missing.length) throw new Error(`Missing columns: ${missing.join(', ')}`);
 
   const parse = ROW_PARSERS[format];
-  const rows = [];
-  const refused = [];
-  let rowCountSource = 0;
+  const has = (name) => cols.has(name);
+  let rows = [];
+  let refused = [];
+  const items = [];
+  const left = {};
   for (let rn = layout.headerRow + 1; rn <= range.lastRow; rn++) {
     let any = false;
     for (let c = range.firstCol; c <= range.lastCol; c++) {
       if (cell(ws, c, rn) !== undefined) { any = true; break; }
     }
     if (!any) continue;
-    rowCountSource += 1;
-    const g = (name) => cell(ws, cols.get(name), rn);
+    const g = (name) => (cols.has(name) ? cell(ws, cols.get(name), rn) : undefined);
     try {
-      rows.push(parse(g, rn));
+      items.push({ r: parse(g, rn, has), rn });
     } catch (e) {
+      if (e instanceof LeftOut) { left[e.message] = (left[e.message] || 0) + 1; continue; }
       if (!(e instanceof Refusal)) throw e;
       refused.push({ row: rn, reason: e.message });
     }
   }
   const assumptions = ASSUMPTIONS[format].slice();
+  if (format === 'jellyfish_elec_v1') {
+    assumptions.push(has('tnuosResidualBand')
+      ? 'The NDA band is read from tnuosResidualBand: LV_NoMIC_1 to LV_NoMIC_4 are NDA bands 1 to 4.'
+      : 'No line loss band is given.');
+    const s = settleJellyfishElec(items);
+    rows = s.rows;
+    refused = refused.concat(s.refused).sort((a, b) => a.row - b.row);
+    left.mhhs = s.counts.mhhsOut;
+    left.repeat = s.counts.repeats;
+    if (s.counts.mhhsOut) {
+      assumptions.push(`${s.counts.mhhsOut} rows priced for MHHS-migrated meters (DUoS tariff ID) were left out; the LLFC price is used.`);
+    }
+    if (s.counts.mhhsKept) {
+      const kept = [...s.counts.kept];
+      const list = kept.slice(0, 6).join('; ') + (kept.length > 6 ? `; and ${kept.length - 6} more` : '');
+      assumptions.push(`${s.counts.mhhsKept} MHHS rows were kept because Jellyfish gave no LLFC price for them: ${list}.`);
+    }
+    if (s.counts.repeats) {
+      assumptions.push(`${s.counts.repeats} rows repeat the price of another LLFC in the same NDA band and were loaded once.`);
+    }
+  } else {
+    rows = items.map((it) => it.r);
+  }
+  if (left.term3) {
+    assumptions.push(`${left.term3} rows with a 3-month term were left out: Dyce does not offer 3-month contracts.`);
+  }
+  const leftOut = Object.values(left).reduce((a, b) => a + b, 0);
+  const rowCountSource = rows.length + refused.length;
   // Unit guard: a flag on the load report, not a refusal. Catches a file switched to pounds or a
   // stray value. Unit rates outside 1p to 100p per kWh, standing charges over 1,000p a day.
   const RATE_KEYS = ['unit_rate_single_milli_pence_per_kwh', 'unit_rate_day_milli_pence_per_kwh',
@@ -2112,7 +2242,7 @@ function parseSupplierFile(format, workbook) {
   if (oddStanding) {
     assumptions.push(`Unit check: ${oddStanding} converted rows have a standing charge above 1,000p a day. Check the file is in pence.`);
   }
-  return { rows, refused, rowCountSource, assumptions };
+  return { rows, refused, rowCountSource, leftOut, assumptions };
 }
 
 ;return { FORMATS, ROW_KEYS, parseSupplierFile };
@@ -5400,7 +5530,7 @@ function liveChoice(rows, supplierId, fuel, bandSets, bundles) {
         try {
           const buf = await file.arrayBuffer();
           const wb = ext === "csv" ? PR_XLSX.read(new TextDecoder("utf-8").decode(buf), { type: "string", raw: true }) : PR_XLSX.read(new Uint8Array(buf), { type: "array" });
-          const parsed = PR_ADAPTERS.parseSupplierFile(format.value, wb);
+          const parsed = PR_ADAPTERS.parseSupplierFile(format.value, wb, { filename: file.name });
           staged = { file, ext, buf, parsed, supplierId: supplier.value, fuel: fuel.value, format: format.value };
           say(msg, "");
           drawSummary(parsed);
@@ -5418,7 +5548,8 @@ function liveChoice(rows, supplierId, fuel, bandSets, bundles) {
         summary.append(
           el("h3", { class: "sub", text: "What the file holds" }),
           el("ul", { class: "plain" },
-            el("li", { text: "Rows in the file: " + comma(p.rowCountSource) }),
+            el("li", { text: "Rows in the file: " + comma(p.rowCountSource + (p.leftOut || 0)) }),
+            ...(p.leftOut ? [el("li", { text: "Rows left out on purpose: " + comma(p.leftOut) + " (see What this format assumes)" })] : []),
             el("li", { text: "Rows that can be loaded: " + comma(p.rows.length) }),
             el("li", { text: "Rows rejected: " + comma(p.refused.length) })));
         if (reasons.size) summary.append(table(["Reason rejected", "Rows"], [...reasons].sort((a, b) => b[1] - a[1]).map(([r, c]) => [r, comma(c)])),
@@ -5487,7 +5618,8 @@ function liveChoice(rows, supplierId, fuel, bandSets, bundles) {
       const card = el("div", { class: "card white" }, el("h2", { text: "Load report" }),
         el("p", { class: "hint", text: st.file.name }),
         el("ul", { class: "plain" },
-          el("li", { text: "Rows in the file: " + comma(st.parsed.rowCountSource) }),
+          el("li", { text: "Rows in the file: " + comma(st.parsed.rowCountSource + (st.parsed.leftOut || 0)) }),
+          ...(st.parsed.leftOut ? [el("li", { text: "Rows left out on purpose: " + comma(st.parsed.leftOut) })] : []),
           el("li", { text: "Rows loaded: " + comma(rep.row_count_loaded) }),
           el("li", { text: "Rows rejected: " + comma(rep.refused_count) })));
       // The count is the database's (finish_supplier_file). A difference from what this page sent

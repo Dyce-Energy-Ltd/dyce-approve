@@ -31,13 +31,13 @@ for (const [format, pattern] of FILES) {
     ? XLSX.read(fs.readFileSync(full, 'utf8'), { type: 'string', raw: true })
     : XLSX.read(fs.readFileSync(full), { type: 'array' });
   try {
-    const out = parseSupplierFile(format, wb);
+    const out = parseSupplierFile(format, wb, { filename: name });
     const byReason = {};
     for (const r of out.refused) {
       const reason = r.reason.replace(/\d/g, '#');   // keep reasons generic
       byReason[reason] = (byReason[reason] || 0) + 1;
     }
-    console.log(`${format}: read ${out.rowCountSource}, converted ${out.rows.length}, refused ${out.refused.length}`);
+    console.log(`${format}: read ${out.rowCountSource + out.leftOut}, left out ${out.leftOut}, converted ${out.rows.length}, refused ${out.refused.length}`);
     for (const [reason, n] of Object.entries(byReason).sort()) console.log(`    ${n}  ${reason}`);
   } catch (e) {
     failed = true;

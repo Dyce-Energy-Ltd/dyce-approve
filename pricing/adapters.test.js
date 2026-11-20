@@ -133,7 +133,7 @@ test('jellyfish_elec_v1 converts three rows; 0 night and E&W rates become null; 
       standing_charge_milli_pence_per_day: 50500, unit_rate_day_milli_pence_per_kwh: 25257,
       unit_rate_night_milli_pence_per_kwh: 20146 }),
     row({ ...base, source_row_number: 4, source_price_id: '9000003', dno_id: '17', profile_class: 4,
-      rate_structure: 'evening_weekend_night', rate_structure_source: 'EWN', term_months: 3,
+      rate_structure: 'evening_weekend_night', rate_structure_source: 'EWN', term_months: 6,
       standing_charge_milli_pence_per_day: 55037, unit_rate_day_milli_pence_per_kwh: 26037,
       unit_rate_night_milli_pence_per_kwh: 21037, unit_rate_ew_milli_pence_per_kwh: 23514 }),
   ]);
@@ -147,7 +147,7 @@ test('jellyfish_gas_v1 converts three rows; carbon_offset false; dates parsed dd
     rate_structure: 'single', rate_structure_source: 'single', carbon_offset: false,
     contract_start_earliest: '2030-10-01', contract_start_latest: '2031-08-31' };
   assert.deepEqual(out.rows, [
-    row({ ...base, source_row_number: 2, source_price_id: '9100001', ldz: 'XA', term_months: 3,
+    row({ ...base, source_row_number: 2, source_price_id: '9100001', ldz: 'XA', term_months: 6,
       supplier_eac_min_kwh: 1, supplier_eac_max_kwh: 10000, standing_charge_milli_pence_per_day: 22528,
       unit_rate_single_milli_pence_per_kwh: 8257 }),
     row({ ...base, source_row_number: 3, source_price_id: '9100002', ldz: 'XB', term_months: 12,
@@ -309,7 +309,7 @@ test('a term over 36 months is refused, and a term under 12 is allowed', () => {
   first(wb).J4 = num(48);
   const out = parseSupplierFile('jellyfish_gas_v1', wb);
   assert.deepEqual(out.refused, [{ row: 4, reason: 'term outside 1 to 36 months' }]);
-  assert.equal(out.rows[0].term_months, 3);
+  assert.equal(out.rows[0].term_months, 6);
 });
 
 test('Jellyfish: a 0 rate the structure needs is blank, one it does not need loads as null', () => {
@@ -362,4 +362,127 @@ test('Yu electricity: a blank line loss band is refused on NHH rows, allowed on 
   assert.equal(hh.llf_band_group, null);
   assert.equal(hh.llf_band_number, null);
   assert.equal(hh.llf_band_source, null);
+});
+
+// --- Jellyfish electricity from 16/11/2026: NDA band, MHHS rows, 3-month terms ------------------
+// Chris Beardsmore's change note, w/c 16/11/2026, sections 1 and 3. The fixture's comments in
+// make-fixtures.cjs say what each row is for.
+
+const NDA = 'jellyfish_elec_v1_nda.csv';
+
+test('Jellyfish NDA file: rows, refusals and rows left out add up', () => {
+  const out = parseSupplierFile('jellyfish_elec_v1', load(NDA));
+  assert.deepEqual(out.rows.map((r) => r.source_row_number), [2, 4, 6, 7, 10]);
+  assert.deepEqual(out.refused, [{ row: 11, reason: 'unknown NDA band' }]);
+  assert.equal(out.rowCountSource, 6);   // rows + refused, the count the database checks
+  assert.equal(out.leftOut, 4);          // one 3-month, two DUoS tariff ID, one repeat
+  for (const r of out.rows) assert.deepEqual(Object.keys(r).sort(), [...ROW_KEYS].sort());
+});
+
+test('Jellyfish NDA file: the band is read from tnuosResidualBand', () => {
+  const out = parseSupplierFile('jellyfish_elec_v1', load(NDA));
+  assert.deepEqual(out.rows[0], row({
+    source_row_number: 2, product_name: 'Test Product (v1)', source_product_version: 'Test Product (v1)',
+    source_price_id: '9200001', dno_id: '10', meter_type: 'nhh', profile_class: 3,
+    rate_structure: 'single', rate_structure_source: 'DAY', llf_band_group: 'nda', llf_band_number: 1,
+    llf_band_source: 'LV_NoMIC_1', term_months: 12, contract_start_earliest: '2030-10-01',
+    contract_start_latest: '2030-10-31', green_energy: false, supplier_eac_min_kwh: 0,
+    supplier_eac_max_kwh: 10000, standing_charge_milli_pence_per_day: 65010,
+    unit_rate_single_milli_pence_per_kwh: 30292,
+  }));
+  assert.deepEqual(out.rows.map((r) => r.llf_band_number), [1, 2, 3, 3, 3]);
+  assert.ok(out.assumptions.includes('The NDA band is read from tnuosResidualBand: LV_NoMIC_1 to LV_NoMIC_4 are NDA bands 1 to 4.'));
+  assert.ok(!out.assumptions.includes('No line loss band is given.'));
+});
+
+test('Jellyfish NDA file: a DUoS tariff ID row is left out where an LLFC row has its price key', () => {
+  const out = parseSupplierFile('jellyfish_elec_v1', load(NDA));
+  const loaded = out.rows.map((r) => r.source_price_id);
+  assert.ok(!loaded.includes('9200002'), 'same LLFC, priced by DUoS tariff ID');
+  assert.ok(!loaded.includes('9200008'), 'no LLFC of its own, but an LLFC price in its band');
+  assert.ok(loaded.includes('9200001') && loaded.includes('9200009'));
+  assert.ok(out.assumptions.includes('2 rows priced for MHHS-migrated meters (DUoS tariff ID) were left out; the LLFC price is used.'));
+});
+
+test('Jellyfish NDA file: a DUoS tariff ID row is kept where no LLFC row has its price key', () => {
+  const out = parseSupplierFile('jellyfish_elec_v1', load(NDA));
+  const kept = out.rows.filter((r) => ['9200005', '9200006'].includes(r.source_price_id));
+  assert.deepEqual(kept.map((r) => [r.dno_id, r.llf_band_number, r.rate_structure]),
+    [['11', 3, 'single'], ['11', 3, 'evening_weekend']]);
+  assert.ok(out.assumptions.includes('2 MHHS rows were kept because Jellyfish gave no LLFC price for them: region B N13 NDA band 3 DAY; region B N13 NDA band 3 EW.'));
+});
+
+test('Jellyfish NDA file: LLFCs in one band at one price load once; at different prices are refused', () => {
+  const out = parseSupplierFile('jellyfish_elec_v1', load(NDA));
+  assert.equal(out.rows.filter((r) => r.llf_band_number === 2).length, 1);
+  assert.ok(out.assumptions.includes('1 rows repeat the price of another LLFC in the same NDA band and were loaded once.'));
+  const wb = load(NDA);
+  first(wb).G5 = num(30.5);   // row 5, LLFC A67, now a different unit rate from row 4's LLFC 202
+  const diff = parseSupplierFile('jellyfish_elec_v1', wb);
+  assert.deepEqual(diff.refused.filter((r) => r.row === 4 || r.row === 5), [
+    { row: 4, reason: 'another row has the same price key with different prices' },
+    { row: 5, reason: 'another row has the same price key with different prices' },
+  ]);
+  assert.equal(diff.rows.filter((r) => r.llf_band_number === 2).length, 0);
+  assert.equal(diff.rowCountSource + diff.leftOut, 10);
+});
+
+test('Jellyfish NDA file: an unknown or blank band, or an unknown tariff type, is refused', () => {
+  const wb = load(NDA);
+  first(wb).U2 = str('LV_NoMIC_5');
+  delete first(wb).U4;
+  first(wb).Q6 = str('MPAN');
+  const out = parseSupplierFile('jellyfish_elec_v1', wb);
+  assert.deepEqual(out.refused, [
+    { row: 2, reason: 'unknown NDA band' },
+    { row: 4, reason: 'blank NDA band' },
+    { row: 6, reason: 'unknown tariff identifier type' },
+    { row: 11, reason: 'unknown NDA band' },
+  ]);
+});
+
+test('Jellyfish: 3-month terms are left out of both formats, with a count; 6 to 36 months load', () => {
+  const elec = parseSupplierFile('jellyfish_elec_v1', load(NDA));
+  assert.ok(!elec.rows.some((r) => r.term_months === 3));
+  assert.ok(elec.assumptions.includes('1 rows with a 3-month term were left out: Dyce does not offer 3-month contracts.'));
+  const wb = load(FILES.jellyfish_gas_v1);
+  first(wb).J2 = num(3);
+  first(wb).J3 = num(3);
+  const gas = parseSupplierFile('jellyfish_gas_v1', wb);
+  assert.deepEqual(gas.rows.map((r) => r.term_months), [36]);
+  assert.deepEqual(gas.refused, []);
+  assert.equal(gas.rowCountSource, 1);
+  assert.equal(gas.leftOut, 2);
+  assert.ok(gas.assumptions.includes('2 rows with a 3-month term were left out: Dyce does not offer 3-month contracts.'));
+  const clean = parseSupplierFile('jellyfish_gas_v1', load(FILES.jellyfish_gas_v1));
+  assert.deepEqual(clean.rows.map((r) => r.term_months), [6, 12, 36]);
+  assert.equal(clean.leftOut, 0);
+  assert.ok(!clean.assumptions.some((a) => /3-month/.test(a)));
+});
+
+test('Jellyfish: a file in the old format (no band or tariff columns) still loads, with no band', () => {
+  const out = parseSupplierFile('jellyfish_elec_v1', load(FILES.jellyfish_elec_v1));
+  assert.equal(out.rows.length, 3);
+  assert.equal(out.leftOut, 0);
+  for (const r of out.rows) {
+    assert.equal(r.llf_band_group, null);
+    assert.equal(r.llf_band_number, null);
+    assert.equal(r.llf_band_source, null);
+  }
+  assert.ok(out.assumptions.includes('No line loss band is given.'));
+  assert.ok(!out.assumptions.some((a) => /MHHS|repeat/.test(a)));
+});
+
+test("Jellyfish: the LLFC-only price book of 16/11/2026 is refused by its name", () => {
+  const msg = "This is Jellyfish's LLFC-only price book of 16/11/2026. Load the blended version instead.";
+  for (const filename of ['dyce-electricity-pricing-2026-11-16-llfc.csv', 'dyce-electricity-pricing-2026-11-16-LLFC.CSV',
+    'dyce-electricity-pricing-2026-11-16-llfc (1).csv']) {
+    assert.throws(() => parseSupplierFile('jellyfish_elec_v1', load(NDA), { filename }), { message: msg }, filename);
+  }
+  for (const filename of ['dyce-electricity-pricing-2026-11-16-nhh-blended (1).csv', 'dyce-electricity-pricing-2026-11-19.csv',
+    'llfc-notes.csv']) {
+    assert.equal(parseSupplierFile('jellyfish_elec_v1', load(NDA), { filename }).rows.length, 5, filename);
+  }
+  // Only the Jellyfish electricity format is refused by name.
+  assert.equal(parseSupplierFile('jellyfish_gas_v1', load(FILES.jellyfish_gas_v1), { filename: 'gas-llfc.csv' }).rows.length, 3);
 });

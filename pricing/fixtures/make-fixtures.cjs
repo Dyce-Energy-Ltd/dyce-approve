@@ -76,12 +76,27 @@ fs.writeFileSync(path.join(here, 'jellyfish_elec_v1.csv'), [
   JE_HEAD,
   '9000001,Test Product (v1),_A,DAY,3,50.5,24.521,0,0,1,300000,01/10/2030,31/08/2031,12',
   '9000002,Test Product (v1),_B,E7,4,50.5,25.257,20.146,0,1,300000,01/10/2030,31/08/2031,24',
-  '9000003,Test Product (v1),_P,EWN,4,55.037,26.037,21.037,23.514,1,300000,01/10/2030,31/08/2031,3',
+  '9000003,Test Product (v1),_P,EWN,4,55.037,26.037,21.037,23.514,1,300000,01/10/2030,31/08/2031,6',
+].join('\n') + '\n');
+// Jellyfish electricity from 16/11/2026: the old columns plus the tariff and NDA band columns (header as
+// in the 19/11/2026 file). Codes as Jellyfish write them; prices invented.
+fs.writeFileSync(path.join(here, 'jellyfish_elec_v1_nda.csv'), [
+  'id,name,region,meterType,profileClass,standingCharge,allOrDayUnitRate,nightRate,eveningWeekendRate,minAq,maxAq,effectiveFrom,effectiveTo,term,volumeTolerencePercentage,distributorMpid,tariffIdentifierType,tariffIdentifier,lineLossFactorClass,duosTariffId,tnuosResidualBand',
+  '9200001,Test Product (v1),_A,DAY,3,65.01,30.292,0,0,0,10000,01/10/2030,31/10/2030,12,20,EELC,LLFC,201,201,,LV_NoMIC_1',
+  '9200002,Test Product (v1),_A,DAY,3,65.01,29.936,0,0,0,10000,01/10/2030,31/10/2030,12,20,EELC,DUOS_TARIFF_ID,201,,201,LV_NoMIC_1',
+  '9200003,Test Product (v1),_A,DAY,3,100,30.439,0,0,0,10000,01/10/2030,31/10/2030,12,20,EELC,LLFC,202,202,,LV_NoMIC_2',
+  '9200004,Test Product (v1),_A,DAY,3,100,30.439,0,0,0,10000,01/10/2030,31/10/2030,12,20,SOUT,LLFC,A67,A67,,LV_NoMIC_2',
+  '9200005,Test Product (v1),_B,DAY,3,171.56,30.5,0,0,0,10000,01/10/2030,31/10/2030,12,20,EMEB,DUOS_TARIFF_ID,N13,,N13,LV_NoMIC_3',
+  '9200006,Test Product (v1),_B,EW,4,171.56,30.5,0,25.1,0,10000,01/10/2030,31/10/2030,12,20,EMEB,DUOS_TARIFF_ID,N13,,N13,LV_NoMIC_3',
+  '9200007,Test Product (v1),_A,DAY,3,406.83,30.292,0,0,0,10000,01/10/2030,31/10/2030,3,20,EELC,LLFC,204,204,,LV_NoMIC_4',
+  '9200008,Test Product (v1),_H,DAY,3,171.56,31.2,0,0,0,10000,01/10/2030,31/10/2030,12,20,SOUT,DUOS_TARIFF_ID,H08,,H08,LV_NoMIC_3',
+  '9200009,Test Product (v1),_H,DAY,3,171.56,30.9,0,0,0,10000,01/10/2030,31/10/2030,12,20,SOUT,LLFC,H07,H07,,LV_NoMIC_3',
+  '9200010,Test Product (v1),_A,DAY,3,65.01,30.292,0,0,0,10000,01/10/2030,31/10/2030,24,20,EELC,LLFC,201,201,,HV_1',
 ].join('\n') + '\n');
 const JG_HEAD = 'id,name,region,standingCharge,unitRate,minAq,maxAq,effectiveFrom,effectiveTo,term';
 fs.writeFileSync(path.join(here, 'jellyfish_gas_v1.csv'), [
   JG_HEAD,
-  '9100001,Test Product (v1),XA,22.528,8.257,1,10000,01/10/2030,31/08/2031,3',
+  '9100001,Test Product (v1),XA,22.528,8.257,1,10000,01/10/2030,31/08/2031,6',
   '9100002,Test Product (v1),XB,40.757,7.507,10001,20000,01/10/2030,31/08/2031,12',
   '9100003,Test Product (v1),XC,58.037,6.139,20001,293000,02/10/2030,31/08/2031,36',
 ].join('\n') + '\n');
