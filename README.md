@@ -23,7 +23,7 @@ A navy rail down the left shows each tool the person may use, with the open tool
 | Pricing | View | The Pricing tab and its four screens, read only: Supplier files (every file with its state, and the files that failed to load), Margins, Splits, Live price book (with Check a price); the Price workspace with its preview, without saving or applying |
 | Pricing | Load supplier files | No screen uses this tick now: the Load a file card was removed (Phil Brook, 19/11/2026) and supplier files arrive only from SharePoint through the loader |
 | Pricing | Set margins and splits | Edit the band ladder; make, edit, save and retire products; make, edit and retire product configurations; save and publish splits; make products and save margins on the Price screen (Save, which changes no price) |
-| Pricing | Publish | Apply a choice of products to a file (Price), abandon an update whose build failed, rebuild the Broker and UD Upload files |
+| Pricing | Publish | Apply a choice of products to a file (Price), abandon an update whose build failed, rebuild the Broker (electricity and gas) and UD Upload files |
 | Commission Engine | View | The *Monthly run* menu: Lines, Exceptions, Decisions and Runs, read-only (no Decide, Enter uplift, Set broker, Fix or Rebuild) |
 | DNA Admin | DNA Admin | People and access (the grid of people and ticks), Who may sign in, Sign-in history, Changes made here |
 

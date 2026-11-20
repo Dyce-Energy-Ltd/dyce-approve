@@ -2444,7 +2444,7 @@ const PR_HEALTH = {{PRICING_HEALTH}};
   // pricing.load (no screen uses it now; kept as a grant), pricing.set (band sets and splits),
   // pricing.publish. Supplier files arrive only through the SharePoint loader in dyce-data-pipelines
   // (the hand-load card was removed, Phil Brook 19/11/2026); PR_ADAPTERS is still put into the page
-  // by build.py but nothing here calls it. The Broker and UD Upload workbooks are made here by
+  // by build.py but nothing here calls it. The Broker (electricity and gas) and UD Upload workbooks are made here by
   // PR_EXPORTS with SheetJS (PR_XLSX). Nothing is kept in browser storage. The page only loads and
   // publishes: what happens to a loaded file when its set is published is decided inside the
   // database (ruling R15), and no screen offers any other step.
@@ -2465,7 +2465,10 @@ const PR_HEALTH = {{PRICING_HEALTH}};
     const STRUCTURE = { day_night: "Day and night", evening_weekend: "Evening and weekend", evening_weekend_night: "Evening, weekend and night", hh: "Half-hourly" };
     const SPLIT_KEYS = { day_night: ["day", "night"], hh: ["day", "night"], evening_weekend: ["day", "ew"], evening_weekend_night: ["day", "ew", "night"] };
     const KEY_LABEL = { day: "Day", night: "Night", ew: "Evening and weekend" };
-    const LAYOUT_LABEL = { broker: "Broker", ud_upload: "UD Upload" };
+    const LAYOUT_LABEL = { broker: "Broker", broker_gas: "Broker (gas)", ud_upload: "UD Upload" };
+    // The layouts a run gets, by fuel. Each is stored and recorded (the dna-pricing function's LAYOUTS
+    // list takes all three).
+    const LAYOUTS_BY_FUEL = { electricity: ["broker", "ud_upload"], gas: ["broker_gas", "ud_upload"] };
     const STATE = { published: "ok", approved: "ok", active: "ok", live: "ok", draft: "info", loaded: "info", failed: "critical", publishing: "warn", unfinished: "warn", rejected: "neutral", retired: "neutral", replaced: "neutral" };
     const GBP = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
     // Region names as the broker portal shows them (src/lib/pricing/margins.ts there), Yorkshire first
@@ -2587,7 +2590,7 @@ const PR_HEALTH = {{PRICING_HEALTH}};
       const a = el("a", { href: url, download: name }); document.body.append(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     }
-    const fileName = (layout, run) => ("Dyce_" + (layout === "broker" ? "Broker" : "UD_Upload") + "_" + run.supplier + "_" + run.product + "_" + run.sales.join("-") + "_" + day(run.publishedAt).replace(/\//g, "")).replace(/[^A-Za-z0-9_-]+/g, "_") + ".xlsx";
+    const fileName = (layout, run) => ("Dyce_" + ({ broker: "Broker", broker_gas: "Broker_Gas", ud_upload: "UD_Upload" }[layout]) + "_" + run.supplier + "_" + run.product + "_" + run.sales.join("-") + "_" + day(run.publishedAt).replace(/\//g, "")).replace(/[^A-Za-z0-9_-]+/g, "_") + ".xlsx";
     const supplierNames = (ov) => new Map(ov.suppliers.map((s) => [s.supplier_id, s.supplier_name]));
     // A product or product configuration may be for one supplier or, with no supplier, for every
     // supplier (Phil Brook, 19/11/2026). pairs: [[supplier_id, name]].
@@ -4178,13 +4181,12 @@ const PR_HEALTH = {{PRICING_HEALTH}};
         if (!runsLive.has(x.price_run_id)) runsLive.set(x.price_run_id, { id: x.price_run_id, fuel: x.fuel, product: x.product, supplier: x.supplier_id, publishedAt: x.published_at, sales: [] });
         runsLive.get(x.price_run_id).sales.push(x.sale_type);
       }
-      const electricity = [...runsLive.values()].filter((x) => x.fuel === "electricity");
-      if (!electricity.length) { line("No Broker or UD Upload files for gas yet.", "done"); return; }
-      await makeFiles(electricity, box, alive);
+      await makeFiles([...runsLive.values()], box, alive);
     }
 
-    // The Broker and UD Upload files for live electricity runs: read the book, make both workbooks
-    // here, store each, record them. A run's book is read in pages of BOOK_PAGE rows.
+    // The Broker and UD Upload files for live runs (electricity: Broker and UD Upload; gas: Broker (gas)
+    // and UD Upload): read the book, make the workbooks here, store each, record them, and offer them
+    // to save. A run's book is read in pages of BOOK_PAGE rows.
     async function makeFiles(runList, box, alive) {
       const line = steps(box);
       const failed = (set, err) => { set("The files could not be made: " + explain(err) + " The prices are live. Rebuild the files from Live price book.", "failed"); };
@@ -4204,7 +4206,7 @@ const PR_HEALTH = {{PRICING_HEALTH}};
           set("Reading prices for " + tag + ": " + comma(rows.length) + " rows", "done");
         } catch (err) { if (err && err.signedOut) return; failed(set, err); return; }
         const made = [], recorded = [];
-        for (const layout of ["broker", "ud_upload"]) {
+        for (const layout of LAYOUTS_BY_FUEL[run.fuel] || []) {
           const s = line("Making the " + LAYOUT_LABEL[layout] + " file for " + tag, "working");
           try {
             await pause(20);
@@ -4276,14 +4278,14 @@ const PR_HEALTH = {{PRICING_HEALTH}};
         for (const r of b.live) {
           const first = !seen.has(r.price_run_id); seen.add(r.price_run_id);
           // One Files menu per run (its rows share it): the two stored files and, with Publish, Rebuild.
-          const files = first && r.fuel === "electricity" ? el("details", { class: "menu" }, el("summary", { class: "btn ghost small", text: "Files" }),
-            el("div", { class: "menubox" }, ...downloadButtons(r.price_run_id, ["broker", "ud_upload"], dlMsg),
+          const files = first ? el("details", { class: "menu" }, el("summary", { class: "btn ghost small", text: "Files" }),
+            el("div", { class: "menubox" }, ...downloadButtons(r.price_run_id, LAYOUTS_BY_FUEL[r.fuel] || [], dlMsg),
               can(T.publish) ? btn("Rebuild files", (e) => remake(e.currentTarget, r, filesBox, b), "ghost small") : null)) : null;
           rows.push([names.get(r.supplier_id) || r.supplier_id, FUEL[r.fuel] || r.fuel, r.product, SALE[r.sale_type] || r.sale_type, r.source_filename, when(r.published_at) + (r.published_by ? ", " + personName(r.published_by) : ""), comma(r.row_count),
             Number(r.publishing_runs) > 0 ? badge("publishing") : badge("live"), files]);
         }
         if (b.live.length) body.append(table(["Supplier", "Fuel", "Product type", "Sale type", "File", "Published", "Rows", "State", ""], rows));
-        body.append(dlMsg, filesBox, el("p", { class: "hint", text: "No Broker or UD Upload files for gas yet." }));
+        body.append(dlMsg, filesBox);
         foot();
       }
       // Check a price: what each live product of one supplier and fuel costs in a region at a usage.
