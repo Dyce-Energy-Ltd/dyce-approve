@@ -1986,8 +1986,6 @@ function jfCommon(g, r, rowNumber) {
   const id = g('id');
   r.source_price_id = id === undefined ? null : String(id);
   r.term_months = termOf(g('term'));
-  // Dyce does not offer 3-month contracts (Chris Beardsmore's change note, w/c 16/11/2026).
-  if (r.term_months === 3) leaveOut('term3');
   [r.supplier_eac_min_kwh, r.supplier_eac_max_kwh] = rangeOf(g('minAq'), g('maxAq'));
   [r.contract_start_earliest, r.contract_start_latest] =
     startWindow(g('effectiveFrom'), g('effectiveTo'), 'dmy-slash');
@@ -2220,9 +2218,6 @@ function parseSupplierFile(format, workbook, options) {
     }
   } else {
     rows = items.map((it) => it.r);
-  }
-  if (left.term3) {
-    assumptions.push(`${left.term3} rows with a 3-month term were left out: Dyce does not offer 3-month contracts.`);
   }
   const leftOut = Object.values(left).reduce((a, b) => a + b, 0);
   const rowCountSource = rows.length + refused.length;

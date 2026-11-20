@@ -364,18 +364,19 @@ test('Yu electricity: a blank line loss band is refused on NHH rows, allowed on 
   assert.equal(hh.llf_band_source, null);
 });
 
-// --- Jellyfish electricity from 16/11/2026: NDA band, MHHS rows, 3-month terms ------------------
-// Chris Beardsmore's change note, w/c 16/11/2026, sections 1 and 3. The fixture's comments in
+// --- Jellyfish electricity from 16/11/2026: NDA band and MHHS rows ---------------------------------
+// Chris Beardsmore's change note, w/c 16/11/2026, sections 1 and 3. 3-month terms load like any
+// other (Phil Brook, 24/09/2026, kept 20/11/2026). The fixture's comments in
 // make-fixtures.cjs say what each row is for.
 
 const NDA = 'jellyfish_elec_v1_nda.csv';
 
 test('Jellyfish NDA file: rows, refusals and rows left out add up', () => {
   const out = parseSupplierFile('jellyfish_elec_v1', load(NDA));
-  assert.deepEqual(out.rows.map((r) => r.source_row_number), [2, 4, 6, 7, 10]);
+  assert.deepEqual(out.rows.map((r) => r.source_row_number), [2, 4, 6, 7, 8, 10]);
   assert.deepEqual(out.refused, [{ row: 11, reason: 'unknown NDA band' }]);
-  assert.equal(out.rowCountSource, 6);   // rows + refused, the count the database checks
-  assert.equal(out.leftOut, 4);          // one 3-month, two DUoS tariff ID, one repeat
+  assert.equal(out.rowCountSource, 7);   // rows + refused, the count the database checks
+  assert.equal(out.leftOut, 3);          // two DUoS tariff ID, one repeat
   for (const r of out.rows) assert.deepEqual(Object.keys(r).sort(), [...ROW_KEYS].sort());
 });
 
@@ -390,7 +391,7 @@ test('Jellyfish NDA file: the band is read from tnuosResidualBand', () => {
     supplier_eac_max_kwh: 10000, standing_charge_milli_pence_per_day: 65010,
     unit_rate_single_milli_pence_per_kwh: 30292,
   }));
-  assert.deepEqual(out.rows.map((r) => r.llf_band_number), [1, 2, 3, 3, 3]);
+  assert.deepEqual(out.rows.map((r) => r.llf_band_number), [1, 2, 3, 3, 4, 3]);
   assert.ok(out.assumptions.includes('The NDA band is read from tnuosResidualBand: LV_NoMIC_1 to LV_NoMIC_4 are NDA bands 1 to 4.'));
   assert.ok(!out.assumptions.includes('No line loss band is given.'));
 });
@@ -441,23 +442,16 @@ test('Jellyfish NDA file: an unknown or blank band, or an unknown tariff type, i
   ]);
 });
 
-test('Jellyfish: 3-month terms are left out of both formats, with a count; 6 to 36 months load', () => {
+test('Jellyfish: 3-month terms load like any other term, in both formats', () => {
   const elec = parseSupplierFile('jellyfish_elec_v1', load(NDA));
-  assert.ok(!elec.rows.some((r) => r.term_months === 3));
-  assert.ok(elec.assumptions.includes('1 rows with a 3-month term were left out: Dyce does not offer 3-month contracts.'));
+  assert.ok(elec.rows.some((r) => r.term_months === 3));
+  assert.ok(!elec.assumptions.some((a) => /3-month/.test(a)));
   const wb = load(FILES.jellyfish_gas_v1);
   first(wb).J2 = num(3);
-  first(wb).J3 = num(3);
   const gas = parseSupplierFile('jellyfish_gas_v1', wb);
-  assert.deepEqual(gas.rows.map((r) => r.term_months), [36]);
+  assert.ok(gas.rows.some((r) => r.term_months === 3));
   assert.deepEqual(gas.refused, []);
-  assert.equal(gas.rowCountSource, 1);
-  assert.equal(gas.leftOut, 2);
-  assert.ok(gas.assumptions.includes('2 rows with a 3-month term were left out: Dyce does not offer 3-month contracts.'));
-  const clean = parseSupplierFile('jellyfish_gas_v1', load(FILES.jellyfish_gas_v1));
-  assert.deepEqual(clean.rows.map((r) => r.term_months), [6, 12, 36]);
-  assert.equal(clean.leftOut, 0);
-  assert.ok(!clean.assumptions.some((a) => /3-month/.test(a)));
+  assert.equal(gas.leftOut, 0);
 });
 
 test('Jellyfish: a file in the old format (no band or tariff columns) still loads, with no band', () => {
@@ -481,7 +475,7 @@ test("Jellyfish: the LLFC-only price book of 16/11/2026 is refused by its name",
   }
   for (const filename of ['dyce-electricity-pricing-2026-11-16-nhh-blended (1).csv', 'dyce-electricity-pricing-2026-11-19.csv',
     'llfc-notes.csv']) {
-    assert.equal(parseSupplierFile('jellyfish_elec_v1', load(NDA), { filename }).rows.length, 5, filename);
+    assert.equal(parseSupplierFile('jellyfish_elec_v1', load(NDA), { filename }).rows.length, 6, filename);
   }
   // Only the Jellyfish electricity format is refused by name.
   assert.equal(parseSupplierFile('jellyfish_gas_v1', load(FILES.jellyfish_gas_v1), { filename: 'gas-llfc.csv' }).rows.length, 3);
