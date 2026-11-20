@@ -709,7 +709,6 @@
   var PR_TICK = {
     "overview": "pricing.view", "split_list": "pricing.view", "book_live": "pricing.view", "book_rows": "pricing.view", "book_check": "pricing.view",
     "band_sets": "pricing.view", "band_set_history": "pricing.view", "file_regions": "pricing.view", "preview_selection": "pricing.view",
-    "file_start": "pricing.load", "file_rows": "pricing.load", "file_finish": "pricing.load", "file_reject": "pricing.load",
     "band_set_retire": "pricing.set", "band_sets_save": "pricing.set", "bundle_save": "pricing.set", "bundle_retire": "pricing.set", "ladder_save": "pricing.set", "split_save": "pricing.set", "split_publish": "pricing.set",
     "apply": "pricing.publish", "publish_abandon": "pricing.publish", "output_upload_url": "pricing.publish", "output_record": "pricing.publish", "output_link": "pricing.view"
   };
@@ -1077,19 +1076,6 @@
       });
       return ok({ rows: crows });
     }
-    if (op === "file_start") {
-      if (!/^[0-9a-f]{64}$/.test(body.sha256 || "")) return bad("The file checksum must be 64 lower-case hexadecimal characters.");
-      prSent = 0;
-      var path = body.supplierId + "/" + body.fuel + "/" + body.sha256 + "." + body.extension;
-      return ok({ fileId: pid(500 + calls.length), uploadUrl: PR_UPLOAD + path + "?token=preview-not-a-real-link", path: path });
-    }
-    if (op === "file_rows") { prSent += (body.rows || []).length; return ok({ added: (body.rows || []).length }); }
-    if (op === "file_finish") {
-      var by = {}; (body.refused || []).forEach(function (r) { by[r.reason] = (by[r.reason] || 0) + 1; });
-      var rep = { refused: body.refused || [], refused_count: (body.refused || []).length, by_reason: by, row_count_loaded: prSent };
-      return ok({ report: rep });
-    }
-    if (op === "file_reject") return body.reason ? ok({}) : bad("The reason is needed.");
     if (op === "split_save") {
       var keys = { day_night: ["day", "night"], hh: ["day", "night"], evening_weekend: ["day", "ew"], evening_weekend_night: ["day", "ew", "night"] }[body.rateStructure];
       if (!keys || Object.keys(body.split || {}).sort().join() !== keys.slice().sort().join()) return bad("The split does not have the keys its rate structure needs.");
@@ -1126,7 +1112,6 @@
     prRecorded[body.priceRunId] = copy(body.files);
     return ok({});
   }
-  var prSent = 0;
 
   // ---------- Commission Engine: the commission-engine function's page op, gated as its core.ts gates it.
   var CE_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/commission-engine";
