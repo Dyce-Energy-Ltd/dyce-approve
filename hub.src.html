@@ -823,6 +823,7 @@ const PR_XLSX = {{XLSX_LIB}};
 const PR_ADAPTERS = {{PRICING_ADAPTERS}};
 const PR_EXPORTS = {{PRICING_EXPORTS}};
 const PR_GRID = {{PRICING_GRID}};
+const PR_HEALTH = {{PRICING_HEALTH}};
 </script>
 <script>
 (() => {
@@ -2637,6 +2638,17 @@ const PR_GRID = {{PRICING_GRID}};
         if (note) say(msg, note);
         const names = supplierNames(ov);
         const supplier = (id) => names.get(id) || id || "–";
+        // Price books (Phil Brook, 20/11/2026): one row per SharePoint Base Prices folder, its newest
+        // file and any later file that failed to load. The loader checks the folders every 5 minutes.
+        body.append(el("h2", { class: "sect", text: "Price books" }),
+          table(["Price book", "Latest file", "Received", "Rows loaded", "State"], PR_HEALTH.bookHealth(ov.files, ov.loadFailures, Date.now()).map((b) => [
+            supplier(b.supplierId) + " " + (FUEL[b.fuel] || b.fuel).toLowerCase(),
+            b.file ? b.file.sourceFilename : "–",
+            b.file && b.file.loadedAt ? when(b.file.loadedAt) + " (" + b.age + ")" : "–",
+            b.file ? comma(b.file.rowCountLoaded) + " of " + comma(b.file.rowCountSource) : "–",
+            b.status === "failed" ? el("span", {}, el("span", { class: "badge critical", text: "Newer file failed" }), " " + (b.failure.sourcePath || "").split("/").pop() + ": " + b.failure.reason)
+              : b.file ? fileBadge(b.file) : el("span", { class: "badge neutral", text: "No file yet" })])),
+          el("p", { class: "hint", text: "Newest file from each SharePoint Base Prices folder. New files load within about 5 minutes while the loader is running." }));
         body.append(el("h2", { class: "sect", text: "Files" }));
         const sorted = ov.files.slice().sort((a, b) => String(b.loadedAt || "").localeCompare(String(a.loadedAt || "")));
         if (!sorted.length) body.append(el("div", { class: "empty", text: "No files yet." }));

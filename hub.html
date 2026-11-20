@@ -3041,6 +3041,77 @@ function liveChoice(rows, supplierId, fuel, bandSets, bundles) {
 
 ;return { parseMargin, parseShare, formatMargin, midpointAnnualPounds, DAYS_PER_YEAR, marginSplit, carryToLadder, makeGrid, addColumn, setCostPerMeter, setCells, shiftCells, copyColumn, pasteBlock, isEdited, isChanged, changedNames, editedNames, isComplete, firstGap, problems, toSavePayload, toPreviewItems, selectionProblem, chartScale, dragValue, chartAxis, CHART_MAX, toggleChartPick, syncChartPicks, changedCellCount, midpointText, bandRange, cellFacts, reviewLines, forSupplier, repeatedProductType, newConfigNames, currentConfig, defaultConfigName, liveChoice };
 })();
+const PR_HEALTH = (function () {
+// Price book health for the Pricing tab's Supplier files screen (Phil Brook, 20/11/2026): for each
+// SharePoint Base Prices folder the loader reads, the newest file received and, if a later file
+// failed to load, that failure. Pure functions, no DOM.
+//
+// BOOKS is the folder list of dyce-data-pipelines pricing_loader/folders.js, one row per supplier
+// and fuel. Files are the overview's `files` (pricing.supplier_file_state), failures its
+// `loadFailures` (pricing.load_failure).
+
+const BOOKS = [
+  { supplierId: 'voltx', fuel: 'electricity' },
+  { supplierId: 'yu', fuel: 'electricity' },
+  { supplierId: 'yu', fuel: 'gas' },
+  { supplierId: 'jellyfish', fuel: 'electricity' },
+  { supplierId: 'jellyfish', fuel: 'gas' },
+];
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function time(t) {
+  const v = Date.parse(t);
+  return Number.isFinite(v) ? v : null;
+}
+
+function newest(items, key) {
+  let best = null;
+  for (const it of items) {
+    const t = time(it[key]);
+    if (t !== null && (best === null || t > best.t)) best = { it, t };
+  }
+  return best;
+}
+
+// One row per book: status 'file' (newest file shown), 'failed' (a file newer than the newest
+// loaded one failed; the last good file, if any, is still given) or 'none' (nothing yet).
+function bookHealth(files, failures, now) {
+  return BOOKS.map((b) => {
+    const mine = (x) => x.supplierId === b.supplierId && x.fuel === b.fuel;
+    const f = newest((files || []).filter(mine), 'loadedAt');
+    const x = newest((failures || []).filter(mine), 'seenAt');
+    const failed = x !== null && (f === null || x.t > f.t);
+    return {
+      supplierId: b.supplierId,
+      fuel: b.fuel,
+      status: failed ? 'failed' : f ? 'file' : 'none',
+      file: f ? f.it : null,
+      failure: failed ? x.it : null,
+      age: f ? ageText(f.it.loadedAt, now) : '',
+    };
+  });
+}
+
+// UK calendar days since t, in words: 'today', '1 day ago', '6 days ago'. Not a date gives ''.
+function ageText(t, now) {
+  const v = time(t);
+  if (v === null) return '';
+  const days = Math.round((ukDay(now) - ukDay(v)) / DAY_MS);
+  if (days <= 0) return 'today';
+  return days === 1 ? '1 day ago' : days + ' days ago';
+}
+
+const UK = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' });
+
+// Midnight UTC of the UK calendar date the instant falls on, so days are counted as the UK sees them.
+function ukDay(ms) {
+  const p = Object.fromEntries(UK.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day));
+}
+
+;return { BOOKS, bookHealth, ageText };
+})();
 </script>
 <script>
 (() => {
@@ -4855,6 +4926,17 @@ function liveChoice(rows, supplierId, fuel, bandSets, bundles) {
         if (note) say(msg, note);
         const names = supplierNames(ov);
         const supplier = (id) => names.get(id) || id || "–";
+        // Price books (Phil Brook, 20/11/2026): one row per SharePoint Base Prices folder, its newest
+        // file and any later file that failed to load. The loader checks the folders every 5 minutes.
+        body.append(el("h2", { class: "sect", text: "Price books" }),
+          table(["Price book", "Latest file", "Received", "Rows loaded", "State"], PR_HEALTH.bookHealth(ov.files, ov.loadFailures, Date.now()).map((b) => [
+            supplier(b.supplierId) + " " + (FUEL[b.fuel] || b.fuel).toLowerCase(),
+            b.file ? b.file.sourceFilename : "–",
+            b.file && b.file.loadedAt ? when(b.file.loadedAt) + " (" + b.age + ")" : "–",
+            b.file ? comma(b.file.rowCountLoaded) + " of " + comma(b.file.rowCountSource) : "–",
+            b.status === "failed" ? el("span", {}, el("span", { class: "badge critical", text: "Newer file failed" }), " " + (b.failure.sourcePath || "").split("/").pop() + ": " + b.failure.reason)
+              : b.file ? fileBadge(b.file) : el("span", { class: "badge neutral", text: "No file yet" })])),
+          el("p", { class: "hint", text: "Newest file from each SharePoint Base Prices folder. New files load within about 5 minutes while the loader is running." }));
         body.append(el("h2", { class: "sect", text: "Files" }));
         const sorted = ov.files.slice().sort((a, b) => String(b.loadedAt || "").localeCompare(String(a.loadedAt || "")));
         if (!sorted.length) body.append(el("div", { class: "empty", text: "No files yet." }));

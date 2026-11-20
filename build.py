@@ -16,6 +16,7 @@ Four more placeholders put the Pricing tab's code into the page, each as one exp
   {{PRICING_ADAPTERS}}    pricing/adapters.js, as an object of its exports
   {{PRICING_EXPORTS}}     pricing/exports.js, as an object of its exports
   {{PRICING_GRID}}        pricing/grid.js, as an object of its exports
+  {{PRICING_HEALTH}}      pricing/health.js, as an object of its exports
 The three modules are ES modules for the Node tests. Here their `export` keywords are stripped and
 the source is wrapped in a function that returns the exported names, so the files' private
 names (adapters and exports both have a LAYOUTS) cannot clash. Every non-ASCII character is written as a unicode
@@ -45,6 +46,7 @@ CODE = {
     "PRICING_ADAPTERS": ("pricing/adapters.js", "module"),
     "PRICING_EXPORTS": ("pricing/exports.js", "module"),
     "PRICING_GRID": ("pricing/grid.js", "module"),
+    "PRICING_HEALTH": ("pricing/health.js", "module"),
 }
 EXPORT = re.compile(r"^export\s+(?:const|let|function|class)\s+([A-Za-z_$][\w$]*)", re.M)
 BACKSLASH_BEFORE_NON_ASCII = re.compile("\\\\[^\u0000-\u007f]")
