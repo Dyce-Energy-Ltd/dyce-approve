@@ -42,6 +42,9 @@
 // A publish answers at once; the book then shows as being built until __stub.buildMs (default
 // 15000) has passed, so the page's 10 second poll sees it go live. Loading a file for the supplier
 // "Gamma Example" answers with a load report whose runs could not be prepared (no published split).
+// Beta Example Energy's electricity is live with the products of its own product configuration, Alpha
+// Example Power's file is not live and has a product configuration saved for Alpha, so the Price screen
+// opens on each one (Phil Brook, 20/11/2026).
 // Gas has no band sets and no bundles, as in dyce-prod on 19/11/2026, and Gamma Example's gas file
 // of 06/11/2026 is ready to price: Price on it shows the gas ladder with no band sets, for New band
 // set, Save (which changes no price) and Apply.
@@ -785,8 +788,8 @@
   var prLive = [
     { supplier_id: "beta", fuel: "electricity", product: "Standard", sale_type: "acquisition", price_run_id: R(4), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0 },
     { supplier_id: "beta", fuel: "electricity", product: "Standard", sale_type: "renewal", price_run_id: R(4), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0 },
-    { supplier_id: "beta", fuel: "electricity", product: "Gold", sale_type: "acquisition", price_run_id: R(5), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0 },
-    { supplier_id: "beta", fuel: "electricity", product: "Gold", sale_type: "renewal", price_run_id: R(5), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0 }
+    { supplier_id: "beta", fuel: "electricity", product: "Advanced Saver", sale_type: "acquisition", price_run_id: R(5), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0 },
+    { supplier_id: "beta", fuel: "electricity", product: "Advanced Saver", sale_type: "renewal", price_run_id: R(5), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0 }
   ];
   var prProblems = [{ supplier: "gamma", fuel: "gas", message: "Build failed: the book could not be written for 2 runs (invented message for the preview).", "when": "2026-11-12T17:45:00+00:00" }];
   var prBuiltAt = null, prPublishedFile = null, prRecorded = {};
@@ -841,7 +844,11 @@
   addNamed("electricity", "Advanced Saver", "Advanced Saver", 1600, [760, 680, 600, 540, 470, 400], [20, 18, 16, 14, 12, 10], prLadder.electricity.bands, 3);
   addNamed("electricity", "Gold renewal", "Gold", 1500, [640, 560, 480, 420, 330], [25, 22, 20, 15, 12], prLadderOld.bands, 2);
   prBundles.push({ bundleId: pid(851), fuel: "electricity", name: "Core range", members: ["Standard", "Gold", "Silver"], supplierId: null });
-  prBundles.push({ bundleId: pid(852), fuel: "electricity", name: "Advanced range", members: ["Advanced Saver"], supplierId: "beta" });
+  prBundles.push({ bundleId: pid(852), fuel: "electricity", name: "Advanced range", members: ["Standard", "Advanced Saver"], supplierId: "beta" });
+  // The Price screen opens on the current product configuration (Phil Brook, 20/11/2026): Beta's file
+  // is live (Standard and Advanced Saver, the products of Advanced range); Alpha's is not live and has
+  // Alpha November, saved for Alpha; gas has none at all.
+  prBundles.push({ bundleId: pid(853), fuel: "electricity", name: "Alpha November", members: ["Standard", "Gold"], supplierId: "alpha" });
   // An optional supplier on products and product configurations (spine change of 19/11/2026): null is
   // every supplier. Gold is for Alpha only and Advanced Saver (with Advanced range) for Beta only;
   // Standard, Silver, Gold renewal and Core range are for every supplier.
