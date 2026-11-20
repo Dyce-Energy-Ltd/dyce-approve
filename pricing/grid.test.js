@@ -5,7 +5,7 @@ import {
   copyColumn, pasteBlock, changedNames, problems, carryToLadder, toSavePayload, toPreviewItems,
   selectionProblem, chartScale, dragValue, marginSplit, DAYS_PER_YEAR, setCostPerMeter, editedNames, firstGap, isComplete,
   chartAxis, CHART_MAX, toggleChartPick, syncChartPicks, changedCellCount, cellFacts, reviewLines, midpointText, bandRange,
-  forSupplier, repeatedProductType, newConfigNames,
+  forSupplier, repeatedProductType, newConfigNames, currentConfig, defaultConfigName,
 } from './grid.js';
 
 // Invented figures only.
@@ -457,4 +457,38 @@ test('newConfigNames: <configuration name> <product type>, refused in plain word
     'There is already a product called Aggressive Pricing Gold. Choose another name for the product configuration.');
   assert.match(newConfigNames('Aggressive Pricing', [gold, { name: 'Gold renewal', product: 'Gold' }], new Set()).error, /^Two changed products are Gold/);
   assert.match(newConfigNames('x'.repeat(57), [gold], new Set()).error, /longer than 60 characters/);
+});
+
+// The Price screen opens on the current product configuration (Phil Brook, 20/11/2026). Which products
+// are live cannot be read from the dna-pricing ops, so "current" is the most recently saved active
+// configuration for the file's supplier, else for every supplier; a configuration's date is the newest
+// save among its members.
+test('currentConfig: the supplier first, then every supplier, the most recently saved', () => {
+  const sets = [
+    { name: 'A', savedAt: '2026-11-10T09:00:00Z' }, { name: 'B', savedAt: '2026-11-12T09:00:00Z' },
+    { name: 'C', savedAt: '2026-11-18T09:00:00Z' }, { name: 'D', savedAt: '2026-11-19T09:00:00Z' },
+  ];
+  const bundles = [
+    { bundleId: 1, name: 'Old Yu', supplierId: 'yu', members: ['A'] },
+    { bundleId: 2, name: 'Yu', supplierId: 'yu', members: ['A', 'B'] },
+    { bundleId: 3, name: 'Voltx', supplierId: 'voltx', members: ['D'] },
+    { bundleId: 4, name: 'Everyone', supplierId: null, members: ['C'] },
+    { bundleId: 5, name: 'Everyone older', supplierId: null, members: ['A'] },
+  ];
+  assert.equal(currentConfig(bundles, sets, 'yu').bundle.name, 'Yu');
+  assert.equal(currentConfig(bundles, sets, 'yu').scope, 'supplier');
+  assert.equal(currentConfig(bundles, sets, 'jellyfish').bundle.name, 'Everyone');
+  assert.equal(currentConfig(bundles, sets, 'jellyfish').scope, 'all');
+  assert.equal(currentConfig([], sets, 'yu'), null);
+  // A configuration with no member left among the products is skipped.
+  assert.equal(currentConfig([{ bundleId: 9, name: 'Gone', supplierId: 'yu', members: ['Z'] }], sets, 'yu'), null);
+  // A tie keeps the first in the order given.
+  assert.equal(currentConfig([{ bundleId: 7, name: 'P', supplierId: null, members: ['A'] }, { bundleId: 8, name: 'Q', supplierId: null, members: ['A'] }], sets, 'yu').bundle.name, 'P');
+});
+
+test('defaultConfigName: " (2)", " (3)" when the name or a product it would make is taken', () => {
+  assert.equal(defaultConfigName('Yu gas 20/11/2026', new Set(), ['Gold']), 'Yu gas 20/11/2026');
+  assert.equal(defaultConfigName('Yu gas 20/11/2026', new Set(['Yu gas 20/11/2026']), []), 'Yu gas 20/11/2026 (2)');
+  assert.equal(defaultConfigName('Yu gas 20/11/2026', new Set(['Yu gas 20/11/2026', 'Yu gas 20/11/2026 (2)']), []), 'Yu gas 20/11/2026 (3)');
+  assert.equal(defaultConfigName('Yu gas 20/11/2026', new Set(['Yu gas 20/11/2026 Gold']), ['Gold']), 'Yu gas 20/11/2026 (2)');
 });

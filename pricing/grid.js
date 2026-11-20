@@ -548,3 +548,40 @@ export function newConfigNames(configName, changed, taken) {
   }
   return out;
 }
+
+// The Price screen opens on the current product configuration (Phil Brook, 20/11/2026). The dna-pricing
+// ops do not say which products are live, so the current one is the most recently saved active
+// configuration for the file's supplier, else the most recent for every supplier, else none. A
+// configuration's date is the newest save (savedAt) among its members still in bandSets; one with no
+// member left is skipped, and a tie keeps the first in the order given. Returns {bundle, scope} with
+// scope 'supplier' or 'all', or null.
+export function currentConfig(bundles, bandSets, supplierId) {
+  const savedAt = new Map((bandSets || []).map(s => [s.name, String(s.savedAt || '')]));
+  const newest = b => {
+    let at = null;
+    for (const m of b.members) if (savedAt.has(m) && (at === null || savedAt.get(m) > at)) at = savedAt.get(m);
+    return at;
+  };
+  const pick = list => {
+    let best = null, bestAt = null;
+    for (const b of list) {
+      const at = newest(b);
+      if (at !== null && (best === null || at > bestAt)) { best = b; bestAt = at; }
+    }
+    return best;
+  };
+  const mine = pick((bundles || []).filter(b => b.supplierId != null && b.supplierId === supplierId));
+  if (mine) return { bundle: mine, scope: 'supplier' };
+  const all = pick((bundles || []).filter(b => b.supplierId == null));
+  return all ? { bundle: all, scope: 'all' } : null;
+}
+
+// The name a new product configuration starts with: base ("<Supplier> <fuel> <DD/MM/YYYY>"), or with
+// " (2)", " (3)" and so on when that name, or a product "<name> <product type>" it would make for one of
+// productTypes, is already taken.
+export function defaultConfigName(base, taken, productTypes) {
+  for (let i = 1; ; i++) {
+    const name = i === 1 ? base : base + ' (' + i + ')';
+    if (!taken.has(name) && !(productTypes || []).some(t => taken.has(name + ' ' + t))) return name;
+  }
+}

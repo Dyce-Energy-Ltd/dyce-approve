@@ -548,13 +548,13 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("open(newSetCard({", mine)
         self.assertEqual(mine.count('btn("Add to the grid"'), 1, "the form is written once")
         self.assertIn('btn("New product", () => newSetPanel(), "ghost small")', ws)
-        self.assertIn("const newBtn = editable ?", ws)
-        self.assertIn('const saveBtn = btn("Save", () => dialog("save"), "ghost");', ws)
-        self.assertIn('const applyBtn = btn("Apply", () => dialog("apply"), "");', ws)
+        self.assertIn('const saveBtn = btn("Save", () => doSave(), "ghost");', ws)
+        self.assertIn('const applyBtn = btn("Apply", () => doApply(), "");', ws)
         self.assertEqual(ws.count('call("band_sets_save"'), 1, "Save and Apply share one save step")
-        # bundle_save twice: in the one save step (Save and Apply), and in Save as product configuration
-        # under the dropdowns, which saves no margins (Phil Brook, 19/11/2026).
-        self.assertEqual(ws.count('call("bundle_save"'), 2)
+        # bundle_save once, in the one save step: a change makes a new product configuration (Phil
+        # Brook, 20/11/2026); the screen no longer updates one or saves a choice without margins.
+        self.assertEqual(ws.count('call("bundle_save"'), 1)
+        self.assertNotIn("bundleId: p.bundle.bundleId", ws)
         self.assertIn("async function saveStep(", ws)
         save = ws[ws.index("async function doSave("): ws.index("async function doApply(")]
         self.assertIn("saveStep(", save)
@@ -564,7 +564,12 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("saveStep(", ws[ws.index("async function doApply("):])
         self.assertIn("Fill every band of \" + gap.name + \" to see the preview.", ws)
         self.assertIn("G.firstGap(", ws)
-        self.assertIn("Change margins here. Save keeps them without changing any price; Apply saves them and puts the prices live.", ws)
+        # The screen opens on the current product configuration, and a change is named with today's date.
+        self.assertIn("G.currentConfig(bs.bundles, bs.bandSets, file.supplierId)", ws)
+        self.assertIn("G.defaultConfigName(", ws)
+        self.assertIn('"New product configuration:"', ws)
+        self.assertIn('"More options"', ws)
+        self.assertIn('"Use a different product configuration"', ws)
         self.assertNotIn("They are saved when you apply.", mine)
         # The rules still show their sentences.
         self.assertIn("Choose at most \" + MAX_PICKS + \" products.", ws)
@@ -677,8 +682,10 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn('btn(f.state === "live" ? "Reprice" : "Price"', mine)
         self.assertIn("f.canApply", mine)
         self.assertIn("was made on an older ladder. Open it on Margins and save it again.", mine)
-        self.assertIn("Same for acquisition and renewal", mine)
-        self.assertIn("Save as a new product configuration", mine)
+        self.assertIn("Separate acquisition and renewal", mine)
+        self.assertNotIn("Same for acquisition and renewal", mine)
+        for gone in ('"Update " + src.name', '"New version of "', '"Save the changed products"', '"Save as product configuration"'):
+            self.assertNotIn(gone, mine, gone)
         self.assertIn("G.selectionProblem(", mine)
         self.assertIn("G.toPreviewItems(", mine)
         # Attention items are keyed by product and sale type (ruling P8), in camelCase, in the page and the stub.
@@ -715,8 +722,8 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("rows.push({ k: 'Product type', v:", grid)
         self.assertEqual(re.findall(r"'[^'\n]*band sets?\b[^'\n]*'", grid), [])
         for text in ('"By product configuration"', '"New product configuration"', '"Edit product configuration members"',
-                     '"Retire product configuration"', '"Loads its products, replacing the choice."', '"Adds one product to the choice."', '"Product configuration name"',
-                     '"Save as a new product configuration"', '"Save as product configuration"', '"None (all suppliers)"', '"All suppliers"'):
+                     '"Retire product configuration"', '"New product configuration:"', '"Use a different product configuration"',
+                     '"None (all suppliers)"', '"All suppliers"'):
             self.assertIn(text, mine, text)
 
     def test_pricing_plain_words_and_usability(self):
