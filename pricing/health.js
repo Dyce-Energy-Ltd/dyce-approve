@@ -3,16 +3,24 @@
 // failed to load, that failure. Pure functions, no DOM.
 //
 // BOOKS is the folder list of dyce-data-pipelines pricing_loader/folders.js, one row per supplier
-// and fuel. Files are the overview's `files` (pricing.supplier_file_state), failures its
+// and fuel; keep the two in step. Files are the overview's `files` (pricing.supplier_file_state), failures its
 // `loadFailures` (pricing.load_failure).
 
 export const BOOKS = [
-  { supplierId: 'voltx', fuel: 'electricity' },
-  { supplierId: 'yu', fuel: 'electricity' },
-  { supplierId: 'yu', fuel: 'gas' },
-  { supplierId: 'jellyfish', fuel: 'electricity' },
-  { supplierId: 'jellyfish', fuel: 'gas' },
+  { supplierId: 'voltx', fuel: 'electricity', folder: 'Voltx Power/Pricing Files/Base Prices' },
+  { supplierId: 'yu', fuel: 'electricity', folder: 'YU Energy/Pricing Matrix/Base Prices/YU Energy/Electricity' },
+  { supplierId: 'yu', fuel: 'gas', folder: 'YU Energy/Pricing Matrix/Base Prices/YU Energy/Gas' },
+  { supplierId: 'jellyfish', fuel: 'electricity', folder: 'Jellyfish/Pricing Files/Base Prices/Electricity' },
+  { supplierId: 'jellyfish', fuel: 'gas', folder: 'Jellyfish/Pricing Files/Base Prices/Gas' },
 ];
+
+// The folder in SharePoint's own folder view. The loader's library "Documents" is "Shared Documents"
+// in the address.
+const SP_SITE = '/sites/Partnersales/Shared Documents/';
+const SP_VIEW = 'https://dyceenergy.sharepoint.com/sites/Partnersales/Shared%20Documents/Forms/AllItems.aspx?id=';
+export function folderUrl(folder) {
+  return SP_VIEW + encodeURIComponent(SP_SITE + folder);
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -41,6 +49,7 @@ export function bookHealth(files, failures, now) {
     return {
       supplierId: b.supplierId,
       fuel: b.fuel,
+      folder: b.folder,
       status: failed ? 'failed' : f ? 'file' : 'none',
       file: f ? f.it : null,
       failure: failed ? x.it : null,

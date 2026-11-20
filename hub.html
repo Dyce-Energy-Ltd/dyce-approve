@@ -3119,16 +3119,24 @@ const PR_HEALTH = (function () {
 // failed to load, that failure. Pure functions, no DOM.
 //
 // BOOKS is the folder list of dyce-data-pipelines pricing_loader/folders.js, one row per supplier
-// and fuel. Files are the overview's `files` (pricing.supplier_file_state), failures its
+// and fuel; keep the two in step. Files are the overview's `files` (pricing.supplier_file_state), failures its
 // `loadFailures` (pricing.load_failure).
 
 const BOOKS = [
-  { supplierId: 'voltx', fuel: 'electricity' },
-  { supplierId: 'yu', fuel: 'electricity' },
-  { supplierId: 'yu', fuel: 'gas' },
-  { supplierId: 'jellyfish', fuel: 'electricity' },
-  { supplierId: 'jellyfish', fuel: 'gas' },
+  { supplierId: 'voltx', fuel: 'electricity', folder: 'Voltx Power/Pricing Files/Base Prices' },
+  { supplierId: 'yu', fuel: 'electricity', folder: 'YU Energy/Pricing Matrix/Base Prices/YU Energy/Electricity' },
+  { supplierId: 'yu', fuel: 'gas', folder: 'YU Energy/Pricing Matrix/Base Prices/YU Energy/Gas' },
+  { supplierId: 'jellyfish', fuel: 'electricity', folder: 'Jellyfish/Pricing Files/Base Prices/Electricity' },
+  { supplierId: 'jellyfish', fuel: 'gas', folder: 'Jellyfish/Pricing Files/Base Prices/Gas' },
 ];
+
+// The folder in SharePoint's own folder view. The loader's library "Documents" is "Shared Documents"
+// in the address.
+const SP_SITE = '/sites/Partnersales/Shared Documents/';
+const SP_VIEW = 'https://dyceenergy.sharepoint.com/sites/Partnersales/Shared%20Documents/Forms/AllItems.aspx?id=';
+function folderUrl(folder) {
+  return SP_VIEW + encodeURIComponent(SP_SITE + folder);
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -3157,6 +3165,7 @@ function bookHealth(files, failures, now) {
     return {
       supplierId: b.supplierId,
       fuel: b.fuel,
+      folder: b.folder,
       status: failed ? 'failed' : f ? 'file' : 'none',
       file: f ? f.it : null,
       failure: failed ? x.it : null,
@@ -3182,7 +3191,7 @@ function ukDay(ms) {
   return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day));
 }
 
-;return { BOOKS, bookHealth, ageText };
+;return { BOOKS, folderUrl, bookHealth, ageText };
 })();
 </script>
 <script>
@@ -4801,10 +4810,11 @@ function ukDay(ms) {
   // ---------- Pricing: Supplier files (with the Price workspace), Margins, Splits, Live price book (with Check a price).
   // It talks to the dna-pricing function, which checks the hub session and the tick for every op;
   // hiding a screen or a button here is tidiness, not the gate. Four ticks: pricing.view (look),
-  // pricing.load (load supplier files), pricing.set (band sets and splits), pricing.publish.
-  // The supplier workbook is read in this browser by the adapters in PR_ADAPTERS (SheetJS in
-  // PR_XLSX), and the Broker (electricity and gas) and UD Upload workbooks are made here by PR_EXPORTS; the three are
-  // put into the page by build.py. Nothing is kept in browser storage. The page only loads and
+  // pricing.load (no screen uses it now; kept as a grant), pricing.set (band sets and splits),
+  // pricing.publish. Supplier files arrive only through the SharePoint loader in dyce-data-pipelines
+  // (the hand-load card was removed, Phil Brook 19/11/2026); PR_ADAPTERS is still put into the page
+  // by build.py but nothing here calls it. The Broker (electricity and gas) and UD Upload workbooks are made here by
+  // PR_EXPORTS with SheetJS (PR_XLSX). Nothing is kept in browser storage. The page only loads and
   // publishes: what happens to a loaded file when its set is published is decided inside the
   // database (ruling R15), and no screen offers any other step.
   // prGen is bumped on sign-out (reset) and on every move inside the tab, as DV's dvGen: an
@@ -4815,16 +4825,10 @@ function ukDay(ms) {
     const PR_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/dna-pricing";
     // Signed links to store a file are made by the function on the file store of the same project.
     const STORAGE = "https://rlpnbwjppylhcpybpqim.supabase.co/storage/v1/";
-    const MAX_BODY = 900000;                    // bytes of JSON in one request that carries rows
     const POLL_MS = 10000, POLL_MAX_MS = 300000; // the book is checked every 10 seconds for 5 minutes
     const BOOK_PAGE = 5000;
     const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-    const CONTENT_TYPE = { xlsx: XLSX_TYPE, xls: "application/vnd.ms-excel", csv: "text/csv" };
-    const T = { load: "pricing.load", set: "pricing.set", publish: "pricing.publish" };
-    const FORMAT_LABEL = {
-      voltx_elec_v1: "Voltx electricity (Excel)", yu_elec_v1: "Yu electricity (Excel)", yu_gas_v1: "Yu gas (Excel)",
-      jellyfish_elec_v1: "Jellyfish electricity (CSV)", jellyfish_gas_v1: "Jellyfish gas (CSV)",
-    };
+    const T = { set: "pricing.set", publish: "pricing.publish" };
     const FUEL = { electricity: "Electricity", gas: "Gas" };
     const SALE = { all: "Acquisition and renewal", acquisition: "Acquisition", renewal: "Renewal" };
     const STRUCTURE = { day_night: "Day and night", evening_weekend: "Evening and weekend", evening_weekend_night: "Evening, weekend and night", hh: "Half-hourly" };
@@ -4872,7 +4876,6 @@ function ukDay(ms) {
     const onStorage = (u) => typeof u === "string" && u.startsWith(STORAGE);
     const fail = (n, msg, err) => { if (still(n) && !(err && err.signedOut)) say(msg, explain(err), true); };
     const pause = (ms) => new Promise((r) => setTimeout(r, ms));
-    const byteLen = (s) => new TextEncoder().encode(s).length;
     const comma = (v) => (v == null || v === "") ? "–" : Number(v).toLocaleString("en-GB");
 
     // ---------- drawing helpers. Every server value goes in as text.
@@ -4927,18 +4930,6 @@ function ukDay(ms) {
       const d = await crypto.subtle.digest("SHA-256", bytes);
       return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
     }
-    // Rows in parts whose JSON request body stays under MAX_BODY bytes. fixed is the bytes of the
-    // request with no rows in it; each row costs its own JSON plus a comma.
-    function splitRows(rows, fixed) {
-      const parts = []; let cur = [], size = fixed;
-      for (const r of rows) {
-        const b = byteLen(JSON.stringify(r)) + 1;
-        if (cur.length && size + b > MAX_BODY) { parts.push(cur); cur = []; size = fixed; }
-        cur.push(r); size += b;
-      }
-      if (cur.length) parts.push(cur);
-      return parts;
-    }
     async function putFile(url, body, type, ms) {
       if (!onStorage(url)) throw { message: "Unexpected answer from the server." };
       let res;
@@ -4984,7 +4975,8 @@ function ukDay(ms) {
 
     // =====================================================================================
     // Supplier files: one list, newest first, each with its state. A file awaiting bandings is priced
-    // in the workspace below (spec 4.5). The hand-load card is kept for pricing.load only.
+    // in the workspace below (spec 4.5). Files arrive only through the SharePoint loader; each price
+    // book's name links to its SharePoint folder, where a new file is saved.
     // =====================================================================================
     const FILE_STATE = { loading: "info", awaiting_bandings: "warn", applying: "info", live: "ok", replaced: "neutral", load_failed: "critical" };
     // The database's label for each state, except the one a person acts on: a file awaiting bandings
@@ -5005,13 +4997,13 @@ function ukDay(ms) {
         // file and any later file that failed to load. The loader checks the folders every 5 minutes.
         body.append(el("h2", { class: "sect", text: "Price books" }),
           table(["Price book", "Latest file", "Received", "Rows loaded", "State"], PR_HEALTH.bookHealth(ov.files, ov.loadFailures, Date.now()).map((b) => [
-            supplier(b.supplierId) + " " + (FUEL[b.fuel] || b.fuel).toLowerCase(),
+            el("a", { href: PR_HEALTH.folderUrl(b.folder), target: "_blank", rel: "noopener", text: supplier(b.supplierId) + " " + (FUEL[b.fuel] || b.fuel).toLowerCase() }),
             b.file ? b.file.sourceFilename : "–",
             b.file && b.file.loadedAt ? when(b.file.loadedAt) + " (" + b.age + ")" : "–",
             b.file ? comma(b.file.rowCountLoaded) + " of " + comma(b.file.rowCountSource) : "–",
             b.status === "failed" ? el("span", {}, el("span", { class: "badge critical", text: "Newer file failed" }), " " + (b.failure.sourcePath || "").split("/").pop() + ": " + b.failure.reason)
               : b.file ? fileBadge(b.file) : el("span", { class: "badge neutral", text: "No file yet" })])),
-          el("p", { class: "hint", text: "Newest file from each SharePoint Base Prices folder. New files load within about 5 minutes while the loader is running." }));
+          el("p", { class: "hint", text: "Newest file from each SharePoint Base Prices folder. To add a price file, open the price book's folder and save it there. It loads within about 5 minutes while the loader is running." }));
         body.append(el("h2", { class: "sect", text: "Files" }));
         const sorted = ov.files.slice().sort((a, b) => String(b.loadedAt || "").localeCompare(String(a.loadedAt || "")));
         if (!sorted.length) body.append(el("div", { class: "empty", text: "No files yet." }));
@@ -5023,8 +5015,6 @@ function ukDay(ms) {
             table(["Path", "Supplier", "Fuel", "Reason", "Seen"], ov.loadFailures.map((x) => [x.sourcePath, x.supplierId ? supplier(x.supplierId) : "–", x.fuel ? (FUEL[x.fuel] || x.fuel) : "–", x.reason, x.seenAt ? when(x.seenAt) : "–"])),
             el("p", { class: "hint", text: "Found in SharePoint but could not be read." }));
         }
-        const report = el("div");
-        if (can(T.load)) body.append(loadCard(ov, report, msg), report);
         foot();
       };
       list();
@@ -5645,145 +5635,6 @@ function ukDay(ms) {
             el("p", { class: "hint", text: "– means no live price." })));
       }
       load();
-    }
-
-    function loadCard(ov, report, msg) {
-      const supplier = select(ov.suppliers.map((s) => [s.supplier_id, s.supplier_name]));
-      const fuel = select([["electricity", "Electricity"], ["gas", "Gas"]]);
-      const format = select([]);
-      const input = el("input", { type: "file", accept: ".xlsx,.xls,.csv" });
-      const dates = { production: el("input", { type: "date" }), from: el("input", { type: "date" }), until: el("input", { type: "date" }) };
-      const summary = el("div"), progress = el("div");
-      let staged = null;
-      const fill = () => {
-        const want = fuel.value === "gas" ? "_gas_" : "_elec_";
-        format.textContent = "";
-        for (const f of PR_ADAPTERS.FORMATS.filter((x) => x.includes(want))) format.append(el("option", { value: f, text: FORMAT_LABEL[f] || f }));
-      };
-      const clear = () => { staged = null; summary.textContent = ""; };
-      fuel.addEventListener("change", () => { fill(); clear(); });
-      for (const c of [supplier, format, input]) c.addEventListener("change", clear);
-      fill();
-      const read = btn("Check file", () => readFile(), "");
-      const card = el("div", { class: "card" },
-        el("h2", { text: "Load a file by hand" }),
-        el("p", { class: "hint", text: "It then appears in the list above, ready to price." }),
-        el("div", { class: "fields" }, field("Supplier", supplier), field("Fuel", fuel), field("File format", format), field("File", input, "Excel or CSV, to match the format.")),
-        el("div", { class: "fields" }, field("Production date (optional)", dates.production), field("Quotes valid from (optional)", dates.from), field("Quotes valid until (optional)", dates.until)),
-        el("div", { class: "actions" }, read), summary, progress);
-
-      async function readFile() {
-        const file = input.files && input.files[0];
-        if (!file) { say(msg, "Choose a file first.", true); return; }
-        const ext = ((file.name.match(/\.([A-Za-z0-9]+)$/) || [])[1] || "").toLowerCase();
-        if (!CONTENT_TYPE[ext]) { say(msg, "Choose an Excel (.xlsx, .xls) or CSV file.", true); return; }
-        clear(); say(msg, "Reading the file. Keep this page open, large files take a minute."); read.disabled = true;
-        await pause(40);
-        try {
-          const buf = await file.arrayBuffer();
-          const wb = ext === "csv" ? PR_XLSX.read(new TextDecoder("utf-8").decode(buf), { type: "string", raw: true }) : PR_XLSX.read(new Uint8Array(buf), { type: "array" });
-          const parsed = PR_ADAPTERS.parseSupplierFile(format.value, wb, { filename: file.name });
-          staged = { file, ext, buf, parsed, supplierId: supplier.value, fuel: fuel.value, format: format.value };
-          say(msg, "");
-          drawSummary(parsed);
-        } catch (err) {
-          say(msg, "The file could not be read as " + (FORMAT_LABEL[format.value] || format.value) + ". " + (err && err.message ? err.message : "Check the supplier, fuel and format.") + " Nothing has been sent.", true);
-        } finally { read.disabled = false; }
-      }
-
-      function drawSummary(p) {
-        summary.textContent = "";
-        const reasons = new Map();
-        for (const r of p.refused) reasons.set(r.reason, (reasons.get(r.reason) || 0) + 1);
-        const refusedBytes = byteLen(JSON.stringify(p.refused));
-        const blocked = !p.rows.length ? "No row could be used, so there is nothing to load." : refusedBytes > MAX_BODY - 2000 ? "Too many rows rejected. Check the supplier, fuel and format match the file." : "";
-        summary.append(
-          el("h3", { class: "sub", text: "What the file holds" }),
-          el("ul", { class: "plain" },
-            el("li", { text: "Rows in the file: " + comma(p.rowCountSource + (p.leftOut || 0)) }),
-            ...(p.leftOut ? [el("li", { text: "Rows left out on purpose: " + comma(p.leftOut) + " (see What this format assumes)" })] : []),
-            el("li", { text: "Rows that can be loaded: " + comma(p.rows.length) }),
-            el("li", { text: "Rows rejected: " + comma(p.refused.length) })));
-        if (reasons.size) summary.append(table(["Reason rejected", "Rows"], [...reasons].sort((a, b) => b[1] - a[1]).map(([r, c]) => [r, comma(c)])),
-          el("p", { class: "hint", text: "First rows rejected: " + p.refused.slice(0, 8).map((r) => "row " + r.row).join(", ") + (p.refused.length > 8 ? " and others." : ".") }));
-        if (p.assumptions.length) summary.append(el("h3", { class: "sub", text: "What this format assumes" }), el("ul", { class: "plain" }, ...p.assumptions.map((a) => el("li", { text: a }))));
-        if (blocked) { summary.append(el("p", { class: "msg refused", text: blocked })); return; }
-        summary.append(el("div", { class: "actions" }, btn("Load this file", () => doLoad(), ""),
-          el("span", { class: "hint", text: "Keep this page open until the report appears." })));
-      }
-
-      async function doLoad() {
-        const st = staged; if (!st) return;
-        const my = epoch, alive = () => my === epoch && !!me;
-        lock(card, true); progress.textContent = ""; report.textContent = "";
-        const line = steps(progress);
-        let cur = null, curText = "", added = 0;
-        const go = (text) => { curText = text; cur = line(text, "working"); };
-        const done = (text) => { cur(text || curText, "done"); };
-        try {
-          go("Checking the file");
-          const sha = await sha256(st.buf);
-          done(); go("Starting the load");
-          const opt = (c) => c.value ? c.value : null;
-          const s = await call("file_start", { supplierId: st.supplierId, fuel: st.fuel, format: st.format, filename: st.file.name, sha256: sha, extension: st.ext,
-            productionDate: opt(dates.production), validFrom: opt(dates.from), validUntil: opt(dates.until), rowCount: st.parsed.rowCountSource });
-          if (!alive()) return;
-          done(); go("Storing the original file");
-          await putFile(s.uploadUrl, st.file, CONTENT_TYPE[st.ext]);
-          if (!alive()) return;
-          done();
-          const fixed = byteLen(JSON.stringify({ op: "file_rows", token, fileId: s.fileId, rows: [] })) + 200;
-          const parts = splitRows(st.parsed.rows, fixed);
-          go("Sending the rows, " + parts.length + (parts.length === 1 ? " part" : " parts"));
-          for (let i = 0; i < parts.length; i++) {
-            cur("Sending the rows: part " + (i + 1) + " of " + parts.length + " (" + comma(added) + " of " + comma(st.parsed.rows.length) + " rows sent)", "working");
-            if (byteLen(JSON.stringify({ op: "file_rows", token, fileId: s.fileId, rows: parts[i] })) > 990000) throw { message: "A part of the rows is too large to send." };
-            let r;
-            try { r = await call("file_rows", { fileId: s.fileId, rows: parts[i] }, 90000); }
-            catch (err) { if (err && err.signedOut) return; throw { message: "Part " + (i + 1) + " of " + parts.length + " could not be sent: " + explain(err) + " Load the file again." }; }
-            if (!alive()) return;
-            added += Number(r.added) || 0;
-          }
-          done("Sending the rows: " + comma(added) + " rows sent in " + parts.length + (parts.length === 1 ? " part" : " parts"));
-          go("Finishing the load");
-          let f;
-          try { f = await call("file_finish", { fileId: s.fileId, refused: st.parsed.refused }, 120000); }
-          catch (err) { if (err && err.signedOut) return; throw { message: "Load failed: " + explain(err) + " Load the file again." }; }
-          if (!alive()) return;
-          done();
-          say(msg, "");
-          drawReport(report, f.report || {}, st, added);
-          staged = null; summary.textContent = ""; input.value = "";
-        } catch (err) {
-          if (err && err.signedOut) return;
-          if (cur) cur(curText, "failed");
-          say(msg, explain(err), true);
-        } finally { if (alive()) lock(card, false); }
-      }
-      return card;
-    }
-
-    // R20: the load report, as the database gave it, with what the page sent beside it.
-    function drawReport(box, rep, st, added) {
-      box.textContent = "";
-      const by = rep.by_reason && typeof rep.by_reason === "object" ? Object.entries(rep.by_reason) : [];
-      const card = el("div", { class: "card white" }, el("h2", { text: "Load report" }),
-        el("p", { class: "hint", text: st.file.name }),
-        el("ul", { class: "plain" },
-          el("li", { text: "Rows in the file: " + comma(st.parsed.rowCountSource + (st.parsed.leftOut || 0)) }),
-          ...(st.parsed.leftOut ? [el("li", { text: "Rows left out on purpose: " + comma(st.parsed.leftOut) })] : []),
-          el("li", { text: "Rows loaded: " + comma(rep.row_count_loaded) }),
-          el("li", { text: "Rows rejected: " + comma(rep.refused_count) })));
-      // The count is the database's (finish_supplier_file). A difference from what this page sent
-      // means a part went missing on the way; publishing such a file is refused.
-      if (rep.row_count_loaded != null && Number(rep.row_count_loaded) !== added) {
-        card.append(el("p", { class: "msg refused", text: "Sent " + comma(added) + " rows but the database has " + comma(rep.row_count_loaded) + ". Load the file again." }));
-      }
-      if (by.length) card.append(table(["Reason rejected", "Rows"], by.sort((a, b) => b[1] - a[1]).map(([r, c]) => [r, comma(c)])));
-      const lines = st.parsed.assumptions || [];
-      if (lines.length) card.append(el("h3", { class: "sub", text: "What this format assumes" }), el("ul", { class: "plain" }, ...lines.map((a) => el("li", { text: a }))));
-      card.append(el("p", { class: "hint", text: "File loaded and ready to price." }));
-      box.append(card);
     }
 
     // =====================================================================================
