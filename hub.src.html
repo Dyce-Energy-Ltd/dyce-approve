@@ -2471,11 +2471,9 @@ const PR_HEALTH = {{PRICING_HEALTH}};
     const SPLIT_KEYS = { day_night: ["day", "night"], hh: ["day", "night"], evening_weekend: ["day", "ew"], evening_weekend_night: ["day", "ew", "night"] };
     const KEY_LABEL = { day: "Day", night: "Night", ew: "Evening and weekend" };
     const LAYOUT_LABEL = { broker: "Broker", broker_gas: "Broker (gas)", ud_upload: "UD Upload" };
-    // The layouts a run gets, by fuel. Only the layouts the dna-pricing function stores are stored and
-    // recorded (its LAYOUTS list); the gas Broker file is made here and offered to save until the
-    // function accepts it too.
+    // The layouts a run gets, by fuel. Each is stored and recorded (the dna-pricing function's LAYOUTS
+    // list takes all three).
     const LAYOUTS_BY_FUEL = { electricity: ["broker", "ud_upload"], gas: ["broker_gas", "ud_upload"] };
-    const STORED_LAYOUTS = ["broker", "ud_upload"];
     const STATE = { published: "ok", approved: "ok", active: "ok", live: "ok", draft: "info", loaded: "info", failed: "critical", publishing: "warn", unfinished: "warn", rejected: "neutral", retired: "neutral", replaced: "neutral" };
     const GBP = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
     // Region names as the broker portal shows them (src/lib/pricing/margins.ts there), Yorkshire first
@@ -4345,8 +4343,8 @@ const PR_HEALTH = {{PRICING_HEALTH}};
     }
 
     // The Broker and UD Upload files for live runs (electricity: Broker and UD Upload; gas: Broker (gas)
-    // and UD Upload): read the book, make the workbooks here, store and record those the function
-    // takes (STORED_LAYOUTS), and offer all of them to save. A run's book is read in pages of BOOK_PAGE rows.
+    // and UD Upload): read the book, make the workbooks here, store each, record them, and offer them
+    // to save. A run's book is read in pages of BOOK_PAGE rows.
     async function makeFiles(runList, box, alive) {
       const line = steps(box);
       const failed = (set, err) => { set("The files could not be made: " + explain(err) + " The prices are live. Rebuild the files from Live price book.", "failed"); };
@@ -4371,12 +4369,10 @@ const PR_HEALTH = {{PRICING_HEALTH}};
           try {
             await pause(20);
             const bytes = PR_EXPORTS.workbookFor(PR_XLSX, layout, rows);
-            if (STORED_LAYOUTS.includes(layout)) {
-              const u = await call("output_upload_url", { priceRunId: run.id, layout });
-              if (!alive()) return;
-              await putFile(u.uploadUrl, bytes, XLSX_TYPE);
-              recorded.push({ layout, path: u.path, sha256: await sha256(bytes) });
-            }
+            const u = await call("output_upload_url", { priceRunId: run.id, layout });
+            if (!alive()) return;
+            await putFile(u.uploadUrl, bytes, XLSX_TYPE);
+            recorded.push({ layout, path: u.path, sha256: await sha256(bytes) });
             made.push([layout, bytes]);
             s(LAYOUT_LABEL[layout] + " file for " + tag + " made.", "done");
           } catch (err) { if (err && err.signedOut) return; failed(s, err); return; }
@@ -4441,13 +4437,13 @@ const PR_HEALTH = {{PRICING_HEALTH}};
           const first = !seen.has(r.price_run_id); seen.add(r.price_run_id);
           // One Files menu per run (its rows share it): the two stored files and, with Publish, Rebuild.
           const files = first ? el("details", { class: "menu" }, el("summary", { class: "btn ghost small", text: "Files" }),
-            el("div", { class: "menubox" }, ...downloadButtons(r.price_run_id, (LAYOUTS_BY_FUEL[r.fuel] || []).filter((l) => STORED_LAYOUTS.includes(l)), dlMsg),
+            el("div", { class: "menubox" }, ...downloadButtons(r.price_run_id, LAYOUTS_BY_FUEL[r.fuel] || [], dlMsg),
               can(T.publish) ? btn("Rebuild files", (e) => remake(e.currentTarget, r, filesBox, b), "ghost small") : null)) : null;
           rows.push([names.get(r.supplier_id) || r.supplier_id, FUEL[r.fuel] || r.fuel, r.product, SALE[r.sale_type] || r.sale_type, r.source_filename, when(r.published_at) + (r.published_by ? ", " + personName(r.published_by) : ""), comma(r.row_count),
             Number(r.publishing_runs) > 0 ? badge("publishing") : badge("live"), files]);
         }
         if (b.live.length) body.append(table(["Supplier", "Fuel", "Product type", "Sale type", "File", "Published", "Rows", "State", ""], rows));
-        body.append(dlMsg, filesBox, el("p", { class: "hint", text: "The gas Broker file is made when the prices go live or on Rebuild files, and is saved from this page. It is not kept for later download yet." }));
+        body.append(dlMsg, filesBox);
         foot();
       }
       // Check a price: what each live product of one supplier and fuel costs in a region at a usage.
