@@ -585,3 +585,33 @@ export function defaultConfigName(base, taken, productTypes) {
     if (!taken.has(name) && !(productTypes || []).some(t => taken.has(name + ' ' + t))) return name;
   }
 }
+
+// What is live for one supplier and fuel, from book_live's rows (Phil Brook, 20/11/2026: the Price
+// screen opens on the live product configuration). Only rows for the supplier and fuel with named
+// true count; the older unnamed runs are left out. Returns null when none is live, else {acq, ren}
+// (the live band sets per sale type that are still in bandSets, in bandSets' order), same (both sale
+// types have the same band sets), missing (live band sets no longer in bandSets: retired), older
+// ([{name, live, now}]: live at an older version than bandSets' current), since (the newest
+// published_at), and bundle (the active configuration whose members are exactly the live band sets:
+// the supplier's own first, then one for every supplier; null when none).
+export function liveChoice(rows, supplierId, fuel, bandSets, bundles) {
+  const mine = (rows || []).filter(r => r.supplier_id === supplierId && r.fuel === fuel && r.named === true && r.config_name != null);
+  if (!mine.length) return null;
+  const sets = bandSets || [];
+  const known = new Map(sets.map(s => [s.name, s]));
+  const names = sale => [...new Set(mine.filter(r => r.sale_type === sale).map(r => r.config_name))];
+  const acqAll = names('acquisition'), renAll = names('renewal');
+  const inOrder = list => sets.map(s => s.name).filter(n => list.includes(n));
+  const all = [...new Set(acqAll.concat(renAll))];
+  const same = acqAll.length === renAll.length && acqAll.every(n => renAll.includes(n));
+  const older = [];
+  for (const n of all) {
+    const s = known.get(n), r = mine.find(x => x.config_name === n);
+    if (s && r.config_version != null && Number(r.config_version) < Number(s.version)) older.push({ name: n, live: Number(r.config_version), now: Number(s.version) });
+  }
+  const exactly = b => b.members.length === all.length && all.every(n => b.members.includes(n));
+  const fits = (bundles || []).filter(exactly);
+  const bundle = fits.find(b => b.supplierId != null && b.supplierId === supplierId) || fits.find(b => b.supplierId == null) || null;
+  const since = mine.map(r => String(r.published_at || '')).sort().pop() || null;
+  return { acq: inOrder(acqAll), ren: inOrder(renAll), same, missing: all.filter(n => !known.has(n)), older, since, bundle };
+}

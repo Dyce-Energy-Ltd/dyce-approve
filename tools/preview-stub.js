@@ -719,7 +719,8 @@
   var prSuppliers = [
     { supplier_id: "alpha", supplier_name: "Alpha Example Power", panel_status: "active" },
     { supplier_id: "beta", supplier_name: "Beta Example Energy", panel_status: "active" },
-    { supplier_id: "gamma", supplier_name: "Gamma Example Gas", panel_status: "active" }
+    { supplier_id: "gamma", supplier_name: "Gamma Example Gas", panel_status: "active" },
+    { supplier_id: "delta", supplier_name: "Delta Example Energy", panel_status: "active" }
   ];
   // Pricing v2 file states. state is one of loading, awaiting_bandings, applying, live, replaced, load_failed.
   var PR_STATE_LABEL = { loading: "Loading", awaiting_bandings: "Awaiting bandings", applying: "Applying", live: "Live", replaced: "Replaced", load_failed: "Load failed" };
@@ -729,7 +730,9 @@
     { supplierFileId: F3, supplierId: "gamma", fuel: "gas", fileFormat: "yu_gas_v1", sourceFilename: "Gamma_gas_example_09112026.xlsx", loadedAt: "2026-11-09T16:00:00+00:00", quoteValidFrom: null, quoteValidUntil: null, rowCountSource: 9000, rowCountLoaded: 4500, refusedCount: 0, state: "loading" },
     { supplierFileId: pid(105), supplierId: "beta", fuel: "electricity", fileFormat: "voltx_elec_v1", sourceFilename: "Beta_electricity_example_03112026.xlsx", loadedAt: "2026-11-03T09:40:00+00:00", quoteValidFrom: "2026-11-04", quoteValidUntil: "2026-11-18", rowCountSource: 40100, rowCountLoaded: 40100, refusedCount: 0, state: "replaced" },
     // The newest finished gas file (the 09/11 one is still loading), so it can be priced.
-    { supplierFileId: pid(106), supplierId: "gamma", fuel: "gas", fileFormat: "yu_gas_v1", sourceFilename: "Gamma_gas_example_06112026.xlsx", loadedAt: "2026-11-06T10:15:00+00:00", quoteValidFrom: "2026-11-07", quoteValidUntil: "2026-11-21", rowCountSource: 8800, rowCountLoaded: 8800, refusedCount: 0, state: "awaiting_bandings" }
+    { supplierFileId: pid(106), supplierId: "gamma", fuel: "gas", fileFormat: "yu_gas_v1", sourceFilename: "Gamma_gas_example_06112026.xlsx", loadedAt: "2026-11-06T10:15:00+00:00", quoteValidFrom: "2026-11-07", quoteValidUntil: "2026-11-21", rowCountSource: 8800, rowCountLoaded: 8800, refusedCount: 0, state: "awaiting_bandings" },
+    // Live since 18/11/2026 with products that no saved product configuration holds (see deltaRow).
+    { supplierFileId: pid(107), supplierId: "delta", fuel: "electricity", fileFormat: "voltx_elec_v1", sourceFilename: "Delta_electricity_example_17112026.xlsx", loadedAt: "2026-11-17T15:00:00+00:00", quoteValidFrom: "2026-11-18", quoteValidUntil: "2026-12-02", rowCountSource: 9600, rowCountLoaded: 9600, refusedCount: 0, state: "live" }
   ];
   var prLoadFailures = [{ driveItemId: "invented-drive-item-1", sourcePath: "Pricing/Inbox/Gamma_gas_example_13112026.xlsx", supplierId: "gamma", fuel: "gas", reason: "The sheet named Rates was not found (invented reason for the preview).", seenAt: "2026-11-13T07:30:00+00:00" }];
   var prLastPreview = { attentionCount: -1, fingerprint: "" }, prAppliedRuns = [];
@@ -786,11 +789,23 @@
   ];
   var R = function (n) { return pid(400 + n); };
   var prLive = [
-    { supplier_id: "beta", fuel: "electricity", product: "Standard", sale_type: "acquisition", price_run_id: R(4), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0 },
-    { supplier_id: "beta", fuel: "electricity", product: "Standard", sale_type: "renewal", price_run_id: R(4), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0 },
-    { supplier_id: "beta", fuel: "electricity", product: "Advanced Saver", sale_type: "acquisition", price_run_id: R(5), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0 },
-    { supplier_id: "beta", fuel: "electricity", product: "Advanced Saver", sale_type: "renewal", price_run_id: R(5), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0 }
+    { supplier_id: "beta", fuel: "electricity", product: "Standard", sale_type: "acquisition", price_run_id: R(4), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0, config_name: "Standard", config_version: 3, named: true },
+    { supplier_id: "beta", fuel: "electricity", product: "Standard", sale_type: "renewal", price_run_id: R(4), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0, config_name: "Standard", config_version: 3, named: true },
+    { supplier_id: "beta", fuel: "electricity", product: "Advanced Saver", sale_type: "acquisition", price_run_id: R(5), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0, config_name: "Advanced Saver", config_version: 3, named: true },
+    { supplier_id: "beta", fuel: "electricity", product: "Advanced Saver", sale_type: "renewal", price_run_id: R(5), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0, config_name: "Advanced Saver", config_version: 3, named: true }
   ];
+  // Delta Example Energy (20/11/2026): live with no saved product configuration matching, different
+  // products for acquisition and renewal, Standard live at version 2 (version 3 saved since), a
+  // retired product (Old Saver) still live, and an older unnamed run (named false), which the Price
+  // screen ignores.
+  var deltaRow = function (product, st, run, cfg) {
+    return Object.assign({ supplier_id: "delta", fuel: "electricity", product: product, sale_type: st, price_run_id: run, published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-18T09:30:00+00:00", engine_version: "20261116130000", supplier_file_id: pid(107), source_filename: "Delta_electricity_example_17112026.xlsx", row_count: 9600, publishing_runs: 0 }, cfg);
+  };
+  prLive.push(deltaRow("Standard", "acquisition", R(6), { config_name: "Standard", config_version: 2, named: true }),
+    deltaRow("Standard", "renewal", R(6), { config_name: "Standard", config_version: 2, named: true }),
+    deltaRow("Silver", "acquisition", R(7), { config_name: "Silver", config_version: 3, named: true }),
+    deltaRow("Advanced Saver", "renewal", R(8), { config_name: "Old Saver", config_version: 1, named: true }),
+    deltaRow("Gold", "acquisition", R(9), { config_name: null, config_version: null, named: false }));
   var prProblems = [{ supplier: "gamma", fuel: "gas", message: "Build failed: the book could not be written for 2 runs (invented message for the preview).", "when": "2026-11-12T17:45:00+00:00" }];
   var prBuiltAt = null, prPublishedFile = null, prRecorded = {};
   prRecorded[R(4)] = [{ layout: "broker", path: "outputs/" + R(4) + "/broker.xlsx", sha256: "c".repeat(64) }, { layout: "ud_upload", path: "outputs/" + R(4) + "/ud_upload.xlsx", sha256: "c".repeat(64) }];
@@ -870,6 +885,20 @@
     return null;
   };
 
+  // book_live's band set columns (dyce-spine, 20/11/2026): price_config_id, config_key, config_name,
+  // config_version and named, as the database's left join to pricing.price_config gives them. A row
+  // made here names its band set by price_config_id (an applied run) or by config_name and
+  // config_version (the seed rows); the rest is filled from prNamed. A name not in prNamed is a
+  // retired band set, given an invented id. config_key is an invented "fuel|name".
+  var prLiveConfig = function (row) {
+    var r = copy(row), v = null, x = null;
+    if (r.price_config_id) prNamed.forEach(function (y) { y.versions.forEach(function (w) { if (w.priceConfigId === r.price_config_id) { x = y; v = w; } }); });
+    else if (r.config_name) { x = prNamed.filter(function (y) { return y.fuel === r.fuel && y.name === r.config_name; })[0] || null; v = x ? x.versions.filter(function (w) { return w.version === r.config_version; })[0] || null : null; }
+    if (x && v) return Object.assign(r, { price_config_id: v.priceConfigId, config_key: x.fuel + "|" + x.name, config_name: x.name, config_version: v.version, named: true });
+    if (r.config_name) return Object.assign(r, { price_config_id: pid(1990), config_key: r.fuel + "|" + r.config_name, named: true });
+    return Object.assign(r, { price_config_id: r.price_config_id || pid(1991), config_key: null, config_name: null, config_version: null, named: false });
+  };
+
   function prAnswer(body) {
     var me = sessions[body.token];
     if (!me && body.token && /^stub/.test(body.token) && !ended[body.token] && PERSONA[as]) { me = PERSONA[as]; sessions[body.token] = me; }
@@ -914,7 +943,7 @@
       if (!Array.isArray(body.selections) || body.selections.length < 1 || body.selections.length > 8) return bad("Choose between 1 and 8 band sets.");
       if (body.selections.some(function (s) { return !prNamed.some(function (x) { return x.versions.some(function (v) { return v.priceConfigId === s.priceConfigId; }); }) || ["all", "acquisition", "renewal"].indexOf(s.saleType) < 0; })) return bad("Every choice must be a saved band set with a sale type.");
       if (body.attentionSeen !== prLastPreview.attentionCount || body.fingerprint !== prLastPreview.fingerprint) return bad("The list of items needing attention has changed since you read it. Preview it again.");
-      prAppliedRuns = body.selections.map(function (sel) { var nm = prNamed.filter(function (x) { return x.versions.some(function (v) { return v.priceConfigId === sel.priceConfigId; }); })[0]; return { product: nm.product, saleType: sel.saleType }; });
+      prAppliedRuns = body.selections.map(function (sel) { var nm = prNamed.filter(function (x) { return x.versions.some(function (v) { return v.priceConfigId === sel.priceConfigId; }); })[0]; return { product: nm.product, saleType: sel.saleType, priceConfigId: sel.priceConfigId }; });
       af.state = "applying"; prPublishedFile = af.supplierFileId; prBuiltAt = Date.now() + (window.__stub && window.__stub.buildMs != null ? window.__stub.buildMs : 15000);
       return ok({ runsPublishing: body.selections.length });
     }
@@ -1010,15 +1039,17 @@
     if (op === "book_live") {
       var building = prBuiltAt !== null && Date.now() < prBuiltAt, live = copy(prLive);
       if (!DEMO && prPublishedFile && !building) {
-        // The runs of the applied choice, once built: one per product and sale type chosen.
+        // The runs of the applied choice, once built: one per product and sale type chosen. They take
+        // the place of the supplier and fuel's whole live set, as the database's build does.
         var pubFile = find(prFiles, "supplierFileId", prPublishedFile);
+        live = live.filter(function (x) { return !(x.supplier_id === pubFile.supplierId && x.fuel === pubFile.fuel); });
         prAppliedRuns.forEach(function (x, i) {
           (x.saleType === "all" ? ["acquisition", "renewal"] : [x.saleType]).forEach(function (st) {
-            live.push({ supplier_id: pubFile.supplierId, fuel: pubFile.fuel, product: x.product, sale_type: st, price_run_id: R(20 + i), published_by: person(me).email, published_at: now(), engine_version: "20261116130000", supplier_file_id: pubFile.supplierFileId, source_filename: pubFile.sourceFilename, row_count: 12, publishing_runs: 0 });
+            live.push({ supplier_id: pubFile.supplierId, fuel: pubFile.fuel, product: x.product, sale_type: st, price_run_id: R(20 + i), published_by: person(me).email, published_at: now(), engine_version: "20261116130000", supplier_file_id: pubFile.supplierFileId, source_filename: pubFile.sourceFilename, row_count: 12, publishing_runs: 0, price_config_id: x.priceConfigId });
           });
         });
       }
-      return ok({ live: live, problems: prProblems });
+      return ok({ live: live.map(prLiveConfig), problems: prProblems });
     }
     if (op === "book_rows") {
       var all = prBookRows(body.priceRunId), after = body.after, lim = Math.min(Math.max(Number(body.limit) || 1000, 1), 5000);
@@ -1178,7 +1209,7 @@
         // One live run per supplier, fuel, product and sale type: a newer run takes the place of an older one.
         prLive = prLive.filter(function (x) { return !(x.supplier_id === f.supplierId && x.fuel === f.fuel && x.product === r.product && types.indexOf(x.sale_type) >= 0); });
         types.forEach(function (st) {
-          prLive.push({ supplier_id: f.supplierId, fuel: f.fuel, product: r.product, sale_type: st, price_run_id: id, published_by: PERSONA.demo, published_at: now(), engine_version: "20261116130000", supplier_file_id: f.supplierFileId, source_filename: f.sourceFilename, row_count: 12, publishing_runs: 0 });
+          prLive.push({ supplier_id: f.supplierId, fuel: f.fuel, product: r.product, sale_type: st, price_run_id: id, published_by: PERSONA.demo, published_at: now(), engine_version: "20261116130000", supplier_file_id: f.supplierFileId, source_filename: f.sourceFilename, row_count: 12, publishing_runs: 0, price_config_id: r.priceConfigId });
         });
       });
     });
@@ -1220,7 +1251,7 @@
     prSolved = swapNames(prSolved);
     // The live book starts with Voltx's electricity file only.
     var liveRow = function (product, st, run) {
-      return { supplier_id: "voltx", fuel: "electricity", product: product, sale_type: st, price_run_id: run, published_by: PERSONA.demo, published_at: "2026-11-12T17:05:00+00:00", engine_version: "20261116130000", supplier_file_id: DF.voltxElec, source_filename: "Voltx_electricity_demo_12112026.xlsx", row_count: 12, publishing_runs: 0 };
+      return { supplier_id: "voltx", fuel: "electricity", product: product, sale_type: st, price_run_id: run, published_by: PERSONA.demo, published_at: "2026-11-12T17:05:00+00:00", engine_version: "20261116130000", supplier_file_id: DF.voltxElec, source_filename: "Voltx_electricity_demo_12112026.xlsx", row_count: 12, publishing_runs: 0, config_name: product, config_version: 3, named: true };
     };
     prLive = [liveRow("Standard", "acquisition", R(4)), liveRow("Standard", "renewal", R(4)), liveRow("Gold", "acquisition", R(5)), liveRow("Gold", "renewal", R(5))];
     prRuns = {};

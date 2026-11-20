@@ -566,6 +566,9 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("G.firstGap(", ws)
         # The screen opens on the current product configuration, and a change is named with today's date.
         self.assertIn("G.currentConfig(bs.bundles, bs.bandSets, file.supplierId)", ws)
+        # 20/11/2026: what is live comes first; the most recently saved configuration is the fallback.
+        self.assertIn("G.liveChoice(liveInfo && liveInfo.rows, file.supplierId, file.fuel, bs.bandSets, bs.bundles)", ws)
+        self.assertIn("Current: the live products (no saved product configuration matches).", ws)
         self.assertIn("G.defaultConfigName(", ws)
         self.assertIn('"New product configuration:"', ws)
         self.assertIn('"More options"', ws)
