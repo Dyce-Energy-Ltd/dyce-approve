@@ -4,7 +4,10 @@
 // files, and reads the answer this writes into a pre element with the id "result". It is not part
 // of any page the hub serves. Every name and figure is the stub's, invented.
 //
-// The screen as Phil Brook asked on 20/11/2026: it opens on the current product configuration with the
+// The screen as Phil Brook asked on 20/11/2026: it opens on the live products (Beta: they are exactly
+// the product configuration Advanced range; Delta: no configuration matches, acquisition and renewal
+// differ, one live product is retired and one is live at an older version), or, with nothing live
+// (Alpha), on the most recently saved product configuration, with the
 // grid, chart and preview showing and no product dropdowns; one margin change shows the new product
 // configuration's name, dated today; Save makes that configuration and leaves the original as it was;
 // Apply with no change applies without saving; More options loads another configuration and keeps
@@ -104,7 +107,7 @@
   async function pricing() {
     // ---- Alpha's file: not live, with a product configuration saved for Alpha
     if (!(await openFile("Alpha_electricity_example_12112026.xlsx"))) { check("the Alpha file opens", false, text().slice(0, 400)); return; }
-    check("open: the line names the current product configuration, not live yet", cfgLine() === "Current product configuration: Alpha November (not live yet).", cfgLine());
+    check("fallback: with nothing live, the most recently saved product configuration, not live yet", cfgLine() === "Current product configuration: Alpha November (not live yet).", cfgLine());
     check("open: its products are in the grid at once", gridHeads().join() === "Standard,Gold", gridHeads().join());
     check("open: the chart draws them", $$("#pr .chartcard .legend .key").length === 2, $("#pr .chartcard .legend") && $("#pr .chartcard .legend").textContent);
     check("open: the preview shows without a click", !!(await until(pivot)), previewMsg() && previewMsg().textContent);
@@ -191,11 +194,26 @@
     await until(() => changeBox().hidden && !gridHeads().includes("Gold renewal two"));
     check("Discard changes goes back to the configuration loaded", gridHeads().join() === "Standard,Gold,Silver" && changeBox().hidden, gridHeads().join());
 
+    // ---- Delta's file: live products that no product configuration holds, different per sale type
+    await back();
+    if (!(await openFile("Delta_electricity_example_17112026.xlsx"))) { check("the Delta file opens", false); return; }
+    check("mismatch: the line says the live products load, none saved matches, and what the grid cannot show",
+      cfgLine() === "Current: the live products (no saved product configuration matches). Live since 18/11/2026. Acquisition and renewal have different products live, so they are kept apart (More options). Also live but no longer a product, so not loaded: Old Saver. Standard is live at version 2; the grid shows version 3, saved since.", cfgLine());
+    check("mismatch: the live products are in the grid, not the older unnamed run", gridHeads().join() === "Standard,Silver", gridHeads().join());
+    check("per sale type: acquisition and renewal open kept apart", $("#prSep") && $("#prSep").checked && (() => { const [a, r] = $$("#pr .chooser"); return a && r && chosen(a).join() === "Standard,Silver" && chosen(r).join() === "Standard"; })(), $$("#pr .chooser").map((c) => chosen(c).join()).join(" | "));
+    const dpv = await until(() => { const c = lastCall("preview_selection"); return c && c.args.items.some((i) => i.label === "Silver") ? c : null; });
+    check("per sale type: the preview asks for Silver for acquisition only", dpv && dpv.args.items.map((i) => i.label + ":" + i.saleType).join() === "Standard:all,Silver:acquisition", JSON.stringify(dpv && dpv.args.items.map((i) => [i.label, i.saleType])));
+    check("mismatch: opening is not a change", changeBox().hidden && button("Save").hidden);
+    await setColumn("Silver", "margin", "0.7");
+    check("mismatch: a change gives the dated name", !changeBox().hidden && nameBox().value === "Delta Example Energy electricity " + today && !changeBox().textContent.includes("is not changed."), nameBox().value + " | " + changeBox().textContent);
+    button("Discard changes").click();
+    check("mismatch: Discard changes goes back to the live products, still kept apart", !!(await until(() => changeBox().hidden && !$$("#pr table.grid td.chg").length && gridHeads().join() === "Standard,Silver" && $("#prSep").checked && cfgLine().startsWith("Current: the live products"))), cfgLine() + " | " + gridHeads().join());
+
     // ---- Beta's file: live, Apply with no change applies without saving
     await back();
     if (!(await openFile("Beta_electricity_example_10112026.xlsx"))) { check("the Beta file opens", false); return; }
-    check("live: the line names the configuration and what is live", cfgLine() === "Current product configuration: Advanced range (the most recently saved). Prices live since 11/11/2026: Standard and Advanced Saver.", cfgLine());
-    check("live: its products are in the grid", gridHeads().join() === "Standard,Advanced Saver", gridHeads().join());
+    check("live: the configuration holding exactly the live products is named, with the date", cfgLine() === "Current product configuration: Advanced range (live since 11/11/2026).", cfgLine());
+    check("live: its products are in the grid, for acquisition and renewal alike", gridHeads().join() === "Standard,Advanced Saver" && !$("#prSep").checked, gridHeads().join());
     await until(pivot);
     await until(() => !button("Apply").disabled);
     if ($("#prRead")) $("#prRead").click();

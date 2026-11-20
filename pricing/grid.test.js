@@ -5,7 +5,7 @@ import {
   copyColumn, pasteBlock, changedNames, problems, carryToLadder, toSavePayload, toPreviewItems,
   selectionProblem, chartScale, dragValue, marginSplit, DAYS_PER_YEAR, setCostPerMeter, editedNames, firstGap, isComplete,
   chartAxis, CHART_MAX, toggleChartPick, syncChartPicks, changedCellCount, cellFacts, reviewLines, midpointText, bandRange,
-  forSupplier, repeatedProductType, newConfigNames, currentConfig, defaultConfigName,
+  forSupplier, repeatedProductType, newConfigNames, currentConfig, defaultConfigName, liveChoice,
 } from './grid.js';
 
 // Invented figures only.
@@ -491,4 +491,46 @@ test('defaultConfigName: " (2)", " (3)" when the name or a product it would make
   assert.equal(defaultConfigName('Yu gas 20/11/2026', new Set(['Yu gas 20/11/2026']), []), 'Yu gas 20/11/2026 (2)');
   assert.equal(defaultConfigName('Yu gas 20/11/2026', new Set(['Yu gas 20/11/2026', 'Yu gas 20/11/2026 (2)']), []), 'Yu gas 20/11/2026 (3)');
   assert.equal(defaultConfigName('Yu gas 20/11/2026', new Set(['Yu gas 20/11/2026 Gold']), ['Gold']), 'Yu gas 20/11/2026 (2)');
+});
+
+// Phil Brook, 20/11/2026: "current" is what is live. book_live names the band set of each live run
+// (config_name, config_version, named); the older unnamed runs (named false) are left out.
+const liveRow = (product, sale, name, version, extra) => Object.assign({ supplier_id: 'yu', fuel: 'gas', product, sale_type: sale,
+  published_at: '2026-11-18T09:30:00+00:00', config_name: name, config_version: version, named: true }, extra);
+const LIVE_SETS = [{ name: 'Yu Standard', version: 2 }, { name: 'Yu Gold', version: 1 }, { name: 'Spare', version: 1 }];
+const LIVE_BUNDLES = [{ bundleId: 'b1', name: 'Everyone', supplierId: null, members: ['Yu Standard', 'Yu Gold'] },
+  { bundleId: 'b2', name: 'Yu', supplierId: 'yu', members: ['Yu Gold', 'Yu Standard'] },
+  { bundleId: 'b3', name: 'Voltx', supplierId: 'voltx', members: ['Yu Standard', 'Yu Gold'] }];
+
+test('liveChoice: the live band sets, the same for both sale types, and the configuration holding exactly them', () => {
+  const rows = [liveRow('Standard', 'acquisition', 'Yu Standard', 2), liveRow('Standard', 'renewal', 'Yu Standard', 2),
+    liveRow('Gold', 'acquisition', 'Yu Gold', 1), liveRow('Gold', 'renewal', 'Yu Gold', 1),
+    liveRow('Silver', 'acquisition', null, null, { named: false }),
+    liveRow('Standard', 'acquisition', 'Other', 1, { supplier_id: 'voltx' }), liveRow('Standard', 'acquisition', 'Elec', 1, { fuel: 'electricity' })];
+  const c = liveChoice(rows, 'yu', 'gas', LIVE_SETS, LIVE_BUNDLES);
+  assert.deepEqual(c.acq, ['Yu Standard', 'Yu Gold']);
+  assert.deepEqual(c.ren, ['Yu Standard', 'Yu Gold']);
+  assert.equal(c.same, true);
+  assert.equal(c.bundle.name, 'Yu', "the supplier's own configuration before an every-supplier one");
+  assert.deepEqual(c.missing, []);
+  assert.deepEqual(c.older, []);
+  assert.equal(c.since, '2026-11-18T09:30:00+00:00');
+});
+
+test('liveChoice: different per sale type, no configuration matching, a retired band set and an older version', () => {
+  const rows = [liveRow('Standard', 'acquisition', 'Yu Standard', 1), liveRow('Standard', 'renewal', 'Yu Standard', 1),
+    liveRow('Gold', 'acquisition', 'Yu Gold', 1), liveRow('Saver', 'renewal', 'Gone Saver', 3)];
+  const c = liveChoice(rows, 'yu', 'gas', LIVE_SETS, LIVE_BUNDLES);
+  assert.deepEqual(c.acq, ['Yu Standard', 'Yu Gold']);
+  assert.deepEqual(c.ren, ['Yu Standard']);
+  assert.equal(c.same, false);
+  assert.equal(c.bundle, null);
+  assert.deepEqual(c.missing, ['Gone Saver']);
+  assert.deepEqual(c.older, [{ name: 'Yu Standard', live: 1, now: 2 }]);
+});
+
+test('liveChoice: null when nothing named is live for the supplier and fuel', () => {
+  assert.equal(liveChoice([], 'yu', 'gas', LIVE_SETS, LIVE_BUNDLES), null);
+  assert.equal(liveChoice([liveRow('Gold', 'acquisition', null, null, { named: false })], 'yu', 'gas', LIVE_SETS, LIVE_BUNDLES), null);
+  assert.equal(liveChoice(null, 'yu', 'gas', LIVE_SETS, LIVE_BUNDLES), null);
 });

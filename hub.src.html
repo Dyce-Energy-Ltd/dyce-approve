@@ -2689,7 +2689,7 @@ const PR_GRID = {{PRICING_GRID}};
       // What the person has chosen lives here, so a redraw after a save keeps it. base is the products
       // of the configuration the screen started from (null until the current one is found); name is the
       // name typed for a new configuration (null: the dated default).
-      const ui = { same: true, acq: new Set(), ren: new Set(), cfgId: null, why: "", base: null, name: null, more: false, region: "", usages: file.fuel === "gas" ? "10000, 30000, 70000" : "2000, 8000, 30000", sale: "acquisition" };
+      const ui = { same: true, acq: new Set(), ren: new Set(), cfgId: null, why: "", base: null, live: null, start: null, name: null, more: false, region: "", usages: file.fuel === "gas" ? "10000, 30000, 70000" : "2000, 8000, 30000", sale: "acquisition" };
       let bs = null, regions = [], liveInfo = null, full = null, gridView = null, timer = null, pvGen = 0, lastPv = null;
       const stop = () => { clearTimeout(timer); pvGen++; if (gridView) { gridView.destroy(); gridView = null; } };
       const supName = names.get(file.supplierId) || file.supplierId;
@@ -2705,24 +2705,27 @@ const PR_GRID = {{PRICING_GRID}};
         say(msg, note || "", !!bad);
         draw();
       }
-      // What is live for this supplier and fuel, from the Live price book's op: the product types and
-      // when they went live. It does not say which products (band sets) are live, so the current product
-      // configuration is the most recently saved one (G.currentConfig). If it cannot be read, the screen
-      // still opens and says nothing about what is live.
+      // What is live for this supplier and fuel, from the Live price book's op: its rows (each live run
+      // names the product it priced with since 20/11/2026: config_name, config_version, named), the
+      // product types and when they went live. If it cannot be read, the screen still opens, on the most
+      // recently saved product configuration, and says nothing about what is live.
       async function readLive() {
         let r;
-        try { r = await call("book_live"); } catch (err) { if (err && err.signedOut) throw err; return { unknown: true }; }
+        try { r = await call("book_live"); } catch (err) { if (err && err.signedOut) throw err; return { unknown: true, rows: [] }; }
         const mine = (r.live || []).filter((x) => x.supplier_id === file.supplierId && x.fuel === file.fuel);
         const since = mine.map((x) => String(x.published_at || "")).sort().pop() || null;
-        return { types: [...new Set(mine.map((x) => x.product))], since };
+        return { rows: mine, types: [...new Set(mine.map((x) => x.product))], since };
       }
 
       function draw() {
         stop(); body.textContent = ""; lastPv = null;
         const editable = can(T.set), applies = can(T.publish);
-        // The current configuration is found once, on opening (Phil Brook, 20/11/2026).
-        const first = ui.base === null ? G.currentConfig(bs.bundles, bs.bandSets, file.supplierId) : null;
-        if (ui.base === null) ui.cfgId = first ? first.bundle.bundleId : null;
+        // What the screen opens on is found once (Phil Brook, 20/11/2026): the products live for this
+        // supplier and fuel (G.liveChoice), named by the product configuration holding exactly them if
+        // there is one; with nothing named live, the most recently saved product configuration.
+        const lv = ui.base === null ? G.liveChoice(liveInfo && liveInfo.rows, file.supplierId, file.fuel, bs.bandSets, bs.bundles) : null;
+        const first = ui.base === null && !lv ? G.currentConfig(bs.bundles, bs.bandSets, file.supplierId) : null;
+        if (ui.base === null) ui.cfgId = lv ? (lv.bundle ? lv.bundle.bundleId : null) : first ? first.bundle.bundleId : null;
         // The configuration in use first, so the grid's heading over its products is its name.
         const cfgFirst = () => bs.bundles.filter((b) => b.bundleId === ui.cfgId).concat(bs.bundles.filter((b) => b.bundleId !== ui.cfgId));
         full = orderColumns(G.makeGrid(bs.ladder.bands, bs.bandSets, file.fuel, bs.ladder.ladderId), cfgFirst());
@@ -2735,11 +2738,23 @@ const PR_GRID = {{PRICING_GRID}};
         // its products are chosen for acquisition and renewal alike.
         function useConfig(b, why) {
           const m = b ? b.members.filter((x) => known.has(x)) : [];
-          ui.cfgId = b ? b.bundleId : null; ui.why = why; ui.base = m; ui.name = null;
+          ui.cfgId = b ? b.bundleId : null; ui.why = why; ui.base = m; ui.name = null; ui.live = null;
           ui.acq = new Set(m); ui.ren = ui.same ? new Set() : new Set(m);
+          ui.start = null;
         }
-        if (ui.base === null) useConfig(first ? first.bundle : null, "current");
+        // The live products: one choice for both sale types when they match, else acquisition and
+        // renewal kept apart from the start.
+        function useLive(c) {
+          ui.live = c; ui.cfgId = c.bundle ? c.bundle.bundleId : null; ui.why = "live"; ui.name = null;
+          ui.same = c.same;
+          ui.acq = new Set(c.acq); ui.ren = c.same ? new Set() : new Set(c.ren);
+          ui.base = [...new Set(c.acq.concat(c.ren))];
+          ui.start = null;
+        }
+        if (ui.base === null) { if (lv) useLive(lv); else useConfig(first ? first.bundle : null, "current"); }
         ui.base = ui.base.filter((x) => known.has(x));
+        // Where Discard changes goes back to: the choice the screen opened on, loaded or saved.
+        if (!ui.start) ui.start = { acq: [...ui.acq], ren: [...ui.ren], same: ui.same, cfgId: ui.cfgId, why: ui.why, live: ui.live, base: ui.base.slice() };
         const cfg = () => bs.bundles.find((b) => b.bundleId === ui.cfgId) || null;
 
         const chosen = () => full.columns.filter((c) => ui.acq.has(c.name) || (!ui.same && ui.ren.has(c.name))).map((c) => c.name);
@@ -2783,6 +2798,16 @@ const PR_GRID = {{PRICING_GRID}};
           cfgLine.textContent = "";
           const b = cfg(), live = liveInfo && !liveInfo.unknown && liveInfo.types.length ? liveInfo : null;
           const liveText = live ? " Prices live since " + day(live.since) + ": " + andList(live.types) + "." : "";
+          if (ui.why === "live" && ui.live) {
+            // The live products (Phil Brook, 20/11/2026), with what the grid cannot show of them said plainly.
+            const L = ui.live, since = day(L.since);
+            if (b) cfgLine.append("Current product configuration: ", el("b", { text: b.name }), " (live since " + since + ").");
+            else cfgLine.append("Current: the live products (no saved product configuration matches). Live since " + since + ".");
+            cfgLine.append((L.same ? "" : " Acquisition and renewal have different products live, so they are kept apart (More options).")
+              + (L.missing.length ? " Also live but no longer a product, so not loaded: " + andList(L.missing) + "." : "")
+              + L.older.map((x) => " " + x.name + " is live at version " + x.live + "; the grid shows version " + x.now + ", saved since.").join(""));
+            return;
+          }
           if (b) {
             const why = ui.why === "picked" ? " (chosen under More options" + (live ? ")." : ", not live yet).")
               : ui.why === "saved" ? " (saved just now, not live yet)."
@@ -2928,7 +2953,11 @@ const PR_GRID = {{PRICING_GRID}};
         const amsg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true }), prog = el("div");
         const applyBtn = btn("Apply", () => doApply(), "");
         const saveBtn = btn("Save", () => doSave(), "ghost");
-        const discardBtn = btn("Discard changes", () => { useConfig(cfg(), ui.why || "current"); say(msg, ""); draw(); }, "ghost small");
+        const discardBtn = btn("Discard changes", () => {
+          const st = ui.start;
+          ui.acq = new Set(st.acq); ui.ren = new Set(st.ren); ui.same = st.same; ui.cfgId = st.cfgId; ui.why = st.why; ui.live = st.live; ui.base = st.base.slice(); ui.name = null;
+          say(msg, ""); draw();
+        }, "ghost small");
         const nameIn = el("input", { type: "text", id: "prCfgName", maxlength: "60", autocomplete: "off" });
         nameIn.addEventListener("input", () => { ui.name = nameIn.value; refreshApply(); });
         const reason = el("input", { type: "text", maxlength: "200", autocomplete: "off" });
@@ -3094,7 +3123,7 @@ const PR_GRID = {{PRICING_GRID}};
               if (!alive()) return null;
               ok(); savedSomething = true; savedNote += "Product configuration " + p.bundle.name + " saved. ";
               // The screen now works from the new product configuration.
-              ui.cfgId = (r2 && r2.bundleId) || null; ui.why = "saved"; ui.base = p.members.slice(); ui.name = null;
+              ui.cfgId = (r2 && r2.bundleId) || null; ui.why = "saved"; ui.base = p.members.slice(); ui.name = null; ui.live = null; ui.start = null;
             }
           } catch (err) { err = err || {}; err.savedNote = savedNote; err.savedSomething = savedSomething; throw err; }
           return savedNote;
