@@ -2243,37 +2243,56 @@ function parseSupplierFile(format, workbook, options) {
 ;return { FORMATS, ROW_KEYS, parseSupplierFile };
 })();
 const PR_EXPORTS = (function () {
-// Broker price book and UD Upload files for the DNA Hub Pricing tab.
+// Broker price book and Powwr UD Upload files for the DNA Hub Pricing tab.
 //
-// After a price run is published, the page writes two workbooks from the stored price book
-// (pricing.price_book rows, as the dna-pricing function's book_rows returns them), in the layouts of
-// the old tool's files of 23/09/2026. Brokers and Methodia load these into their own systems, so the
-// header rows and the shapes of the values must not change.
+// After a price run is published, the page writes workbooks from the stored price book
+// (pricing.price_book rows, as the dna-pricing function's book_rows returns them). Brokers and
+// Methodia load these into their own systems, so the header rows and the shapes of the values must
+// not change.
 //
-//   brokerSheet(rows)            {name: 'Broker Flat-File', aoa}   20 columns, electricity
-//   udUploadSheet(rows)          {name: 'UD_Upload_NHH', aoa}      32 columns, electricity NHH only
-//   workbookFor(XLSX, layout, rows)  Uint8Array of an .xlsx; layout is 'broker' or 'ud_upload'
+//   brokerSheet(rows)               {name: 'Broker Flat-File', aoa}     20 columns, electricity, laid out
+//                                   from the old tool's file of 23/09/2026 (unchanged)
+//   brokerGasSheet(rows, today)     {name: 'Gas Broker Pricing', aoa}   14 columns, gas only
+//   udUploadSheet(rows, today)      {name: 'Template', aoa}             35 columns, both fuels
+//   workbookFor(XLSX, layout, rows, today)  Uint8Array of an .xlsx; layout is 'broker', 'broker_gas'
+//                                   or 'ud_upload'
+//
+// The gas broker file and the UD Upload layout follow Chris Beardsmore's files of 18/11/2026 to
+// 20/11/2026 (Dyce_DY4_Gas_Gold_18.11.26, DY4_Gas_Gold_UD_Upload_181126 and
+// Dyce_DY4_Elec_Gold_UD_Upload_20.11.26). `today` is the date the file is written (a Date or
+// 'YYYY-MM-DD'; default now) and fills the Version column, so tests can fix it.
 //
 // XLSX is the vendored SheetJS, passed in by the caller (the page and the Node tests each bring
 // their own copy; this module imports nothing and reads no global).
 //
 // Rules, from the design (5.9) and PRICING_INTEGRATION.md section 7:
 //   - Rates are the binding 2 dp figures (the *_pence_2dp columns), never the milli-pence ones.
+//     Chris's files carry 3 dp; we keep 2 dp on purpose.
 //   - Never cost, margin or annual cost. Only sell columns are read, and no header names one.
 //   - A sale_type 'all' row gives an Acquisition line and a Renewal line, each with its own tariff
 //     name. An 'acquisition' or 'renewal' row gives one line. A line whose name is missing is
 //     refused with an error (never dropped quietly).
-//   - Broker keeps half hourly rows (Capacity_Rate filled). UD Upload is electricity non half
-//     hourly only, so it skips HH rows.
-//   - GAS ROWS ARE IN NEITHER FILE for now: no gas layout has been supplied.
-//   - UD Upload leaves the start dates, quote dates and Utility blank, as on 23/09/2026.
+//   - Broker (electricity) keeps half hourly rows (Capacity_Rate filled) and every term. The gas
+//     broker file keeps every term too (Chris's broker file also holds 3 months).
+//   - UD Upload is electricity non half hourly plus all gas rows. It leaves out any term under 6
+//     months: Powwr cannot take shorter terms (Phil Brook, 20/11/2026; Chris's Powwr files hold 6,
+//     12, 24 and 36 only).
+//   - UD Upload dates (contract start, valid quote) are written as DD/MM/YYYY text, as in Chris's gas
+//     file; his electricity UD file holds them as Excel date-times.
 //
-// NOT CONFIRMED against a Methodia or broker file: the RateStructure words for the two evening
-// structures. The 23/09/2026 files hold only 'Standard' and 'Day Night'. The evening words below
-// are Yu's own spellings (PRICING_INTEGRATION.md section 5.3) and need a person to confirm them.
+// NOT CONFIRMED against a Methodia or broker file:
+//   - The RateStructure words for the two evening structures. The 23/09/2026 files hold only
+//     'Standard' and 'Day Night'. The evening words below are Yu's own spellings
+//     (PRICING_INTEGRATION.md section 5.3) and need a person to confirm them.
+//   - The ' Band N' suffix on the UD Upload RateStructure for non single structures. Chris's file
+//     shows 'Standard Band 1'; we add the suffix to every electricity structure that has an LLF
+//     band number.
+//   - The 'Carbon Offset' word in the gas broker file's Carbon_Offset column. Chris's file shows
+//     only 'Standard'.
 
 const BROKER_SHEET = 'Broker Flat-File';
-const UD_SHEET = 'UD_Upload_NHH';
+const BROKER_GAS_SHEET = 'Gas Broker Pricing';
+const UD_SHEET = 'Template';
 
 const BROKER_HEADER = [
   'Type', 'Tariff ID', 'ProfileClass', 'Area Code', 'ratestructure', 'LLF_Band', 'EAC Min',
@@ -2282,15 +2301,25 @@ const BROKER_HEADER = [
   'Metering_Charge', 'Green',
 ];
 
-const UD_HEADER = [
-  'Amr', 'Band', 'BrokerId', 'ContractDuration', 'DayRate', 'DnoId', 'EveningWeekendRate',
-  'ExitZone', 'FixedContractEndDate', 'GreenEnergy', 'Ldz', 'MaximumAnnualConsumption',
-  'MaximumContractStartDate', 'MaximumCreditScore', 'MaximumValidQuoteDate',
-  'MinimumAnnualConsumption', 'MinimumContractStartDate', 'MinimumCreditScore',
-  'MinimumValidQuoteDate', 'NightRate', 'PaymentMethod', 'ProductName', 'ProfileClass',
-  'RateStructure', 'SaleType', 'SetUplift', 'StandingCharge', 'StandingChargeType',
-  'TariffInformation1', 'UnitRate', 'Utility', 'Version',
+const BROKER_GAS_HEADER = [
+  'Type', 'Tariff ID', 'Ldz', 'ContractDuration', 'AQ Min', 'AQ Max', 'MinimumContractStartDate',
+  'MaximumContractStartDate', 'MinimumValidQuoteDate', 'MaximumValidQuoteDate', 'Carbon_Offset',
+  'StandingCharge', 'UnitRate', 'Version',
 ];
+
+const UD_HEADER = [
+  'BrokerId', 'Utility', 'DnoId', 'ProfileClass', 'RateStructure', 'Ldz', 'ExitZone', 'SaleType',
+  'ContractDuration', 'MinimumAnnualConsumption', 'MaximumAnnualConsumption',
+  'MinimumContractStartDate', 'MaximumContractStartDate', 'MinimumValidQuoteDate',
+  'MaximumValidQuoteDate', 'PaymentMethod', 'ProductName', 'StandingChargeType', 'GreenEnergy',
+  'Amr', 'MinimumCreditScore', 'MaximumCreditScore', 'SetUplift', 'StandingCharge', 'DayRate',
+  'NightRate', 'EveningWeekendRate', 'UnitRate', 'FixedContractEndDate', 'Version',
+  'TariffInformation1', 'TariffInformation2', 'TariffInformation3', 'TariffInformation4',
+  'TariffInformation5',
+];
+
+// Powwr cannot take a term shorter than this many months.
+const UD_MIN_TERM_MONTHS = 6;
 
 const RATE_STRUCTURE = {
   single: 'Standard',
@@ -2319,16 +2348,26 @@ function ddmmyyyy(v) {
   return `${m[3]}/${m[2]}/${m[1]}`;
 }
 
+// The write date as DD/MM/YYYY: a Date (its local day) or 'YYYY-MM-DD'.
+function writeDate(today) {
+  if (today instanceof Date) {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(today.getDate())}/${p(today.getMonth() + 1)}/${today.getFullYear()}`;
+  }
+  return ddmmyyyy(today);
+}
+
 function rateStructure(row) {
   const w = RATE_STRUCTURE[row.rate_structure];
   if (!w) throw new Error(`Unknown rate structure in the price book: ${String(row.rate_structure)}`);
   return w;
 }
 
-// 'NDA Band 1' for the Broker file, 'Band 1' for UD Upload.
+// 'Band 1', or null when the row has no band number.
 function bandNumber(row) {
   return blank(row.llf_band_number) ? null : `Band ${num(row.llf_band_number)}`;
 }
+// 'NDA Band 1' for the Broker file.
 function llfBand(row) {
   if (blank(row.llf_band_group) || blank(row.llf_band_number)) return null;
   const g = LLF_GROUP[row.llf_band_group];
@@ -2350,6 +2389,7 @@ function lines(row) {
 }
 
 const isElectricity = (r) => r.fuel === 'electricity';
+const isGas = (r) => r.fuel === 'gas';
 const isHalfHourly = (r) => r.meter_type === 'hh';
 
 function brokerLine(r, word, name) {
@@ -2364,25 +2404,47 @@ function brokerLine(r, word, name) {
   ];
 }
 
-function udLine(r, word, name) {
+function brokerGasLine(r, word, name, version) {
+  return [
+    word, name, r.ldz, num(r.term_months), num(r.piece_min_kwh), num(r.piece_max_kwh),
+    ddmmyyyy(r.contract_start_earliest), ddmmyyyy(r.contract_start_latest),
+    ddmmyyyy(r.quote_valid_from), ddmmyyyy(r.quote_valid_until),
+    r.carbon_offset ? 'Carbon Offset' : 'Standard',  // 'Carbon Offset' unconfirmed, see the header
+    num(r.sell_standing_charge_pence_2dp), num(r.sell_unit_rate_single_pence_2dp), version,
+  ];
+}
+
+function udLine(r, word, name, version) {
+  const gasRow = isGas(r);
+  const band = gasRow ? null : bandNumber(r);
   const out = Object.fromEntries(UD_HEADER.map((h) => [h, null]));
   Object.assign(out, {
-    Band: bandNumber(r),
-    ContractDuration: num(r.term_months),
-    DayRate: num(r.sell_unit_rate_day_pence_2dp),
-    DnoId: num(r.dno_id),
-    EveningWeekendRate: num(r.sell_unit_rate_ew_pence_2dp),
-    GreenEnergy: r.green_energy ? 1 : 0,
-    MaximumAnnualConsumption: num(r.piece_max_kwh),
-    MinimumAnnualConsumption: num(r.piece_min_kwh),
-    NightRate: num(r.sell_unit_rate_night_pence_2dp),
-    ProductName: name,
-    ProfileClass: num(r.profile_class),
-    RateStructure: rateStructure(r),
+    BrokerId: 'Dyce',
+    Utility: gasRow ? 'Gas' : 'Electricity',
+    DnoId: gasRow ? null : num(r.dno_id),
+    ProfileClass: gasRow ? null : num(r.profile_class),
+    RateStructure: band ? `${rateStructure(r)} ${band}` : rateStructure(r),
+    Ldz: gasRow ? r.ldz : null,
     SaleType: word,
+    ContractDuration: num(r.term_months),
+    MinimumAnnualConsumption: num(r.piece_min_kwh),
+    MaximumAnnualConsumption: num(r.piece_max_kwh),
+    MinimumContractStartDate: ddmmyyyy(r.contract_start_earliest),
+    MaximumContractStartDate: ddmmyyyy(r.contract_start_latest),
+    MinimumValidQuoteDate: ddmmyyyy(r.quote_valid_from),
+    MaximumValidQuoteDate: ddmmyyyy(r.quote_valid_until),
+    PaymentMethod: 'Direct Debit',
+    ProductName: r.product_name,
+    StandingChargeType: 'With S/C',
+    GreenEnergy: r.green_energy ? 'Y' : 'N',
     StandingCharge: num(r.sell_standing_charge_pence_2dp),
-    TariffInformation1: r.tariff_code,
+    DayRate: num(r.sell_unit_rate_day_pence_2dp),
+    NightRate: num(r.sell_unit_rate_night_pence_2dp),
+    EveningWeekendRate: num(r.sell_unit_rate_ew_pence_2dp),
     UnitRate: num(r.sell_unit_rate_single_pence_2dp),
+    Version: version,
+    TariffInformation1: r.tariff_code,
+    TariffInformation2: name,
   });
   return UD_HEADER.map((h) => out[h]);
 }
@@ -2400,25 +2462,35 @@ function brokerSheet(rows) {
   return { name: BROKER_SHEET, aoa: build(BROKER_HEADER, rows, isElectricity, brokerLine) };
 }
 
-function udUploadSheet(rows) {
+function brokerGasSheet(rows, today = new Date()) {
+  const v = writeDate(today);
   return {
-    name: UD_SHEET,
-    aoa: build(UD_HEADER, rows, (r) => isElectricity(r) && !isHalfHourly(r), udLine),
+    name: BROKER_GAS_SHEET,
+    aoa: build(BROKER_GAS_HEADER, rows, isGas, (r, w, n) => brokerGasLine(r, w, n, v)),
   };
 }
 
-const LAYOUTS = { broker: brokerSheet, ud_upload: udUploadSheet };
+function udUploadSheet(rows, today = new Date()) {
+  const v = writeDate(today);
+  const keep = (r) => (isElectricity(r) ? !isHalfHourly(r) : isGas(r))
+    && num(r.term_months) >= UD_MIN_TERM_MONTHS;
+  return { name: UD_SHEET, aoa: build(UD_HEADER, rows, keep, (r, w, n) => udLine(r, w, n, v)) };
+}
 
-function workbookFor(XLSX, layout, rows) {
+const LAYOUTS = { broker: brokerSheet, broker_gas: brokerGasSheet, ud_upload: udUploadSheet };
+
+function workbookFor(XLSX, layout, rows, today = new Date()) {
   const make = LAYOUTS[layout];
-  if (!make) throw new Error(`Unknown output layout: ${String(layout)}. Use broker or ud_upload.`);
-  const { name, aoa } = make(rows);
+  if (!make) {
+    throw new Error(`Unknown output layout: ${String(layout)}. Use broker, broker_gas or ud_upload.`);
+  }
+  const { name, aoa } = make(rows, today);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name);
   return new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx' }));
 }
 
-;return { BROKER_SHEET, UD_SHEET, BROKER_HEADER, UD_HEADER, brokerSheet, udUploadSheet, workbookFor };
+;return { BROKER_SHEET, BROKER_GAS_SHEET, UD_SHEET, BROKER_HEADER, BROKER_GAS_HEADER, UD_HEADER, UD_MIN_TERM_MONTHS, brokerSheet, brokerGasSheet, udUploadSheet, workbookFor };
 })();
 const PR_GRID = (function () {
 // Grid model for the Pricing tab's margins screen and workspace (v2, spec 4.3 to 4.5, 4.7).
@@ -4731,7 +4803,7 @@ function ukDay(ms) {
   // hiding a screen or a button here is tidiness, not the gate. Four ticks: pricing.view (look),
   // pricing.load (load supplier files), pricing.set (band sets and splits), pricing.publish.
   // The supplier workbook is read in this browser by the adapters in PR_ADAPTERS (SheetJS in
-  // PR_XLSX), and the Broker and UD Upload workbooks are made here by PR_EXPORTS; the three are
+  // PR_XLSX), and the Broker (electricity and gas) and UD Upload workbooks are made here by PR_EXPORTS; the three are
   // put into the page by build.py. Nothing is kept in browser storage. The page only loads and
   // publishes: what happens to a loaded file when its set is published is decided inside the
   // database (ruling R15), and no screen offers any other step.
@@ -4758,7 +4830,12 @@ function ukDay(ms) {
     const STRUCTURE = { day_night: "Day and night", evening_weekend: "Evening and weekend", evening_weekend_night: "Evening, weekend and night", hh: "Half-hourly" };
     const SPLIT_KEYS = { day_night: ["day", "night"], hh: ["day", "night"], evening_weekend: ["day", "ew"], evening_weekend_night: ["day", "ew", "night"] };
     const KEY_LABEL = { day: "Day", night: "Night", ew: "Evening and weekend" };
-    const LAYOUT_LABEL = { broker: "Broker", ud_upload: "UD Upload" };
+    const LAYOUT_LABEL = { broker: "Broker", broker_gas: "Broker (gas)", ud_upload: "UD Upload" };
+    // The layouts a run gets, by fuel. Only the layouts the dna-pricing function stores are stored and
+    // recorded (its LAYOUTS list); the gas Broker file is made here and offered to save until the
+    // function accepts it too.
+    const LAYOUTS_BY_FUEL = { electricity: ["broker", "ud_upload"], gas: ["broker_gas", "ud_upload"] };
+    const STORED_LAYOUTS = ["broker", "ud_upload"];
     const STATE = { published: "ok", approved: "ok", active: "ok", live: "ok", draft: "info", loaded: "info", failed: "critical", publishing: "warn", unfinished: "warn", rejected: "neutral", retired: "neutral", replaced: "neutral" };
     const GBP = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
     // Region names as the broker portal shows them (src/lib/pricing/margins.ts there), Yorkshire first
@@ -4893,7 +4970,7 @@ function ukDay(ms) {
       const a = el("a", { href: url, download: name }); document.body.append(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     }
-    const fileName = (layout, run) => ("Dyce_" + (layout === "broker" ? "Broker" : "UD_Upload") + "_" + run.supplier + "_" + run.product + "_" + run.sales.join("-") + "_" + day(run.publishedAt).replace(/\//g, "")).replace(/[^A-Za-z0-9_-]+/g, "_") + ".xlsx";
+    const fileName = (layout, run) => ("Dyce_" + ({ broker: "Broker", broker_gas: "Broker_Gas", ud_upload: "UD_Upload" }[layout]) + "_" + run.supplier + "_" + run.product + "_" + run.sales.join("-") + "_" + day(run.publishedAt).replace(/\//g, "")).replace(/[^A-Za-z0-9_-]+/g, "_") + ".xlsx";
     const supplierNames = (ov) => new Map(ov.suppliers.map((s) => [s.supplier_id, s.supplier_name]));
     // A product or product configuration may be for one supplier or, with no supplier, for every
     // supplier (Phil Brook, 19/11/2026). pairs: [[supplier_id, name]].
@@ -6624,13 +6701,12 @@ function ukDay(ms) {
         if (!runsLive.has(x.price_run_id)) runsLive.set(x.price_run_id, { id: x.price_run_id, fuel: x.fuel, product: x.product, supplier: x.supplier_id, publishedAt: x.published_at, sales: [] });
         runsLive.get(x.price_run_id).sales.push(x.sale_type);
       }
-      const electricity = [...runsLive.values()].filter((x) => x.fuel === "electricity");
-      if (!electricity.length) { line("No Broker or UD Upload files for gas yet.", "done"); return; }
-      await makeFiles(electricity, box, alive);
+      await makeFiles([...runsLive.values()], box, alive);
     }
 
-    // The Broker and UD Upload files for live electricity runs: read the book, make both workbooks
-    // here, store each, record them. A run's book is read in pages of BOOK_PAGE rows.
+    // The Broker and UD Upload files for live runs (electricity: Broker and UD Upload; gas: Broker (gas)
+    // and UD Upload): read the book, make the workbooks here, store and record those the function
+    // takes (STORED_LAYOUTS), and offer all of them to save. A run's book is read in pages of BOOK_PAGE rows.
     async function makeFiles(runList, box, alive) {
       const line = steps(box);
       const failed = (set, err) => { set("The files could not be made: " + explain(err) + " The prices are live. Rebuild the files from Live price book.", "failed"); };
@@ -6650,15 +6726,17 @@ function ukDay(ms) {
           set("Reading prices for " + tag + ": " + comma(rows.length) + " rows", "done");
         } catch (err) { if (err && err.signedOut) return; failed(set, err); return; }
         const made = [], recorded = [];
-        for (const layout of ["broker", "ud_upload"]) {
+        for (const layout of LAYOUTS_BY_FUEL[run.fuel] || []) {
           const s = line("Making the " + LAYOUT_LABEL[layout] + " file for " + tag, "working");
           try {
             await pause(20);
             const bytes = PR_EXPORTS.workbookFor(PR_XLSX, layout, rows);
-            const u = await call("output_upload_url", { priceRunId: run.id, layout });
-            if (!alive()) return;
-            await putFile(u.uploadUrl, bytes, XLSX_TYPE);
-            recorded.push({ layout, path: u.path, sha256: await sha256(bytes) });
+            if (STORED_LAYOUTS.includes(layout)) {
+              const u = await call("output_upload_url", { priceRunId: run.id, layout });
+              if (!alive()) return;
+              await putFile(u.uploadUrl, bytes, XLSX_TYPE);
+              recorded.push({ layout, path: u.path, sha256: await sha256(bytes) });
+            }
             made.push([layout, bytes]);
             s(LAYOUT_LABEL[layout] + " file for " + tag + " made.", "done");
           } catch (err) { if (err && err.signedOut) return; failed(s, err); return; }
@@ -6722,14 +6800,14 @@ function ukDay(ms) {
         for (const r of b.live) {
           const first = !seen.has(r.price_run_id); seen.add(r.price_run_id);
           // One Files menu per run (its rows share it): the two stored files and, with Publish, Rebuild.
-          const files = first && r.fuel === "electricity" ? el("details", { class: "menu" }, el("summary", { class: "btn ghost small", text: "Files" }),
-            el("div", { class: "menubox" }, ...downloadButtons(r.price_run_id, ["broker", "ud_upload"], dlMsg),
+          const files = first ? el("details", { class: "menu" }, el("summary", { class: "btn ghost small", text: "Files" }),
+            el("div", { class: "menubox" }, ...downloadButtons(r.price_run_id, (LAYOUTS_BY_FUEL[r.fuel] || []).filter((l) => STORED_LAYOUTS.includes(l)), dlMsg),
               can(T.publish) ? btn("Rebuild files", (e) => remake(e.currentTarget, r, filesBox, b), "ghost small") : null)) : null;
           rows.push([names.get(r.supplier_id) || r.supplier_id, FUEL[r.fuel] || r.fuel, r.product, SALE[r.sale_type] || r.sale_type, r.source_filename, when(r.published_at) + (r.published_by ? ", " + personName(r.published_by) : ""), comma(r.row_count),
             Number(r.publishing_runs) > 0 ? badge("publishing") : badge("live"), files]);
         }
         if (b.live.length) body.append(table(["Supplier", "Fuel", "Product type", "Sale type", "File", "Published", "Rows", "State", ""], rows));
-        body.append(dlMsg, filesBox, el("p", { class: "hint", text: "No Broker or UD Upload files for gas yet." }));
+        body.append(dlMsg, filesBox, el("p", { class: "hint", text: "The gas Broker file is made when the prices go live or on Rebuild files, and is saved from this page. It is not kept for later download yet." }));
         foot();
       }
       // Check a price: what each live product of one supplier and fuel costs in a region at a usage.

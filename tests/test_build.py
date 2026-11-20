@@ -603,7 +603,7 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("function parseSupplierFile(", page)
         self.assertIn("return { FORMATS, ROW_KEYS, parseSupplierFile };", page)
         self.assertIn("function workbookFor(", page)
-        self.assertIn("return { BROKER_SHEET, UD_SHEET, BROKER_HEADER, UD_HEADER, brokerSheet, udUploadSheet, workbookFor };", page)
+        self.assertIn("return { BROKER_SHEET, BROKER_GAS_SHEET, UD_SHEET, BROKER_HEADER, BROKER_GAS_HEADER, UD_HEADER, UD_MIN_TERM_MONTHS, brokerSheet, brokerGasSheet, udUploadSheet, workbookFor };", page)
         self.assertIn("function selectionProblem(", page)
         self.assertIn("return { parseMargin,", page)
         self.assertIn("function bookHealth(", page)
