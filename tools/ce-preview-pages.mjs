@@ -11,6 +11,14 @@
 // stub's CE_PAGES; requests that give the same page share an entry. The lines between the BEGIN and
 // END markers in the stub are replaced; nothing else in it changes. Run it again when the views or
 // the fixtures change. Node 24 runs the function's .ts modules as they are.
+//
+// Piece 2 (deciding): every page is drawn twice, for a person who can decide (the stub's Admin
+// Example, as Phil Brook before sign-off) and for one who can only view; where the two differ, each
+// entry says which it is for ("who"). The deciding pages (/decide, /set-broker, /choose-broker,
+// /resolve) are drawn for the decider, at the addresses the drawn Lines and Exceptions pages link and
+// submit to, so the preview follows them, and so are the pages their forms go back to. CE_SAY holds
+// the function's own sentences (deciding.ts) for the stub's act answers, made here so the stub does
+// not copy them by hand.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -31,9 +39,15 @@ const { UserError } = await load('core.ts');
 const { LINES_PAGE_SIZE } = await load('db.ts');
 const { dealsFromRows, makeResolver } = await load('exceptions-data.ts');
 const { lineMatches, searchTerms } = await load('filters.ts');
+const { sumDec } = await load('format.ts');
+const say = await load('deciding.ts');
 const FIX = JSON.parse(readFileSync(join(folder, 'golden', 'fixtures.json'), 'utf8')).exceptions;
 
 const copy = (v) => JSON.parse(JSON.stringify(v));
+
+// Who the pages are drawn for: the stub's Admin Example, who can decide, and someone who can only view.
+const DECIDER = { email: 'admin.example@dyce-energy.co.uk', canDecide: true };
+const VIEWER = { email: 'cy.example@dyce-energy.co.uk', canDecide: false };
 
 // ---- the invented runs: June26 is the fixtures' run; Mar26 records the wrong usage month.
 const JUNE = '11111111-1111-4111-8111-111111111111';
@@ -86,6 +100,7 @@ const linesOf = (runId) => (runId === JUNE ? LINES : []);
 const found = (line, search) => searchTerms(search).every((term) => [line.contract_id, line.mpxn, line.customer_name,
   line.effective_broker_name, line.line_ref, line.account_number].some((v) => (v ?? '').toLowerCase().includes(term.toLowerCase())));
 const picked = (runId, sel, search) => linesOf(runId).filter((l) => lineMatches(l, sel) && found(l, search));
+const byLineId = (a, b) => Number(a.line_id) - Number(b.line_id);
 function ordered(rows, order) {
   const keys = [...order, { column: 'effective_broker_name', desc: false }, { column: 'line_ref', desc: false }];
   return rows.slice().sort((a, b) => {
@@ -96,6 +111,7 @@ function ordered(rows, order) {
     return Number(b.line_id) - Number(a.line_id);
   });
 }
+const currentRun = (token) => RUNS.filter((r) => r.month_token === token).sort((a, b) => b.revision - a.revision)[0] ?? null;
 const db = {
   runs: async ({ status, search, page }) => {
     const words = search.split(/\s+/).filter(Boolean).map((w) => w.toLowerCase());
@@ -110,7 +126,7 @@ const db = {
     return asked || RUNS.slice().sort(newestFirst)[0].month_token;
   },
   monthTokens: async () => [...new Set(RUNS.slice().sort(newestFirst).map((r) => r.month_token))],
-  currentRun: async (token) => copy(RUNS.filter((r) => r.month_token === token).sort((a, b) => b.revision - a.revision)[0] ?? null),
+  currentRun: async (token) => copy(currentRun(token)),
   lineChoices: async (runId) => {
     const rows = linesOf(runId);
     return { reasons: rows.map((l) => l.rule_comments), brokers: rows.map((l) => ({ id: l.effective_broker_id, name: l.effective_broker_name })),
@@ -132,6 +148,40 @@ const db = {
   dealsByMeter: async () => dealsFromRows(copy(FIX.deals)),
   brokerResolver: async () => makeResolver(copy(FIX.brokers), copy(FIX.aliases)),
   billingFacts: async () => copy(FIX.billing),
+  // Deciding (piece 2): the reads the /decide, /set-broker, /choose-broker and /resolve pages make.
+  decideScope: async (token, sel, search) => {
+    const r = currentRun(token);
+    return (r ? picked(r.run_id, sel, search) : []).slice().sort(byLineId)
+      .map((l) => ({ lineId: l.line_id, decisionId: l.current_decision_id }));
+  },
+  decideRows: async (ids) => LINES.filter((l) => ids.includes(l.line_id)).sort(byLineId).map((l) => ({
+    line_id: l.line_id, line_ref: l.line_ref, run_id: l.run_id, month_token: l.run_month_token, run_status: l.run_status,
+    superseded: false, broker_due_gbp: l.broker_due_gbp, rule_pay: l.rule_pay, decided_pay: l.decided_pay,
+    decided_by: l.decided_by, current_decision_id: l.current_decision_id })),
+  payableNow: async (token) => {
+    const r = currentRun(token);
+    return sumDec(['0.00', ...(r ? linesOf(r.run_id) : []).filter((l) => l.broker_due_gbp !== null &&
+      (l.decided_pay || l.rule_pay) === 'Yes').map((l) => l.broker_due_gbp)]);
+  },
+  exceptionForFix: async (id, code) => {
+    const e = FIX.exceptions.find((x) => x.exception_id === id && x.code === code);
+    if (!e) return null;
+    const l = LINES.find((x) => x.line_ref === e.subject);
+    return copy({ exception_id: e.exception_id, code: e.code, subject: e.subject, detail: e.detail ?? null,
+      resolved_at: e.resolved_at ?? null, resolved_by: e.resolved_by ?? null, resolution: e.resolution ?? null,
+      run_id: JUNE, month_token: 'June26', run_status: 'draft',
+      line: l ? { line_id: l.line_id, line_ref: l.line_ref, supplier_id: l.supplier_id, contract_id: l.contract_id,
+        mpxn: l.mpxn, customer_name: l.customer_name, contract_start: l.contract_start, broker_due_gbp: l.broker_due_gbp,
+        effective_broker_id: l.effective_broker_id, effective_broker_name: l.effective_broker_name } : null });
+  },
+  // One invented snapshot deal on any meter.
+  dealsOnMeter: async () => [{ hubspot_id: '90000004', contract_start_date: '2026-04-01', contract_end_date: '2028-03-31',
+    live_status: 'Live', broker_name: 'Example Brokers Ltd' }],
+  brokerChoices: async () => FIX.brokers.filter(([, id]) => id !== null).map(([key, id, name]) => ({ key, id, name }))
+    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)),
+  exceptionsByIds: async (ids) => FIX.exceptions.filter((e) => ids.includes(e.exception_id))
+    .sort((a, b) => Number(a.exception_id) - Number(b.exception_id))
+    .map((e) => ({ exception_id: e.exception_id, resolved_at: e.resolved_at ?? null, month_token: 'June26' })),
 };
 
 // ---- the requests the preview answers: the four pages, a filter, a month, and the details.
@@ -148,27 +198,114 @@ const REQUESTS = [
   ['/line', { id: ['999'] }],
 ];
 
-const answers = [];
-for (const [path, query] of REQUESTS) {
-  let answer;
+// A request's query from an address's or a form's pairs, every value kept.
+function queryOf(pairs) {
+  const q = {};
+  for (const [k, v] of pairs) (q[k] ??= []).push(v);
+  return q;
+}
+// The five entities esc() writes, back to text.
+const unesc = (v) => v.replaceAll('&quot;', '"').replaceAll('&#x27;', "'").replaceAll('&lt;', '<').replaceAll('&gt;', '>')
+  .replaceAll('&amp;', '&');
+
+async function draw(path, query, who) {
   try {
-    const page = await VIEWS[path](db, query, NOW);
-    answer = { status: 200, title: page.title, html: page.html };
+    const page = await VIEWS[path](db, query, NOW, who);
+    return { status: 200, title: page.title, html: page.html };
   } catch (e) {
     if (!(e instanceof UserError)) throw e;
-    answer = { status: e.status, error: e.message };
+    return { status: e.status, error: e.message };
   }
-  const same = answers.find((a) => a.status === answer.status && a.title === answer.title && a.html === answer.html && a.error === answer.error);
-  if (same) same.requests.push({ path, query });
-  else answers.push({ requests: [{ path, query }], ...answer });
 }
 
+const answers = [];
+const asked = new Set();
+function keep(path, query, answer) {
+  const same = answers.find((a) => a.who === answer.who && a.status === answer.status && a.title === answer.title &&
+    a.html === answer.html && a.error === answer.error);
+  if (same) same.requests.push({ path, query });
+  else answers.push(answer.who ? { who: answer.who, requests: [{ path, query }], ...answer } : { requests: [{ path, query }], ...answer });
+}
+// A page for both people: one entry when they see the same, else one for each.
+async function both(path, query) {
+  const key = path + JSON.stringify(query);
+  if (asked.has(key)) return null;
+  asked.add(key);
+  const forDecider = await draw(path, query, DECIDER);
+  const forViewer = await draw(path, query, VIEWER);
+  if (forDecider.html === forViewer.html && forDecider.error === forViewer.error) keep(path, query, forDecider);
+  else { keep(path, query, { ...forDecider, who: 'decide' }); keep(path, query, { ...forViewer, who: 'view' }); }
+  return forDecider;
+}
+
+const drawn = [];
+for (const [path, query] of REQUESTS) {
+  const page = await both(path, query);
+  if (page && page.html) drawn.push(page.html);
+}
+
+// The deciding pages, at the addresses the decider's pages lead to: every link to one of them, the
+// bulk form's /decide for the first two lines (Yes) and for all the lines (No), and Choose broker by
+// its address (nothing links to it: the Exceptions page posts its own form).
+const deciding = new Map();
+const add = (path, query) => deciding.set(path + JSON.stringify(query), [path, query]);
+for (const html of drawn) {
+  for (const m of html.matchAll(/href="(\/(?:set-broker|choose-broker|resolve|decide)\?[^"]*)"/g)) {
+    const u = new URL(unesc(m[1]), 'https://ce.invalid');
+    add(u.pathname, queryOf(u.searchParams));
+  }
+  const bulk = /<form method="get" action="\/decide" class="ce-bulk">(.*?)<div class="ce-bulk-acts">/.exec(html);
+  if (bulk) {
+    const fields = [...bulk[1].matchAll(/<input type="hidden" name="([^"]*)" value="([^"]*)">/g)].map((h) => [h[1], unesc(h[2])]);
+    add('/decide', queryOf([...fields, ['line', '501'], ['line', '502'], ['pay', 'Yes']]));
+    add('/decide', queryOf([...fields, ['all', '1'], ['pay', 'No']]));
+  }
+}
+add('/choose-broker', { exception: ['9001'], next: ['/exceptions?run=June26'] });
+for (const [path, query] of deciding.values()) {
+  const page = await draw(path, query, DECIDER);
+  keep(path, query, page);
+  // Where its forms and links go back to, so the preview can follow them.
+  for (const m of (page.html ?? '').matchAll(/name="next" value="([^"]*)"/g)) {
+    const u = new URL(unesc(m[1]), 'https://ce.invalid');
+    await both(u.pathname, queryOf(u.searchParams));
+  }
+}
+// After Exceptions' own forms, the page goes to their `next`.
+for (const html of drawn) {
+  for (const m of html.matchAll(/<form method="post" action="[^"]*">(?:<input type="hidden" name="[^"]*" value="[^"]*">)*/g)) {
+    for (const n of m[0].matchAll(/name="next" value="([^"]*)"/g)) {
+      const u = new URL(unesc(n[1]), 'https://ce.invalid');
+      await both(u.pathname, queryOf(u.searchParams));
+    }
+  }
+}
+
+// The function's own sentences, for the stub's act answers.
+const SAY = {
+  noReason: say.validate('No', ''),
+  noNote: say.validateResolution(''),
+  stale: say.staleMessage([{ lineId: '512', lineRef: 'YU-9100000012-2026-06', decidedBy: 'sam@example.test',
+    decidedAt: '2026-11-13T09:58:00.000Z' }]),
+  settled: say.alreadySettledRefusal(44, '<img src=x onerror=alert(1)>'),
+  fixSaved: say.fixSavedMessage(true),
+  chosen1: say.chosenMessage(1),
+  uplift15: say.upliftSavedMessage('1.5', '0'),
+  marked1Yes: say.markedMessage(1, 'Yes'), marked1No: say.markedMessage(1, 'No'),
+  marked2Yes: say.markedMessage(2, 'Yes'), marked2No: say.markedMessage(2, 'No'),
+  resolved1: say.resolvedMessage(1, 0), resolved2: say.resolvedMessage(2, 0),
+};
+
 // ASCII only, and no "</" or "<!", so the stub is safe inside the page's <script>.
-const lines = answers.map((a) => '    ' + JSON.stringify(a).replace(/[^\x00-\x7e]/g, (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'))
-  .replaceAll('</', '<\\/').replaceAll('<!', '<\\u0021') + ',');
+const safe = (v) => JSON.stringify(v).replace(/[^\x00-\x7e]/g, (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'))
+  .replaceAll('</', '<\\/').replaceAll('<!', '<\\u0021');
+const lines = answers.map((a) => '    ' + safe(a) + ',');
+const sayLines = Object.entries(SAY).map(([k, v]) => `    ${k}: ${safe(v)}`);
 const stub = readFileSync(STUB, 'utf8');
 const start = stub.indexOf(BEGIN), end = stub.indexOf(END);
 if (start < 0 || end < start) throw new Error(`${STUB} has no ${BEGIN.trim()} ... ${END.trim()} block`);
 const head = stub.slice(0, start) + BEGIN + ": made by tools/ce-preview-pages.mjs from dyce-spine's commission-engine function. Do not edit by hand.\n";
-writeFileSync(STUB, head + '  var CE_PAGES = [\n' + lines.join('\n') + '\n  ];\n' + stub.slice(end), 'utf8');
-console.log(`wrote ${answers.length} answers for ${REQUESTS.length} requests into ${STUB}`);
+writeFileSync(STUB, head + '  var CE_PAGES = [\n' + lines.join('\n') + '\n  ];\n' +
+  '  var CE_SAY = {\n' + sayLines.join(',\n') + '\n  };\n' + stub.slice(end), 'utf8');
+const count = answers.reduce((n, a) => n + a.requests.length, 0);
+console.log(`wrote ${answers.length} answers for ${count} requests and ${Object.keys(SAY).length} sentences into ${STUB}`);

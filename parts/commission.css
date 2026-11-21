@@ -126,6 +126,35 @@
 #ce .ce-upload td { white-space: nowrap; overflow-wrap: normal; }
 #ce .ce-notes td:first-child { min-width: 240px; }
 
+/* Deciding (piece 2): the Decision dropdown and its reason box in the Lines grid, the bulk bar, and
+   the forms of the Decide, Set broker, Choose broker and Resolve pages and the Exceptions items.
+   Every control is held (disabled by the page) while a save is on its way. */
+#ce button:disabled, #ce select:disabled, #ce input:disabled { opacity: 0.55; cursor: progress; }
+#ce input[type="checkbox"] { accent-color: var(--brand-magenta); width: 18px; height: 18px; margin: 0; vertical-align: middle; }
+#ce .ce-decide { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 150px; }
+#ce .ce-decide select { font-size: 13px; padding: 5px 8px; }
+#ce .ce-decide-reason { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; width: 100%; min-width: 220px; }
+#ce .ce-decide-reason[hidden] { display: none; }
+#ce .ce-decide-reason input[type="text"] { flex: 1 1 160px; width: auto; min-width: 0; font-size: 13px; padding: 6px 10px; }
+#ce .ce-decide-reason button { padding: 6px 12px; }
+#ce .ce-decide .ce-decided-by { margin-top: 0; }
+#ce .ce-bulk-acts { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin: 0 0 12px; padding: 10px 14px; background: var(--surface-raised); border-radius: 10px; font-size: 14px; line-height: 20px; }
+#ce .ce-bulk-acts label { display: flex; gap: 8px; align-items: center; margin-right: auto; }
+#ce form > .ce-form-row, #ce .ce-form-row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; margin: 0 0 12px; max-width: 880px; }
+#ce .ce-form-row label, #ce .ce-acts label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 220px; min-width: 0; font-size: 13px; line-height: 20px; font-weight: 800; }
+#ce .ce-form-row label .ce-unpriced { font-weight: 400; white-space: normal; }
+#ce .ce-form-row input[type="text"], #ce .ce-acts input[type="text"] { font-size: 14px; padding: 8px 12px; }
+#ce .ce-form-acts { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin: 0 0 14px; font-size: 14px; }
+#ce .ce-help { flex: 1 1 100%; font-size: 13px; line-height: 20px; color: var(--muted); }
+#ce .ce-acts { display: flex; flex-wrap: wrap; gap: 12px 22px; align-items: flex-end; }
+#ce .ce-acts form { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; flex: 1 1 300px; min-width: 0; }
+#ce .ce-resolve { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--hairline); padding-top: 10px; }
+#ce .ce-resolve-row { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; justify-content: space-between; font-size: 14px; line-height: 22px; }
+#ce .ce-resolve-row a { font-weight: 800; }
+#ce .ce-fix-facts, #ce .ce-fix-deals { max-width: 880px; margin-bottom: 14px; }
+#ce .ce-fix-facts th { width: 240px; }
+#ce .ce-page > form { margin-top: 14px; }
+
 /* The filter box goes above the list where the two would be cramped side by side. */
 @media (max-width: 1000px) {
   #ce .ce-layout { flex-direction: column; align-items: stretch; gap: 22px; }
