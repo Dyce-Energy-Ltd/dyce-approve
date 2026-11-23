@@ -242,5 +242,8 @@ export function workbookFor(XLSX, layout, rows, today = new Date()) {
   const { name, aoa } = make(rows, today);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name);
-  return new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx' }));
+  // LOAD-BEARING: compression. SheetJS stores the parts uncompressed unless told; the Broker file for
+  // Voltx electricity's 66,528 prices a product came out at 84 MB and the pricing-files bucket refuses
+  // anything over 50 MB (23/11/2026). Test: exports.test.js, a large workbook is compressed.
+  return new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx', compression: true }));
 }

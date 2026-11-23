@@ -240,3 +240,17 @@ test('workbookFor round trips: sheet name and header row survive a write and a r
   assert.equal(back[1][10], '01/12/2026');
   assert.throws(() => workbookFor(XLSX, 'portal', [book()]), /layout/i);
 });
+
+test('workbookFor compresses: a large Broker file is a fraction of its stored size, and reads back whole', () => {
+  // 2,000 pieces, as both sale types: 4,000 rows. Stored uncompressed, as SheetJS does by default,
+  // the same sheet is several times larger; 23/11/2026 a Voltx file was 84 MB, over the 50 MB bucket.
+  const rows = Array.from({ length: 2000 }, (_, i) => book({ piece_min_kwh: 1000 + i, piece_max_kwh: 1000 + i }));
+  const bytes = workbookFor(XLSX, 'broker', rows, TODAY);
+  const { name, aoa } = brokerSheet(rows, TODAY);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name);
+  const stored = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }).byteLength;
+  assert.ok(bytes.byteLength * 2 < stored, `compressed ${bytes.byteLength} against stored ${stored}`);
+  const back = XLSX.utils.sheet_to_json(XLSX.read(bytes, { type: 'array' }).Sheets[name], { header: 1 });
+  assert.equal(back.length, aoa.length);
+});
