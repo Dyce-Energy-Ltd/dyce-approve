@@ -249,7 +249,7 @@
 
   var S1 = "11111111-1111-4111-8111-111111111111", S2 = "22222222-2222-4222-8222-222222222222", S3 = "33333333-3333-4333-8333-333333333333";
   var beSends = [
-    { send_id: S1, subject: "New prices are live from 10/11/2026", category: "pricing", requested_at: "2026-11-06T09:40:00+00:00", send_after: null, broker_count: 5, sent_count: 0, delivered_count: 0, failed_count: 0, bounced_count: 0, clicked_count: 0, status: "awaiting_approval", requested_by: "@me", recipient_group: "broker_primary_email" },
+    { send_id: S1, subject: "New prices are live from 10/11/2026", category: "pricing", requested_at: new Date(Date.now() - 3600000).toISOString(), send_after: null, broker_count: 5, sent_count: 0, delivered_count: 0, failed_count: 0, bounced_count: 0, clicked_count: 0, status: "awaiting_approval", requested_by: "@me", recipient_group: "broker_primary_email" },
     { send_id: S2, subject: "Prices withdrawn: submit contracts by 31/10/2026", category: "pricing", requested_at: "2026-10-28T14:05:00+00:00", send_after: null, broker_count: 5, sent_count: 1, delivered_count: 1, failed_count: 0, bounced_count: 0, clicked_count: 1, status: "sent", requested_by: "sam.example@dyce-energy.co.uk" },
     { send_id: S3, subject: "Example partner news, November", category: "newsletter", requested_at: "2026-11-05T16:20:00+00:00", send_after: "2026-11-20T09:00:00+00:00", broker_count: 4, sent_count: 0, delivered_count: 0, failed_count: 0, bounced_count: 0, clicked_count: 0, status: "approved", requested_by: "@me", recipient_group: "broker_contact_segment" }
   ];
@@ -340,6 +340,12 @@
     }
     if (action === "inputs") { if (!beInputs[args.send_id]) refuse("Which email? Its send id is missing or not valid."); return copy(beInputs[args.send_id]); }
     if (action === "bounced") return copy(beBounced);
+    if (action === "send_now") {
+      var sn = beSends.find(function (x) { return x.send_id === args.send_id; });
+      if (!sn || mine(sn).requested_by !== me) refuse("Only the person who requested this email can do that.");
+      if (sn.status !== "awaiting_approval") refuse("This email is already " + sn.status + ", so there is nothing to send.");
+      sn.status = "approved"; return { status: "approved" };
+    }
     if (action === "cancel" || action === "ask_again") {
       var s = beSends.find(function (x) { return x.send_id === args.send_id; });
       if (!s || mine(s).requested_by !== me) refuse("Only the person who requested this email can do that.");

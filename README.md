@@ -16,7 +16,7 @@ A navy rail down the left shows each tool the person may use, with the open tool
 
 | Tool | Tick | What it allows |
 |---|---|---|
-| Broker Emails | Request | The *Price emails* menu: New email (choose the email, the document and the brokers, send now or later; no approval step since 24/11/2026, Phil Brook: the person who presses Send signs it off), Recent sends, Bounced addresses |
+| Broker Emails | Request | The *Price emails* menu: New email (choose the email, the document and the brokers, send now or later; no approval step since 24/11/2026, Phil Brook: the person who presses Send signs it off), Recent sends (with *Send now* on the requester's own email still awaiting approval from before then, within 24 hours of the request), Bounced addresses |
 | Broker Emails | Approve | Approving from the approval email's link (index.html), for a send requested before 24/11/2026; the hub no longer asks anyone to approve. Approve alone shows no menu items |
 | Broker Emails | Renewals | The *Renewals* menu: Next 10 days, Recently sent, Stopped brokers (with Stop a broker); stop or restart a renewal email or a broker, always with a reason |
 | Dashboard Pool | Review | Boards and Summary: voting Keep, Maybe, Drop or Pass on each candidate board, with audiences and a note, and seeing everyone's votes and the decisions |
