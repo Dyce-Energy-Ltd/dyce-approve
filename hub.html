@@ -954,11 +954,10 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
               </section>
               <section class="sendbox" aria-labelledby="sendTitle">
                 <h2 id="sendTitle" style="font-size:17px;line-height:23px;font-weight:800;margin:0">Send</h2>
-                <div class="field"><label for="sendAt">Send at (optional)</label><input type="datetime-local" id="sendAt"><span class="hint">Leave blank to send as soon as it is approved. Up to 30 days ahead, UK time.</span></div>
-                <fieldset id="approverBox"><legend>Who approves it?</legend><div class="hint" id="approverNote">Loading…</div></fieldset>
+                <div class="field"><label for="sendAt">Send at (optional)</label><input type="datetime-local" id="sendAt"><span class="hint">Leave blank to send straight away. Up to 30 days ahead, UK time.</span></div>
                 <div class="msg" id="check"></div>
                 <div><div class="label" style="margin-bottom:6px">This will go to (from the database)</div><div class="msg" id="deliver">Choose recipients to see where this goes.</div></div>
-                <div class="actions"><button type="button" class="btn" id="sendBtn" disabled>Send for approval</button></div>
+                <div class="actions"><button type="button" class="btn" id="sendBtn" disabled>Send</button></div>
                 <div id="confirm" hidden class="msg">
                   <div id="confirmText"></div>
                   <div class="actions" style="margin-top:10px"><button type="button" class="btn" id="yesBtn">Yes, send it</button><button type="button" class="btn ghost" id="noBtn">Go back</button></div>
@@ -3435,7 +3434,6 @@ function ukDay(ms) {
   // so one session token serves every tool, and a signedOut answer shows the hub's sign-in, which
   // calls reset(). Its tabs are now the side menu: show(item) shows one item's sections.
   const BE = (() => {
-    const PREFERRED_APPROVER = "andrew.mead@dyce-energy.co.uk";
     // The signed-in person, set from the server's "me" answer. The server decides who requested a send.
     let REQUESTER = "";
     const MAX_BYTES = 10 * 1024 * 1024;
@@ -3646,7 +3644,6 @@ function ukDay(ms) {
       if (!fileMeta && !link) p.push("add a file or a link");
       if (link && !/^https:\/\/\S+$/.test(link)) p.push("make the link start https://");
       if (!chosenSet().size && !typed.some(t => t.on)) p.push(isSeg() ? "select a contact or add an address" : "select a broker or add an address");
-      if (!chosenApprover()) p.push("choose who approves it");
       const at = sendAtIso();
       if (at === "bad" || (at && (new Date(at) <= new Date() || new Date(at) > new Date(Date.now() + 30 * 86400000)))) p.push("set the send time in the future, within 30 days");
       return p;
@@ -3716,8 +3713,8 @@ function ukDay(ms) {
       const np = chosen() === "new_prices";
       $("priceFields").hidden = own(); $("ownFields").hidden = !own();
       $("productsField").hidden = np; $("extraField").hidden = np; $("newFields").hidden = !np;
-      $("pNote").textContent = own() ? "Your wording. The approver sees it exactly as above."
-        : np ? "Kelly Philpot's wording, 10/11/2026. Change the boxes for this week's news; the approver sees it exactly as above."
+      $("pNote").textContent = own() ? "Your wording. Brokers see it exactly as above."
+        : np ? "Kelly Philpot's wording, 10/11/2026. Change the boxes for this week's news; brokers see it exactly as above."
         : "Draft wording, to be agreed by the sales team.";
       const w = wording();
       $("pSubject").textContent = w.subject;
@@ -3901,7 +3898,7 @@ function ukDay(ms) {
 
     // ---------- recent sends and the testing banner
     const fmt = (iso) => { try { return new Date(iso).toLocaleString("en-GB", { timeZone: "Europe/London", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
-    const STATE = { awaiting_approval: "Awaiting approval", approved: "Approved", sending: "Sending", sent: "Sent", failed: "Failed", rejected: "Rejected", expired: "Expired", cancelled: "Cancelled" };
+    const STATE = { awaiting_approval: "Awaiting approval", approved: "Ready to send", sending: "Sending", sent: "Sent", failed: "Failed", rejected: "Rejected", expired: "Expired", cancelled: "Cancelled" };
     const smallBtn = (label) => { const b = document.createElement("button"); b.type = "button"; b.className = "btn ghost small"; b.textContent = label; b.style.marginTop = "6px"; b.style.marginRight = "6px"; return b; };
     function sayAgain(text) { $("beAgainMsg").hidden = !text; $("beAgainMsg").textContent = text || ""; }
     // Refills the form from an earlier send: type, wording and link. The file and the send time
@@ -4072,13 +4069,14 @@ function ukDay(ms) {
     }
     $("refreshBtn").addEventListener("click", loadRecent);
 
-    // ---------- send: confirm in the page, upload the file in parts, request, approve (allowed only while testing)
+    // ---------- send: confirm in the page, upload the file in parts, request. No approval (Phil Brook,
+    // 24/11/2026): pressing Yes, send signs it off, and it goes at once or at its send time.
     $("sendBtn").addEventListener("click", () => {
       if (problems().length) return;
       const w = wording();
       const to = delivery.map(d => d.deliver_to);
       const at = sendAtIso();
-      $("confirmText").textContent = `Send "${w.subject}"${fileMeta ? ` with ${fileMeta.name} attached` : ""}${at ? ` at ${fmt(at)}` : ""} to ${to.length} address${to.length === 1 ? "" : "es"}: ${to.slice(0, 12).join(", ")}${to.length > 12 ? ` and ${to.length - 12} more` : ""}? Nobody else receives it. It goes for approval first, and nothing is sent until someone else approves.`;
+      $("confirmText").textContent = `Send "${w.subject}"${fileMeta ? ` with ${fileMeta.name} attached` : ""}${at ? ` at ${fmt(at)}` : ""} to ${to.length} address${to.length === 1 ? "" : "es"}: ${to.slice(0, 12).join(", ")}${to.length > 12 ? ` and ${to.length - 12} more` : ""}? Nobody else receives it. There is no approval step: ${at ? "it goes at that time" : "it goes straight away"}, and you are recorded as the person who sent it.`;
       $("confirm").hidden = false; $("yesBtn").focus();
     });
     $("noBtn").addEventListener("click", () => { $("confirm").hidden = true; $("sendBtn").focus(); });
@@ -4115,16 +4113,14 @@ function ukDay(ms) {
             : { date: $("date").value, products: $("products").value.trim(), extra: $("extra").value.trim() },
           subject: w.subject, html: emailHtml(LOGO_CID), ...recipientArgs(), extra_emails: extraEmails(),
           attachment_id: attachmentId, link_url: $("link").value.trim() || null, send_after: sendAtIso(), category: own() ? kind() : "pricing" };
-        // One call, one transaction on the server: if asking for approval fails, the send is not kept either.
-        // The server sets who requested it from the signed-in session.
-        const approver = chosenApprover();
-        if (!approver) throw { message: "Choose who approves this email." };
-        const s = await api("request", { request: req, approver });
+        // One call, one transaction on the server. The server sets who requested it, and who signed
+        // it off, from the signed-in session. Naming no approver is what sends it without one.
+        const s = await api("request", { request: req });
         if (!current()) return;
         if (!isUuid(s.send_id)) throw { message: "The database did not return a send id." };
-        const approverName = (APPROVERS.find(a => a.email === approver) || {}).display_name || approver;
         lastSent = selectionKey() + "|" + w.subject + "|" + $("sendAt").value;
-        say(`Sent for approval to ${approverName}. Nothing goes until they approve. After approval it goes to: ${delivery.map(d => d.deliver_to).slice(0, 12).join(", ")}${delivery.length > 12 ? ` and ${delivery.length - 12} more` : ""}.`);
+        const at = sendAtIso();
+        say(`${at ? `Scheduled for ${fmt(at)}` : "Sending now"} to: ${delivery.map(d => d.deliver_to).slice(0, 12).join(", ")}${delivery.length > 12 ? ` and ${delivery.length - 12} more` : ""}.`);
         setTimeout(() => { if (current()) loadRecent(); }, 2000);
       } catch (err) {
         if (!current()) return;
@@ -4426,30 +4422,11 @@ function ukDay(ms) {
     const pad2 = (n) => String(n).padStart(2, "0");
     const localValue = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     $("sendAt").min = localValue(new Date()); $("sendAt").max = localValue(new Date(Date.now() + 30 * 86400000));
-    // ---------- who approves
-    let APPROVERS = [];
-    const chosenApprover = () => { const r = document.querySelector('input[name="approver"]:checked'); return r ? r.value : ""; };
-    function renderApprovers(m) {
-      APPROVERS = Array.isArray(m.approvers) ? m.approvers : [];
-      const box = $("approverBox"); box.textContent = "";
-      const legend = document.createElement("legend"); legend.textContent = "Who approves it?"; box.append(legend);
-      if (!APPROVERS.length) { const n = document.createElement("div"); n.className = "hint"; n.textContent = "Nobody is set up to approve. Ask the person who runs this page."; box.append(n); return; }
-      const pick = (APPROVERS.find(a => a.email === PREFERRED_APPROVER && a.available) || APPROVERS.find(a => a.available) || {}).email;
-      for (const a of APPROVERS) {
-        const l = document.createElement("label"); l.className = "choice";
-        const r = document.createElement("input"); r.type = "radio"; r.name = "approver"; r.value = a.email; r.disabled = !a.available; r.checked = a.email === pick;
-        const w = document.createElement("span"); const b = document.createElement("b"); b.textContent = a.display_name || a.email;
-        const note = document.createElement("span"); note.textContent = a.available ? "" : "(not available while testing)";
-        w.append(b, note); l.append(r, w); box.append(l);
-      }
-      const h = document.createElement("div"); h.className = "hint"; h.textContent = "They get an email with a link to approve or reject. Nothing is sent until they do."; box.append(h);
-    }
-
-    // After sign-in: who is signed in, the testing banner and who may approve, from the "me" answer.
+    // After sign-in: who is signed in and the testing banner, from the "me" answer.
     function start(m) {
       REQUESTER = m.email; signedIn = true;
       $("testBanner").hidden = !m.testing;
-      renderApprovers(m); refresh();
+      refresh();
     }
     // Shows one menu item's sections, loading its group's lists the first time, as send.html
     // loaded them at sign-in (Price emails) or when its Renewal emails tab was first opened.
@@ -4465,17 +4442,13 @@ function ukDay(ms) {
     }
     // On sign-out nothing typed by this person, and nothing read from the database, stays in the page.
     function reset() {
-      pGen++; signedIn = false; busy = false; REQUESTER = ""; priceLoaded = false; APPROVERS = [];
+      pGen++; signedIn = false; busy = false; REQUESTER = ""; priceLoaded = false;
       brokers = []; selected.clear(); typed = []; segSeq++; segBusy = false; segMsg = ""; segment = []; segSel.clear(); segCopiedAt = null; segRun = null; segTouched = false; $("group").value = G_PRIMARY; drawGroup(); $("brokers").classList.remove("seg"); $("segLine").textContent = ""; delivery = null; deliveryFor = ""; clearTimeout(deliveryTimer); deliverySeq++;
       for (const id of ["date", "products", "extra", "ownSubject", "ownBody", "link", "sendAt", "file", "beAddEmail", "search"]) $(id).value = "";
       $("fileInfo").textContent = ""; fileB64 = null; fileMeta = null; lastSent = "";
       $("e1").checked = true; document.querySelectorAll('input[name="kind"]').forEach(k => { k.checked = false; });
       fillNewPrices(); $("link").value = PRICING_PAGE;
       renderTyped(); $("addInfo").textContent = ADD_INFO; $("testBanner").hidden = true; sayAgain("");
-      const box = $("approverBox"); box.textContent = "";
-      const legend = document.createElement("legend"); legend.textContent = "Who approves it?";
-      const note = document.createElement("div"); note.className = "hint"; note.id = "approverNote"; note.textContent = "Loading…";
-      box.append(legend, note);
       for (const [id, text] of [["brokers", "Loading brokers…"], ["list", "Loading…"], ["bounced", "Loading…"]]) {
         const e = document.createElement("div"); e.className = "empty"; e.textContent = text; $(id).textContent = ""; $(id).append(e);
       }

@@ -16,8 +16,8 @@ A navy rail down the left shows each tool the person may use, with the open tool
 
 | Tool | Tick | What it allows |
 |---|---|---|
-| Broker Emails | Request | The *Price emails* menu: New email (choose the email, the document, the brokers and who approves it, send now or later), Recent sends, Bounced addresses |
-| Broker Emails | Approve | Being offered as an approver, and approving from the approval email's link (index.html). Approve alone shows no menu items |
+| Broker Emails | Request | The *Price emails* menu: New email (choose the email, the document and the brokers, send now or later; no approval step since 24/11/2026, Phil Brook: the person who presses Send signs it off), Recent sends, Bounced addresses |
+| Broker Emails | Approve | Approving from the approval email's link (index.html), for a send requested before 24/11/2026; the hub no longer asks anyone to approve. Approve alone shows no menu items |
 | Broker Emails | Renewals | The *Renewals* menu: Next 10 days, Recently sent, Stopped brokers (with Stop a broker); stop or restart a renewal email or a broker, always with a reason |
 | Dashboard Pool | Review | Boards and Summary: voting Keep, Maybe, Drop or Pass on each candidate board, with audiences and a note, and seeing everyone's votes and the decisions |
 | Pricing | View | The Pricing tab and its four screens, read only: Supplier files (every file with its state, and the files that failed to load), Margins, Splits, Live price book (with Check a price); the Price workspace with its preview, without saving or applying |

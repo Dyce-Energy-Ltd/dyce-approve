@@ -350,7 +350,8 @@
     if (action === "attachment_part" || action === "attachment_finish") return { id: args.id };
     if (action === "request") {
       var r = args.request || {};
-      if (!args.approver) refuse("Choose who approves this email.");
+      // As comms.web_call does since 20261124100000: with no approver the send is approved at
+      // once, signed off by the person signed in.
       var id = uuid();
       var rgrp = r.recipient_group || "broker_primary_email", rcount = (r.broker_keys || r.contact_ids || []).length;
       // As the database does, a segment send counts the distinct addresses among the selected contacts.
@@ -361,9 +362,9 @@
       }
       if ((r.broker_keys || []).length && (r.contact_ids || []).length) refuse("Choose brokers or contacts, not both.");
       if (rgrp === "broker_contact_segment" && !segKnown(r.contact_ids || [])) refuse("Some of those contacts are no longer in the segment. Reload it.");
-      beSends.unshift({ send_id: id, subject: r.subject, category: r.category, requested_at: now(), send_after: r.send_after || null, broker_count: rcount, sent_count: 0, delivered_count: 0, failed_count: 0, bounced_count: 0, clicked_count: 0, status: "awaiting_approval", requested_by: me, recipient_group: rgrp });
+      beSends.unshift({ send_id: id, subject: r.subject, category: r.category, requested_at: now(), send_after: r.send_after || null, broker_count: rcount, sent_count: 0, delivered_count: 0, failed_count: 0, bounced_count: 0, clicked_count: 0, status: args.approver ? "awaiting_approval" : "approved", requested_by: me, recipient_group: rgrp });
       beInputs[id] = { template_key: r.template_key, subject: r.subject, category: r.category, link_url: r.link_url, variables: r.variables, recipient_group: rgrp };
-      return { send_id: id, broker_count: rcount, redirected_to: REDIRECT, approvers: [args.approver] };
+      return { send_id: id, broker_count: rcount, redirected_to: REDIRECT, approvers: args.approver ? [args.approver] : [] };
     }
     if (action === "renewals_upcoming") return { redirect_to: REDIRECT, go_live_date: "2026-11-02", emails: copy(rwUpcoming) };
     if (action === "renewals_sent") {
