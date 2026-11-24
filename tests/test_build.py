@@ -33,11 +33,11 @@ FIXTURE = (
 
 
 def copy_pricing_code(folder):
-    # The files {{XLSX_LIB}}, {{PRICING_ADAPTERS}}, {{PRICING_EXPORTS}} and {{PRICING_GRID}} in hub.src.html read.
+    # The files {{XLSX_LIB}}, {{PRICING_ADAPTERS}}, {{PRICING_EXPORTS}}, {{PRICING_GRID}} and {{PRICING_HEALTH}} in hub.src.html read.
     (folder / "vendor").mkdir(exist_ok=True)
     (folder / "pricing").mkdir(exist_ok=True)
     shutil.copy(ROOT / "vendor" / "xlsx.full.min.js", folder / "vendor" / "xlsx.full.min.js")
-    for name in ("adapters.js", "exports.js", "grid.js"):
+    for name in ("adapters.js", "exports.js", "grid.js", "health.js"):
         shutil.copy(ROOT / "pricing" / name, folder / "pricing" / name)
 
 
@@ -446,16 +446,155 @@ class CommittedPagesTests(unittest.TestCase):
                 failed = [c for c in result["results"] if not c["ok"]]
                 self.assertEqual(failed, [], json.dumps(failed, indent=1, ensure_ascii=False))
 
+    def test_price_screen_preview_in_a_browser(self):
+        # The preview hub, signed in through the stub and starting in Pricing > Supplier files, driven by
+        # tools/price-preview-check.js in a headless Chromium (Phil Brook, 19/11/2026): with no gas band
+        # sets the grid shows the ladder and New band set; a blank new set stays blank and the preview
+        # waits until it is filled; Save saves and never applies; Apply saves a new set, then applies;
+        # names already used are refused; View only sees no New band set or Save.
+        browser = next((b for b in BROWSERS if b and Path(b).is_file()), None)
+        if browser is None:
+            self.skipTest("no Chromium browser found (set DV_BROWSER to one)")
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        shutil.copytree(ASSETS, tmp / "assets")
+        shutil.copytree(ROOT / "parts", tmp / "parts")
+        shutil.copytree(ROOT / "vendor", tmp / "vendor")
+        shutil.copytree(ROOT / "pricing", tmp / "pricing")
+        shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
+        (tmp / "tools").mkdir()
+        shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
+        r = run_build(tmp, "--preview")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        preview = (tmp / "preview" / "hub.html").read_text(encoding="utf-8")
+        signed_in = ("<script>localStorage.clear(); localStorage.setItem('dyce.hub.token', 'stubcheck');"
+                     " localStorage.setItem('dyce.hub.where', JSON.stringify({tool: 'pricing', item: 'files'}));</script>")
+        check = (ROOT / "tools" / "price-preview-check.js").read_text(encoding="utf-8").replace("</", "<\\/")
+        i = preview.index("<script")
+        page = preview[:i] + signed_in + preview[i:]
+        j = page.rindex("</body>")
+        page = page[:j] + "<script>" + check + "</script>" + page[j:]
+        (tmp / "check.html").write_text(page, encoding="utf-8")
+        for query in ("as=pricing", "as=pricingview"):
+            with self.subTest(query=query):
+                r = subprocess.run(
+                    [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+                     "--user-data-dir=" + str(tmp / ("profile-" + re.sub(r"\W", "-", query))),
+                     "--window-size=1440,900", "--virtual-time-budget=120000", "--dump-dom", (tmp / "check.html").as_uri() + "?" + query],
+                    capture_output=True, text=True, encoding="utf-8", timeout=180)
+                found = re.findall(r'<pre id="result">(.*?)</pre>', r.stdout, re.S)
+                self.assertTrue(found and found[-1], "the check wrote no result: %s" % r.stderr[-500:])
+                result = json.loads(html.unescape(found[-1]))
+                if os.environ.get("PRICE_CHECK_REPORT"):
+                    print(json.dumps(result, indent=1, ensure_ascii=False))
+                self.assertTrue(result["results"], "no checks ran")
+                failed = [c for c in result["results"] if not c["ok"]]
+                self.assertEqual(failed, [], json.dumps(failed, indent=1, ensure_ascii=False))
+
+    def test_margins_screen_in_a_browser(self):
+        # The Margins screen as Phil Brook's Margins mockup (19/11/2026), driven by
+        # tools/margins-preview-check.js in a headless Chromium: the On chart row takes four band sets at
+        # most; the Cell detail shows the cell's figures and its product's versions, with Restore as a
+        # new change; Review changes and Save with a reason save through band_sets_save; View only sees
+        # no Manage, Restore or Review.
+        browser = next((b for b in BROWSERS if b and Path(b).is_file()), None)
+        if browser is None:
+            self.skipTest("no Chromium browser found (set DV_BROWSER to one)")
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        shutil.copytree(ASSETS, tmp / "assets")
+        shutil.copytree(ROOT / "parts", tmp / "parts")
+        shutil.copytree(ROOT / "vendor", tmp / "vendor")
+        shutil.copytree(ROOT / "pricing", tmp / "pricing")
+        shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
+        (tmp / "tools").mkdir()
+        shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
+        r = run_build(tmp, "--preview")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        preview = (tmp / "preview" / "hub.html").read_text(encoding="utf-8")
+        signed_in = ("<script>localStorage.clear(); localStorage.setItem('dyce.hub.token', 'stubcheck');"
+                     " localStorage.setItem('dyce.hub.where', JSON.stringify({tool: 'pricing', item: 'bands'}));</script>")
+        check = (ROOT / "tools" / "margins-preview-check.js").read_text(encoding="utf-8").replace("</", "<\\/")
+        i = preview.index("<script")
+        page = preview[:i] + signed_in + preview[i:]
+        j = page.rindex("</body>")
+        page = page[:j] + "<script>" + check + "</script>" + page[j:]
+        (tmp / "check.html").write_text(page, encoding="utf-8")
+        for query in ("as=pricing", "as=pricingview"):
+            with self.subTest(query=query):
+                r = subprocess.run(
+                    [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+                     "--user-data-dir=" + str(tmp / ("profile-" + re.sub(r"\W", "-", query))),
+                     "--window-size=1440,900", "--virtual-time-budget=120000", "--dump-dom", (tmp / "check.html").as_uri() + "?" + query],
+                    capture_output=True, text=True, encoding="utf-8", timeout=180)
+                found = re.findall(r'<pre id="result">(.*?)</pre>', r.stdout, re.S)
+                self.assertTrue(found and found[-1], "the check wrote no result: %s" % r.stderr[-500:])
+                result = json.loads(html.unescape(found[-1]))
+                if os.environ.get("MARGINS_CHECK_REPORT"):
+                    print(json.dumps(result, indent=1, ensure_ascii=False))
+                self.assertTrue(result["results"], "no checks ran")
+                failed = [c for c in result["results"] if not c["ok"]]
+                self.assertEqual(failed, [], json.dumps(failed, indent=1, ensure_ascii=False))
+
+    def test_price_screen_makes_and_saves_band_sets(self):
+        # Phil Brook, 19/11/2026: the Price screen makes band sets (the Margins page's form, shared),
+        # keeps a blank one blank, waits for every band before previewing, and saves without applying
+        # through the same save step Apply uses.
+        src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
+        ws = mine[mine.index("function workspace("): mine.index("// Band sets and splits (spec 4.4)")]
+        self.assertEqual(mine.count("function newSetCard("), 1)
+        self.assertIn("newSetCard({", ws)
+        self.assertIn("open(newSetCard({", mine)
+        self.assertEqual(mine.count('btn("Add to the grid"'), 1, "the form is written once")
+        self.assertIn('btn("New product", () => newSetPanel(), "ghost small")', ws)
+        self.assertIn('const saveBtn = btn("Save", () => doSave(), "ghost");', ws)
+        self.assertIn('const applyBtn = btn("Apply", () => doApply(), "");', ws)
+        self.assertEqual(ws.count('call("band_sets_save"'), 1, "Save and Apply share one save step")
+        # bundle_save once, in the one save step: a change makes a new product configuration (Phil
+        # Brook, 20/11/2026); the screen no longer updates one or saves a choice without margins.
+        self.assertEqual(ws.count('call("bundle_save"'), 1)
+        self.assertNotIn("bundleId: p.bundle.bundleId", ws)
+        self.assertIn("async function saveStep(", ws)
+        save = ws[ws.index("async function doSave("): ws.index("async function doApply(")]
+        self.assertIn("saveStep(", save)
+        self.assertNotIn('"apply"', save)
+        self.assertNotIn("preview_selection", save)
+        self.assertIn("No price has changed.", save)
+        self.assertIn("saveStep(", ws[ws.index("async function doApply("):])
+        self.assertIn("Fill every band of \" + gap.name + \" to see the preview.", ws)
+        self.assertIn("G.firstGap(", ws)
+        # The screen opens on the current product configuration, and a change is named with today's date.
+        self.assertIn("G.currentConfig(bs.bundles, bs.bandSets, file.supplierId)", ws)
+        # 20/11/2026: what is live comes first; the most recently saved configuration is the fallback.
+        self.assertIn("G.liveChoice(liveInfo && liveInfo.rows, file.supplierId, file.fuel, bs.bandSets, bs.bundles)", ws)
+        self.assertIn("Current: the live products (no saved product configuration matches).", ws)
+        self.assertIn("G.defaultConfigName(", ws)
+        self.assertIn('"New product configuration:"', ws)
+        self.assertIn('"More options"', ws)
+        self.assertIn('"Use a different product configuration"', ws)
+        self.assertNotIn("They are saved when you apply.", mine)
+        # The rules still show their sentences.
+        self.assertIn("Choose at most \" + MAX_PICKS + \" products.", ws)
+        self.assertIn("G.selectionProblem(", ws)
+        self.assertIn("STALE_TEXT(c.name)", ws)
+        # The grid shows the ladder's bands when there are no band sets.
+        self.assertIn("opts.emptyText", mine)
+        stub = (ROOT / "tools" / "preview-stub.js").read_text(encoding="utf-8")
+        self.assertIn("Gamma_gas_example_06112026.xlsx", stub)
+        self.assertNotIn('addNamed("gas"', stub)
+
     def test_pricing_tab_is_in_the_built_hub(self):
         page = (ROOT / "hub.html").read_text(encoding="utf-8")
         src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
         self.assertIn('id: "pricing", label: "Pricing"', page)
         self.assertIn('allowed: (t) => t.some((c) => c.startsWith("pricing."))', page)
-        for item in ("files", "bands", "book"):
+        for item in ("files", "bands", "splits", "book"):
             self.assertIn('{ id: "%s"' % item, page)
-        # Band sets and splits is one screen: the separate Splits item is gone.
-        self.assertIn('{ id: "bands", label: "Band sets and splits", need: PR_VIEW }', page)
-        self.assertNotIn('{ id: "splits"', page)
+        # Margins and Splits are two screens (plain-words change, 18/11/2026), margins first.
+        self.assertIn('{ id: "bands", label: "Margins", need: PR_VIEW }', page)
+        self.assertIn('{ id: "splits", label: "Splits", need: PR_VIEW }', page)
+        self.assertLess(page.index('{ id: "bands"'), page.index('{ id: "splits"'))
         # Runs and publishing is gone: files are priced from the Supplier files workspace.
         self.assertNotIn('{ id: "runs", label: "Runs and publishing"', page)
         self.assertIn("/functions/v1/dna-pricing", page)
@@ -464,12 +603,13 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("function parseSupplierFile(", page)
         self.assertIn("return { FORMATS, ROW_KEYS, parseSupplierFile };", page)
         self.assertIn("function workbookFor(", page)
-        self.assertIn("return { BROKER_SHEET, UD_SHEET, BROKER_HEADER, UD_HEADER, brokerSheet, udUploadSheet, workbookFor };", page)
+        self.assertIn("return { BROKER_SHEET, BROKER_GAS_SHEET, UD_SHEET, BROKER_HEADER, BROKER_GAS_HEADER, UD_HEADER, UD_MIN_TERM_MONTHS, brokerSheet, brokerGasSheet, udUploadSheet, workbookFor };", page)
         self.assertIn("function selectionProblem(", page)
         self.assertIn("return { parseMargin,", page)
+        self.assertIn("function bookHealth(", page)
         self.assertNotIn("{{", page)
         # The source holds the placeholders; the build holds the code.
-        for key in ("XLSX_LIB", "PRICING_ADAPTERS", "PRICING_EXPORTS", "PRICING_GRID"):
+        for key in ("XLSX_LIB", "PRICING_ADAPTERS", "PRICING_EXPORTS", "PRICING_GRID", "PRICING_HEALTH"):
             self.assertIn("{{%s}}" % key, src)
         self.assertNotRegex(page, r"(?m)^export\b")
 
@@ -489,8 +629,7 @@ class CommittedPagesTests(unittest.TestCase):
 
     def test_pricing_stub_answers_every_op_with_four_ticks(self):
         stub = (ROOT / "tools" / "preview-stub.js").read_text(encoding="utf-8")
-        ops = ("overview split_list book_live book_rows file_start file_rows "
-               "file_finish file_reject band_set_retire "
+        ops = ("overview split_list book_live book_rows book_check band_set_retire "
                "split_save split_publish apply publish_abandon output_upload_url output_record "
                "output_link band_sets band_set_history band_sets_save bundle_save bundle_retire ladder_save "
                "file_regions preview_selection").split()
@@ -501,8 +640,16 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("pricing:", stub)
         # Ops no screen calls any more have no stub answer (task 9).
         mine = stub[stub.index("// ---------- Pricing: the dna-pricing"): stub.index("// ---------- Commission Engine")]
-        for gone in ("run_set", "run_set_prepare", "preview", "band_set_get", "band_set_new", "band_set_copy", "band_set_save", "band_set_approve", "publish"):
+        for gone in ("file_start", "file_rows", "file_finish", "file_reject", "run_set", "run_set_prepare", "preview", "band_set_get", "band_set_new", "band_set_copy", "band_set_save", "band_set_approve", "publish"):
             self.assertNotIn('"%s"' % gone, mine, gone)
+
+    def test_supplier_files_has_no_hand_load_and_links_each_price_book_to_its_folder(self):
+        src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
+        self.assertIn('PR_HEALTH.folderUrl(b.folder), target: "_blank", rel: "noopener"', mine)
+        self.assertNotIn("Load a file by hand", mine)
+        for gone in ("loadCard", "file_start", "file_rows", "file_finish", "drawReport", "splitRows", "T.load"):
+            self.assertNotIn(gone, mine, gone)
 
     def test_band_sets_and_splits_screen_calls_the_v2_ops(self):
         src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
@@ -513,7 +660,7 @@ class CommittedPagesTests(unittest.TestCase):
         for gone in ("band_set_new", "band_set_copy", "band_set_save", "band_set_approve", "function drawEditor", "async function splits("):
             self.assertNotIn(gone, mine, gone)
         # Publishing a split no longer reprices anything, so the page does not say it did.
-        self.assertNotIn("r.runsPrepared", mine[mine.index("// Band sets and splits (spec 4.4)"): mine.index("// After Publish: wait for the book")])
+        self.assertNotIn("r.runsPrepared", mine[mine.index("// Band sets and splits (spec 4.4)"): mine.index("// After Apply: wait for the book")])
         self.assertIn("G.toSavePayload(", mine)
         self.assertIn("return { show, reset, drawGrid };", mine)
 
@@ -525,14 +672,12 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("sellAnnualPence", mine)
         self.assertIn("marginAnnualPence", mine)
         self.assertNotIn("sell_tac_pence", mine)
-        self.assertIn("rep.row_count_loaded", mine)
         self.assertNotIn('"Rows loaded: " + comma(added)', mine)
         self.assertNotIn("runs_prepared", mine)
         self.assertNotIn("run_set_prepare", mine)
-        self.assertIn('"Load a file by hand (until the SharePoint loader runs)"', mine)
+        self.assertNotIn("Load a file by hand", mine)
         stub = (ROOT / "tools" / "preview-stub.js").read_text(encoding="utf-8")
         self.assertIn("sellAnnualPence", stub)
-        self.assertIn("row_count_loaded", stub)
         self.assertNotIn("runs_prepared", stub)
 
     def test_price_this_file_workspace_calls_the_v2_ops(self):
@@ -543,11 +688,13 @@ class CommittedPagesTests(unittest.TestCase):
         for gone in ('call("run_set"', 'call("preview"', 'call("publish"', "async function runs(", "function previewCard(", "function prepareCard("):
             self.assertNotIn(gone, mine, gone)
         # The three states of a file the list shows, and the one sentence for a stale band set.
-        self.assertIn("Price this file", mine)
+        self.assertIn('btn(f.state === "live" ? "Reprice" : "Price"', mine)
         self.assertIn("f.canApply", mine)
-        self.assertIn("was saved against an older band ladder. Open it on the margins screen and save it again.", mine)
-        self.assertIn("Same for acquisition and renewal", mine)
-        self.assertIn("Also save this choice as a bundle", mine)
+        self.assertIn("was made on an older ladder. Open it on Margins and save it again.", mine)
+        self.assertIn("Separate acquisition and renewal", mine)
+        self.assertNotIn("Same for acquisition and renewal", mine)
+        for gone in ('"Update " + src.name', '"New version of "', '"Save the changed products"', '"Save as product configuration"'):
+            self.assertNotIn(gone, mine, gone)
         self.assertIn("G.selectionProblem(", mine)
         self.assertIn("G.toPreviewItems(", mine)
         # Attention items are keyed by product and sale type (ruling P8), in camelCase, in the page and the stub.
@@ -559,12 +706,50 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertNotIn("a.label ||", mine)
         self.assertIn("a.rangeMinKwh", mine)
         # Edits are kept unless something was actually saved before a refusal.
-        self.assertIn("if (savedSomething) {", mine)
+        self.assertIn("if (err && err.savedSomething) {", mine)
         self.assertNotIn("afterSave", mine)
         self.assertIn("afterPublish(", mine)
         self.assertIn("makeFiles(", mine)
         # afterPublish and makeFiles are not inside a removed screen.
         self.assertIn("async function afterPublish(set, before, box, alive)", mine)
+
+    def test_pricing_says_product_configuration_not_bundle(self):
+        # Phil Brook, 19/11/2026: in what a person reads on the Pricing tab a bundle is a "product
+        # configuration". Code names (bundleId, bundle_save, bundle_retire, the "bundle" switch value)
+        # keep the old word; a text with a space in it is something a person reads.
+        src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
+        texts = [t for t in re.findall(r'"([^"\n]*)"', mine) if " " in t]
+        self.assertEqual([t for t in texts if re.search(r"(?i)bundle|pricing configuration", t)], [])
+        # Phil Brook, 19/11/2026: a band set is a "product" in what a person reads, and what was the
+        # product (Standard, Gold and so on) is the "product type". Op names such as band_sets_save keep
+        # the old words.
+        self.assertEqual([t for t in texts if re.search(r"(?i)band sets?\b", t)], [])
+        for text in ('"By product type"', 'field("Product type", prod)', '"Manage products"', '"New product"', '"Versions of this product"'):
+            self.assertIn(text, mine, text)
+        grid = (ROOT / "pricing" / "grid.js").read_text(encoding="utf-8")
+        self.assertIn("rows.push({ k: 'Product type', v:", grid)
+        self.assertEqual(re.findall(r"'[^'\n]*band sets?\b[^'\n]*'", grid), [])
+        for text in ('"By product configuration"', '"New product configuration"', '"Edit product configuration members"',
+                     '"Retire product configuration"', '"New product configuration:"', '"Use a different product configuration"',
+                     '"None (all suppliers)"', '"All suppliers"'):
+            self.assertIn(text, mine, text)
+
+    def test_pricing_plain_words_and_usability(self):
+        # The plain-words change (18/11/2026): the preview as a table of annual cost by usage and
+        # term, Manage and a save bar on Margins, Check a price on the Live price book, region names,
+        # and the database's attention codes as sentences.
+        src = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        mine = src[src.index("// BEGIN PRICING"): src.index("// END PRICING")]
+        for text in ("function drawPivot(", '"All rates and margins"', '"Check before applying"', 'class: "savebar"',
+                     '"Manage products"', "async function splitsPage(n)", '"Check a price"', 'call("book_check"',
+                     "const ISSUE_TEXT = {", "const regionText = ", "const personName = ", '"Rebuild files"', '"Abandon update"'):
+            self.assertIn(text, mine, text)
+        for gone in ('"Engine version"', '"Proposed sell annual cost"', '"Make the files again"', '"Band sets to price with"',
+                     '"Rows loaded of source"', '"Apply this choice"', "Nothing is saved until", '"Show it"'):
+            self.assertNotIn(gone, mine, gone)
+        # A grid item holding a wide table does not push the page sideways.
+        self.assertIn("#pr .card > * { min-width: 0; }", src)
 
     def test_this_file_holds_no_em_dash(self):
         # M6: the em dashes this file tests for are written as escapes.

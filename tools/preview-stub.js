@@ -44,6 +44,12 @@
 // A publish answers at once; the book then shows as being built until __stub.buildMs (default
 // 15000) has passed, so the page's 10 second poll sees it go live. Loading a file for the supplier
 // "Gamma Example" answers with a load report whose runs could not be prepared (no published split).
+// Beta Example Energy's electricity is live with the products of its own product configuration, Alpha
+// Example Power's file is not live and has a product configuration saved for Alpha, so the Price screen
+// opens on each one (Phil Brook, 20/11/2026).
+// Gas has no band sets and no bundles, as in dyce-prod on 19/11/2026, and Gamma Example's gas file
+// of 06/11/2026 is ready to price: Price on it shows the gas ladder with no band sets, for New band
+// set, Save (which changes no price) and Apply.
 // The Commission Engine's answers (the commission-engine function's page op) are its pages as its
 // own views draw them over invented values, copied in by tools/ce-preview-pages.mjs; they are
 // gated as its core.ts gates them (one of its page paths and a tick that opens it, else the
@@ -262,7 +268,7 @@
 
   var S1 = "11111111-1111-4111-8111-111111111111", S2 = "22222222-2222-4222-8222-222222222222", S3 = "33333333-3333-4333-8333-333333333333";
   var beSends = [
-    { send_id: S1, subject: "New prices are live from 10/11/2026", category: "pricing", requested_at: "2026-11-06T09:40:00+00:00", send_after: null, broker_count: 5, sent_count: 0, delivered_count: 0, failed_count: 0, bounced_count: 0, clicked_count: 0, status: "awaiting_approval", requested_by: "@me", recipient_group: "broker_primary_email" },
+    { send_id: S1, subject: "New prices are live from 10/11/2026", category: "pricing", requested_at: new Date(Date.now() - 3600000).toISOString(), send_after: null, broker_count: 5, sent_count: 0, delivered_count: 0, failed_count: 0, bounced_count: 0, clicked_count: 0, status: "awaiting_approval", requested_by: "@me", recipient_group: "broker_primary_email" },
     { send_id: S2, subject: "Prices withdrawn: submit contracts by 31/10/2026", category: "pricing", requested_at: "2026-10-28T14:05:00+00:00", send_after: null, broker_count: 5, sent_count: 1, delivered_count: 1, failed_count: 0, bounced_count: 0, clicked_count: 1, status: "sent", requested_by: "sam.example@dyce-energy.co.uk" },
     { send_id: S3, subject: "Example partner news, November", category: "newsletter", requested_at: "2026-11-05T16:20:00+00:00", send_after: "2026-11-20T09:00:00+00:00", broker_count: 4, sent_count: 0, delivered_count: 0, failed_count: 0, bounced_count: 0, clicked_count: 0, status: "approved", requested_by: "@me", recipient_group: "broker_contact_segment" }
   ];
@@ -353,6 +359,12 @@
     }
     if (action === "inputs") { if (!beInputs[args.send_id]) refuse("Which email? Its send id is missing or not valid."); return copy(beInputs[args.send_id]); }
     if (action === "bounced") return copy(beBounced);
+    if (action === "send_now") {
+      var sn = beSends.find(function (x) { return x.send_id === args.send_id; });
+      if (!sn || mine(sn).requested_by !== me) refuse("Only the person who requested this email can do that.");
+      if (sn.status !== "awaiting_approval") refuse("This email is already " + sn.status + ", so there is nothing to send.");
+      sn.status = "approved"; return { status: "approved" };
+    }
     if (action === "cancel" || action === "ask_again") {
       var s = beSends.find(function (x) { return x.send_id === args.send_id; });
       if (!s || mine(s).requested_by !== me) refuse("Only the person who requested this email can do that.");
@@ -363,7 +375,8 @@
     if (action === "attachment_part" || action === "attachment_finish") return { id: args.id };
     if (action === "request") {
       var r = args.request || {};
-      if (!args.approver) refuse("Choose who approves this email.");
+      // As comms.web_call does since 20261124100000: with no approver the send is approved at
+      // once, signed off by the person signed in.
       var id = uuid();
       var rgrp = r.recipient_group || "broker_primary_email", rcount = (r.broker_keys || r.contact_ids || []).length;
       // As the database does, a segment send counts the distinct addresses among the selected contacts.
@@ -374,9 +387,9 @@
       }
       if ((r.broker_keys || []).length && (r.contact_ids || []).length) refuse("Choose brokers or contacts, not both.");
       if (rgrp === "broker_contact_segment" && !segKnown(r.contact_ids || [])) refuse("Some of those contacts are no longer in the segment. Reload it.");
-      beSends.unshift({ send_id: id, subject: r.subject, category: r.category, requested_at: now(), send_after: r.send_after || null, broker_count: rcount, sent_count: 0, delivered_count: 0, failed_count: 0, bounced_count: 0, clicked_count: 0, status: "awaiting_approval", requested_by: me, recipient_group: rgrp });
+      beSends.unshift({ send_id: id, subject: r.subject, category: r.category, requested_at: now(), send_after: r.send_after || null, broker_count: rcount, sent_count: 0, delivered_count: 0, failed_count: 0, bounced_count: 0, clicked_count: 0, status: args.approver ? "awaiting_approval" : "approved", requested_by: me, recipient_group: rgrp });
       beInputs[id] = { template_key: r.template_key, subject: r.subject, category: r.category, link_url: r.link_url, variables: r.variables, recipient_group: rgrp };
-      return { send_id: id, broker_count: rcount, redirected_to: REDIRECT, approvers: [args.approver] };
+      return { send_id: id, broker_count: rcount, redirected_to: REDIRECT, approvers: args.approver ? [args.approver] : [] };
     }
     if (action === "renewals_upcoming") return { redirect_to: REDIRECT, go_live_date: "2026-11-02", emails: copy(rwUpcoming) };
     if (action === "renewals_sent") {
@@ -720,9 +733,8 @@
   var PR_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/dna-pricing";
   var PR_UPLOAD = DV_STORAGE + "object/upload/sign/pricing-files/";
   var PR_TICK = {
-    "overview": "pricing.view", "split_list": "pricing.view", "book_live": "pricing.view", "book_rows": "pricing.view",
+    "overview": "pricing.view", "split_list": "pricing.view", "book_live": "pricing.view", "book_rows": "pricing.view", "book_check": "pricing.view",
     "band_sets": "pricing.view", "band_set_history": "pricing.view", "file_regions": "pricing.view", "preview_selection": "pricing.view",
-    "file_start": "pricing.load", "file_rows": "pricing.load", "file_finish": "pricing.load", "file_reject": "pricing.load",
     "band_set_retire": "pricing.set", "band_sets_save": "pricing.set", "bundle_save": "pricing.set", "bundle_retire": "pricing.set", "ladder_save": "pricing.set", "split_save": "pricing.set", "split_publish": "pricing.set",
     "apply": "pricing.publish", "publish_abandon": "pricing.publish", "output_upload_url": "pricing.publish", "output_record": "pricing.publish", "output_link": "pricing.view"
   };
@@ -732,7 +744,8 @@
   var prSuppliers = [
     { supplier_id: "alpha", supplier_name: "Alpha Example Power", panel_status: "active" },
     { supplier_id: "beta", supplier_name: "Beta Example Energy", panel_status: "active" },
-    { supplier_id: "gamma", supplier_name: "Gamma Example Gas", panel_status: "active" }
+    { supplier_id: "gamma", supplier_name: "Gamma Example Gas", panel_status: "active" },
+    { supplier_id: "delta", supplier_name: "Delta Example Energy", panel_status: "active" }
   ];
   // Pricing v2 file states. state is one of loading, awaiting_bandings, applying, live, replaced, load_failed.
   var PR_STATE_LABEL = { loading: "Loading", awaiting_bandings: "Awaiting bandings", applying: "Applying", live: "Live", replaced: "Replaced", load_failed: "Load failed" };
@@ -740,7 +753,11 @@
     { supplierFileId: F1, supplierId: "alpha", fuel: "electricity", fileFormat: "yu_elec_v1", sourceFilename: "Alpha_electricity_example_12112026.xlsx", loadedAt: "2026-11-12T16:20:00+00:00", quoteValidFrom: "2026-11-16", quoteValidUntil: "2026-11-30", rowCountSource: 162708, rowCountLoaded: 162700, refusedCount: 8, state: "awaiting_bandings" },
     { supplierFileId: F2, supplierId: "beta", fuel: "electricity", fileFormat: "voltx_elec_v1", sourceFilename: "Beta_electricity_example_10112026.xlsx", loadedAt: "2026-11-10T14:05:00+00:00", quoteValidFrom: "2026-11-11", quoteValidUntil: "2026-11-25", rowCountSource: 40320, rowCountLoaded: 40320, refusedCount: 0, state: "live" },
     { supplierFileId: F3, supplierId: "gamma", fuel: "gas", fileFormat: "yu_gas_v1", sourceFilename: "Gamma_gas_example_09112026.xlsx", loadedAt: "2026-11-09T16:00:00+00:00", quoteValidFrom: null, quoteValidUntil: null, rowCountSource: 9000, rowCountLoaded: 4500, refusedCount: 0, state: "loading" },
-    { supplierFileId: pid(105), supplierId: "beta", fuel: "electricity", fileFormat: "voltx_elec_v1", sourceFilename: "Beta_electricity_example_03112026.xlsx", loadedAt: "2026-11-03T09:40:00+00:00", quoteValidFrom: "2026-11-04", quoteValidUntil: "2026-11-18", rowCountSource: 40100, rowCountLoaded: 40100, refusedCount: 0, state: "replaced" }
+    { supplierFileId: pid(105), supplierId: "beta", fuel: "electricity", fileFormat: "voltx_elec_v1", sourceFilename: "Beta_electricity_example_03112026.xlsx", loadedAt: "2026-11-03T09:40:00+00:00", quoteValidFrom: "2026-11-04", quoteValidUntil: "2026-11-18", rowCountSource: 40100, rowCountLoaded: 40100, refusedCount: 0, state: "replaced" },
+    // The newest finished gas file (the 09/11 one is still loading), so it can be priced.
+    { supplierFileId: pid(106), supplierId: "gamma", fuel: "gas", fileFormat: "yu_gas_v1", sourceFilename: "Gamma_gas_example_06112026.xlsx", loadedAt: "2026-11-06T10:15:00+00:00", quoteValidFrom: "2026-11-07", quoteValidUntil: "2026-11-21", rowCountSource: 8800, rowCountLoaded: 8800, refusedCount: 0, state: "awaiting_bandings" },
+    // Live since 18/11/2026 with products that no saved product configuration holds (see deltaRow).
+    { supplierFileId: pid(107), supplierId: "delta", fuel: "electricity", fileFormat: "voltx_elec_v1", sourceFilename: "Delta_electricity_example_17112026.xlsx", loadedAt: "2026-11-17T15:00:00+00:00", quoteValidFrom: "2026-11-18", quoteValidUntil: "2026-12-02", rowCountSource: 9600, rowCountLoaded: 9600, refusedCount: 0, state: "live" }
   ];
   var prLoadFailures = [{ driveItemId: "invented-drive-item-1", sourcePath: "Pricing/Inbox/Gamma_gas_example_13112026.xlsx", supplierId: "gamma", fuel: "gas", reason: "The sheet named Rates was not found (invented reason for the preview).", seenAt: "2026-11-13T07:30:00+00:00" }];
   var prLastPreview = { attentionCount: -1, fingerprint: "" }, prAppliedRuns = [];
@@ -797,11 +814,23 @@
   ];
   var R = function (n) { return pid(400 + n); };
   var prLive = [
-    { supplier_id: "beta", fuel: "electricity", product: "Standard", sale_type: "acquisition", price_run_id: R(4), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0 },
-    { supplier_id: "beta", fuel: "electricity", product: "Standard", sale_type: "renewal", price_run_id: R(4), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0 },
-    { supplier_id: "beta", fuel: "electricity", product: "Gold", sale_type: "acquisition", price_run_id: R(5), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0 },
-    { supplier_id: "beta", fuel: "electricity", product: "Gold", sale_type: "renewal", price_run_id: R(5), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0 }
+    { supplier_id: "beta", fuel: "electricity", product: "Standard", sale_type: "acquisition", price_run_id: R(4), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0, config_name: "Standard", config_version: 3, named: true },
+    { supplier_id: "beta", fuel: "electricity", product: "Standard", sale_type: "renewal", price_run_id: R(4), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0, config_name: "Standard", config_version: 3, named: true },
+    { supplier_id: "beta", fuel: "electricity", product: "Advanced Saver", sale_type: "acquisition", price_run_id: R(5), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0, config_name: "Advanced Saver", config_version: 3, named: true },
+    { supplier_id: "beta", fuel: "electricity", product: "Advanced Saver", sale_type: "renewal", price_run_id: R(5), published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-11T08:05:00+00:00", engine_version: "20261116130000", supplier_file_id: F2, source_filename: prFiles[1].sourceFilename, row_count: 115200, publishing_runs: 0, config_name: "Advanced Saver", config_version: 3, named: true }
   ];
+  // Delta Example Energy (20/11/2026): live with no saved product configuration matching, different
+  // products for acquisition and renewal, Standard live at version 2 (version 3 saved since), a
+  // retired product (Old Saver) still live, and an older unnamed run (named false), which the Price
+  // screen ignores.
+  var deltaRow = function (product, st, run, cfg) {
+    return Object.assign({ supplier_id: "delta", fuel: "electricity", product: product, sale_type: st, price_run_id: run, published_by: "quinn.example@dyce-energy.co.uk", published_at: "2026-11-18T09:30:00+00:00", engine_version: "20261116130000", supplier_file_id: pid(107), source_filename: "Delta_electricity_example_17112026.xlsx", row_count: 9600, publishing_runs: 0 }, cfg);
+  };
+  prLive.push(deltaRow("Standard", "acquisition", R(6), { config_name: "Standard", config_version: 2, named: true }),
+    deltaRow("Standard", "renewal", R(6), { config_name: "Standard", config_version: 2, named: true }),
+    deltaRow("Silver", "acquisition", R(7), { config_name: "Silver", config_version: 3, named: true }),
+    deltaRow("Advanced Saver", "renewal", R(8), { config_name: "Old Saver", config_version: 1, named: true }),
+    deltaRow("Gold", "acquisition", R(9), { config_name: null, config_version: null, named: false }));
   var prProblems = [{ supplier: "gamma", fuel: "gas", message: "Build failed: the book could not be written for 2 runs (invented message for the preview).", "when": "2026-11-12T17:45:00+00:00" }];
   var prBuiltAt = null, prPublishedFile = null, prRecorded = {};
   prRecorded[R(4)] = [{ layout: "broker", path: "outputs/" + R(4) + "/broker.xlsx", sha256: "c".repeat(64) }, { layout: "ud_upload", path: "outputs/" + R(4) + "/ud_upload.xlsx", sha256: "c".repeat(64) }];
@@ -832,7 +861,8 @@
 
   // Pricing v2: the band ladder, band sets (with versions) and bundles of each fuel. Invented figures,
   // none of them a price. The "Gold renewal" set was saved against version 2 of the electricity
-  // ladder, so the page shows it carried to the current ladder.
+  // ladder, so the page shows it carried to the current ladder. Gas has a ladder and no band sets or
+  // bundles, as in dyce-prod on 19/11/2026: they are made on the Price screen or on Margins.
   var band2 = function (ladder, i, margin, share) { return { bandIndex: ladder[i].bandIndex, eacMinKwh: ladder[i].eacMinKwh, eacMaxKwh: ladder[i].eacMaxKwh, marginMilliPencePerKwh: margin, standingSharePct: share }; };
   var mkLadder = function (id, version, ranges) { return { ladderId: id, version: version, bands: ranges.map(function (r, i) { return { bandIndex: i + 1, eacMinKwh: r[0], eacMaxKwh: r[1] }; }) }; };
   var prLadder = {
@@ -853,11 +883,16 @@
   addNamed("electricity", "Silver", "Silver", 1400, [660, 580, 500, 450, 390, 330], [24, 21, 19, 17, 14, 12], prLadder.electricity.bands, 3);
   addNamed("electricity", "Advanced Saver", "Advanced Saver", 1600, [760, 680, 600, 540, 470, 400], [20, 18, 16, 14, 12, 10], prLadder.electricity.bands, 3);
   addNamed("electricity", "Gold renewal", "Gold", 1500, [640, 560, 480, 420, 330], [25, 22, 20, 15, 12], prLadderOld.bands, 2);
-  addNamed("gas", "Gas Standard", "Standard", 800, [300, 260, 230, 200, 170], [0, 0, 0, 0, 0], prLadder.gas.bands, 2);
-  addNamed("gas", "Gas Gold", "Gold", 800, [340, 300, 260, 230, 200], [0, 0, 0, 0, 0], prLadder.gas.bands, 2);
-  prBundles.push({ bundleId: pid(851), fuel: "electricity", name: "Core range", members: ["Standard", "Gold", "Silver"] });
-  prBundles.push({ bundleId: pid(852), fuel: "electricity", name: "Advanced range", members: ["Advanced Saver"] });
-  prBundles.push({ bundleId: pid(853), fuel: "gas", name: "Gas range", members: ["Gas Standard", "Gas Gold"] });
+  prBundles.push({ bundleId: pid(851), fuel: "electricity", name: "Core range", members: ["Standard", "Gold", "Silver"], supplierId: null });
+  prBundles.push({ bundleId: pid(852), fuel: "electricity", name: "Advanced range", members: ["Standard", "Advanced Saver"], supplierId: "beta" });
+  // The Price screen opens on the current product configuration (Phil Brook, 20/11/2026): Beta's file
+  // is live (Standard and Advanced Saver, the products of Advanced range); Alpha's is not live and has
+  // Alpha November, saved for Alpha; gas has none at all.
+  prBundles.push({ bundleId: pid(853), fuel: "electricity", name: "Alpha November", members: ["Standard", "Gold"], supplierId: "alpha" });
+  // An optional supplier on products and product configurations (spine change of 19/11/2026): null is
+  // every supplier. Gold is for Alpha only and Advanced Saver (with Advanced range) for Beta only;
+  // Standard, Silver, Gold renewal and Core range are for every supplier.
+  prNamed.forEach(function (x) { x.supplierId = x.name === "Gold" ? "alpha" : x.name === "Advanced Saver" ? "beta" : null; });
 
   // The database's rule (pricing.newest_finished_file): only the newest finished file of a supplier and
   // fuel can be priced, whatever its state, so a Live newest file can be priced again.
@@ -873,6 +908,20 @@
     if (typeof ladderId !== "string" || !ladderId) return "The band ladder is not valid.";
     if (ladderId !== prLadder[fuel].ladderId) return "The " + fuel + " band ladder has changed since this screen was opened. Open it again.";
     return null;
+  };
+
+  // book_live's band set columns (dyce-spine, 20/11/2026): price_config_id, config_key, config_name,
+  // config_version and named, as the database's left join to pricing.price_config gives them. A row
+  // made here names its band set by price_config_id (an applied run) or by config_name and
+  // config_version (the seed rows); the rest is filled from prNamed. A name not in prNamed is a
+  // retired band set, given an invented id. config_key is an invented "fuel|name".
+  var prLiveConfig = function (row) {
+    var r = copy(row), v = null, x = null;
+    if (r.price_config_id) prNamed.forEach(function (y) { y.versions.forEach(function (w) { if (w.priceConfigId === r.price_config_id) { x = y; v = w; } }); });
+    else if (r.config_name) { x = prNamed.filter(function (y) { return y.fuel === r.fuel && y.name === r.config_name; })[0] || null; v = x ? x.versions.filter(function (w) { return w.version === r.config_version; })[0] || null : null; }
+    if (x && v) return Object.assign(r, { price_config_id: v.priceConfigId, config_key: x.fuel + "|" + x.name, config_name: x.name, config_version: v.version, named: true });
+    if (r.config_name) return Object.assign(r, { price_config_id: pid(1990), config_key: r.fuel + "|" + r.config_name, named: true });
+    return Object.assign(r, { price_config_id: r.price_config_id || pid(1991), config_key: null, config_name: null, config_version: null, named: false });
   };
 
   function prAnswer(body) {
@@ -919,7 +968,7 @@
       if (!Array.isArray(body.selections) || body.selections.length < 1 || body.selections.length > 8) return bad("Choose between 1 and 8 band sets.");
       if (body.selections.some(function (s) { return !prNamed.some(function (x) { return x.versions.some(function (v) { return v.priceConfigId === s.priceConfigId; }); }) || ["all", "acquisition", "renewal"].indexOf(s.saleType) < 0; })) return bad("Every choice must be a saved band set with a sale type.");
       if (body.attentionSeen !== prLastPreview.attentionCount || body.fingerprint !== prLastPreview.fingerprint) return bad("The list of items needing attention has changed since you read it. Preview it again.");
-      prAppliedRuns = body.selections.map(function (sel) { var nm = prNamed.filter(function (x) { return x.versions.some(function (v) { return v.priceConfigId === sel.priceConfigId; }); })[0]; return { product: nm.product, saleType: sel.saleType }; });
+      prAppliedRuns = body.selections.map(function (sel) { var nm = prNamed.filter(function (x) { return x.versions.some(function (v) { return v.priceConfigId === sel.priceConfigId; }); })[0]; return { product: nm.product, saleType: sel.saleType, priceConfigId: sel.priceConfigId }; });
       af.state = "applying"; prPublishedFile = af.supplierFileId; prBuiltAt = Date.now() + (window.__stub && window.__stub.buildMs != null ? window.__stub.buildMs : 15000);
       return ok({ runsPublishing: body.selections.length });
     }
@@ -932,8 +981,8 @@
       var live = function () { return prNamed.filter(function (x) { return x.fuel === fuel && !x.retired; }); };
       var ladder = prLadder[fuel];
       if (op === "band_sets") {
-        return ok({ ladder: ladder, bandSets: live().map(function (x) { var c = current(x); return { name: x.name, priceConfigId: c.priceConfigId, version: c.version, product: x.product, costPerMeterPence: c.costPerMeterPence, ladderCurrent: c.ladderVersion === ladder.version, savedBy: c.savedBy, savedAt: c.savedAt, bands: c.bands }; }),
-          bundles: prBundles.filter(function (b) { return b.fuel === fuel && !b.retired; }).map(function (b) { return { bundleId: b.bundleId, name: b.name, members: b.members.filter(function (m) { return live().some(function (x) { return x.name === m; }); }) }; }) });
+        return ok({ ladder: ladder, bandSets: live().map(function (x) { var c = current(x); return { name: x.name, priceConfigId: c.priceConfigId, version: c.version, product: x.product, supplierId: x.supplierId == null ? null : x.supplierId, costPerMeterPence: c.costPerMeterPence, ladderCurrent: c.ladderVersion === ladder.version, savedBy: c.savedBy, savedAt: c.savedAt, bands: c.bands }; }),
+          bundles: prBundles.filter(function (b) { return b.fuel === fuel && !b.retired; }).map(function (b) { return { bundleId: b.bundleId, name: b.name, supplierId: b.supplierId == null ? null : b.supplierId, members: b.members.filter(function (m) { return live().some(function (x) { return x.name === m; }); }) }; }) });
       }
       if (op === "band_set_history") {
         var h = live().filter(function (x) { return x.name === body.name; })[0];
@@ -948,6 +997,7 @@
           if (!st || typeof st.name !== "string" || st.name.trim().length < 1 || st.name.length > 60) return bad("A band set name must be 1 to 60 characters.");
           if (st.fuel !== fuel) return bad(label + ": the fuel does not match.");
           if (st.isNew ? nameTaken(st.name) : !live().some(function (x) { return x.name === st.name; })) return bad(st.isNew ? "There is already a band set or bundle with that name." : label + " was not found.");
+          if (st.supplierId != null && !prSuppliers.some(function (sp) { return sp.supplier_id === st.supplierId; })) return bad(label + ": that supplier is not known.");
           var slp = prLadderProblem(st.ladderId, fuel);
           if (slp) return bad(slp);
           if (!Array.isArray(st.bands) || st.bands.length !== ladder.bands.length) return bad(label + ": give a margin and share for each of the " + ladder.bands.length + " bands.");
@@ -959,7 +1009,8 @@
         }
         var savedList = body.sets.map(function (st) {
           var x = prNamed.filter(function (y) { return y.name === st.name; })[0];
-          if (!x) { x = { fuel: fuel, name: st.name, product: st.product, versions: [] }; prNamed.push(x); }
+          if (!x) { x = { fuel: fuel, name: st.name, product: st.product, supplierId: null, versions: [] }; prNamed.push(x); }
+          if (st.supplierId !== undefined) x.supplierId = st.supplierId;
           var v = { priceConfigId: pid(900 + (prSeq++)), version: x.versions.length + 1, status: "approved", savedBy: person(me).email, savedAt: now(), reason: String(body.reason).trim(), costPerMeterPence: st.costPerMeterPence, ladderVersion: ladder.version,
             bands: st.bands.map(function (b, k) { return band2(ladder.bands, k, b.marginMilliPencePerKwh, b.standingSharePct); }) };
           x.versions.push(v); x.product = st.product;
@@ -982,8 +1033,9 @@
         var existing = body.bundleId ? prBundles.filter(function (b) { return b.bundleId === body.bundleId; })[0] : null;
         if (body.bundleId && !existing) return [404, { ok: false, error: "That bundle was not found." }];
         if ((!existing || existing.name !== body.name) && nameTaken(body.name)) return bad("There is already a band set or bundle with that name.");
-        if (existing) { existing.name = body.name; existing.members = body.members.slice(); return ok({ bundleId: existing.bundleId }); }
-        var nb2 = { bundleId: pid(860 + prBundles.length), fuel: fuel, name: body.name, members: body.members.slice() };
+        if (body.supplierId != null && !prSuppliers.some(function (sp) { return sp.supplier_id === body.supplierId; })) return bad("That supplier is not known.");
+        if (existing) { existing.name = body.name; existing.members = body.members.slice(); if (body.supplierId !== undefined) existing.supplierId = body.supplierId; return ok({ bundleId: existing.bundleId }); }
+        var nb2 = { bundleId: pid(860 + prBundles.length), fuel: fuel, name: body.name, members: body.members.slice(), supplierId: body.supplierId == null ? null : body.supplierId };
         prBundles.push(nb2);
         return ok({ bundleId: nb2.bundleId });
       }
@@ -1012,34 +1064,44 @@
     if (op === "book_live") {
       var building = prBuiltAt !== null && Date.now() < prBuiltAt, live = copy(prLive);
       if (!DEMO && prPublishedFile && !building) {
-        // The runs of the applied choice, once built: one per product and sale type chosen.
+        // The runs of the applied choice, once built: one per product and sale type chosen. They take
+        // the place of the supplier and fuel's whole live set, as the database's build does.
         var pubFile = find(prFiles, "supplierFileId", prPublishedFile);
+        live = live.filter(function (x) { return !(x.supplier_id === pubFile.supplierId && x.fuel === pubFile.fuel); });
         prAppliedRuns.forEach(function (x, i) {
           (x.saleType === "all" ? ["acquisition", "renewal"] : [x.saleType]).forEach(function (st) {
-            live.push({ supplier_id: pubFile.supplierId, fuel: pubFile.fuel, product: x.product, sale_type: st, price_run_id: R(20 + i), published_by: person(me).email, published_at: now(), engine_version: "20261116130000", supplier_file_id: pubFile.supplierFileId, source_filename: pubFile.sourceFilename, row_count: 12, publishing_runs: 0 });
+            live.push({ supplier_id: pubFile.supplierId, fuel: pubFile.fuel, product: x.product, sale_type: st, price_run_id: R(20 + i), published_by: person(me).email, published_at: now(), engine_version: "20261116130000", supplier_file_id: pubFile.supplierFileId, source_filename: pubFile.sourceFilename, row_count: 12, publishing_runs: 0, price_config_id: x.priceConfigId });
           });
         });
       }
-      return ok({ live: live, problems: prProblems });
+      return ok({ live: live.map(prLiveConfig), problems: prProblems });
     }
     if (op === "book_rows") {
       var all = prBookRows(body.priceRunId), after = body.after, lim = Math.min(Math.max(Number(body.limit) || 1000, 1), 5000);
       var from = after ? all.findIndex(function (r) { return r.product_key === after; }) + 1 : 0, page = all.slice(from, from + lim);
       return ok({ rows: page, next: page.length === lim && from + lim < all.length ? page[page.length - 1].product_key : null });
     }
-    if (op === "file_start") {
-      if (!/^[0-9a-f]{64}$/.test(body.sha256 || "")) return bad("The file checksum must be 64 lower-case hexadecimal characters.");
-      prSent = 0;
-      var path = body.supplierId + "/" + body.fuel + "/" + body.sha256 + "." + body.extension;
-      return ok({ fileId: pid(500 + calls.length), uploadUrl: PR_UPLOAD + path + "?token=preview-not-a-real-link", path: path });
+    // The Live price book's price check: a live run's single-rate prices at the usages given, terms
+    // 12, 24 and 36, for the sale types the run is live for. INVENTED ARITHMETIC, as prPreview's.
+    if (op === "book_check") {
+      if (!body.region) return bad("Give the region.");
+      if (!Array.isArray(body.usages) || body.usages.length < 1 || body.usages.length > 10 || !body.usages.every(function (u) { return Number.isSafeInteger(u) && u > 0; })) return bad("Give between 1 and 10 usages.");
+      var liveRows = prLive.filter(function (x) { return x.price_run_id === body.priceRunId; });
+      var cinfo = prRuns[body.priceRunId] || (liveRows[0] ? { product: liveRows[0].product } : null);
+      if (!cinfo) return ok({ rows: [] });
+      var cbump = Math.max(0, prProducts.map(function (x) { return x.product; }).indexOf(cinfo.product)) * 0.35;
+      var csales = liveRows.length ? liveRows.map(function (x) { return x.sale_type; }) : ["acquisition", "renewal"];
+      var crows = [];
+      body.usages.forEach(function (u) {
+        [12, 24, 36].forEach(function (t) {
+          csales.forEach(function (st) {
+            var unit = Math.round((20 + cbump + t * 0.02 + (st === "renewal" ? 0.1 : 0)) * 100) / 100, stand = Math.round((40 + cbump * 2) * 100) / 100;
+            crows.push({ saleType: st, usageKwh: u, termMonths: t, unitRatePence2dp: unit, standingChargePence2dp: stand, sellAnnualPence: Math.round(unit * u + stand * 365) });
+          });
+        });
+      });
+      return ok({ rows: crows });
     }
-    if (op === "file_rows") { prSent += (body.rows || []).length; return ok({ added: (body.rows || []).length }); }
-    if (op === "file_finish") {
-      var by = {}; (body.refused || []).forEach(function (r) { by[r.reason] = (by[r.reason] || 0) + 1; });
-      var rep = { refused: body.refused || [], refused_count: (body.refused || []).length, by_reason: by, row_count_loaded: prSent };
-      return ok({ report: rep });
-    }
-    if (op === "file_reject") return body.reason ? ok({}) : bad("The reason is needed.");
     if (op === "split_save") {
       var keys = { day_night: ["day", "night"], hh: ["day", "night"], evening_weekend: ["day", "ew"], evening_weekend_night: ["day", "ew", "night"] }[body.rateStructure];
       if (!keys || Object.keys(body.split || {}).sort().join() !== keys.slice().sort().join()) return bad("The split does not have the keys its rate structure needs.");
@@ -1076,7 +1138,6 @@
     prRecorded[body.priceRunId] = copy(body.files);
     return ok({});
   }
-  var prSent = 0;
 
   // ---------- Commission Engine: the commission-engine function's page op, gated as its core.ts gates it.
   var CE_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/commission-engine";
@@ -1260,7 +1321,7 @@
         // One live run per supplier, fuel, product and sale type: a newer run takes the place of an older one.
         prLive = prLive.filter(function (x) { return !(x.supplier_id === f.supplierId && x.fuel === f.fuel && x.product === r.product && types.indexOf(x.sale_type) >= 0); });
         types.forEach(function (st) {
-          prLive.push({ supplier_id: f.supplierId, fuel: f.fuel, product: r.product, sale_type: st, price_run_id: id, published_by: PERSONA.demo, published_at: now(), engine_version: "20261116130000", supplier_file_id: f.supplierFileId, source_filename: f.sourceFilename, row_count: 12, publishing_runs: 0 });
+          prLive.push({ supplier_id: f.supplierId, fuel: f.fuel, product: r.product, sale_type: st, price_run_id: id, published_by: PERSONA.demo, published_at: now(), engine_version: "20261116130000", supplier_file_id: f.supplierFileId, source_filename: f.sourceFilename, row_count: 12, publishing_runs: 0, price_config_id: r.priceConfigId });
         });
       });
     });
@@ -1302,7 +1363,7 @@
     prSolved = swapNames(prSolved);
     // The live book starts with Voltx's electricity file only.
     var liveRow = function (product, st, run) {
-      return { supplier_id: "voltx", fuel: "electricity", product: product, sale_type: st, price_run_id: run, published_by: PERSONA.demo, published_at: "2026-11-12T17:05:00+00:00", engine_version: "20261116130000", supplier_file_id: DF.voltxElec, source_filename: "Voltx_electricity_demo_12112026.xlsx", row_count: 12, publishing_runs: 0 };
+      return { supplier_id: "voltx", fuel: "electricity", product: product, sale_type: st, price_run_id: run, published_by: PERSONA.demo, published_at: "2026-11-12T17:05:00+00:00", engine_version: "20261116130000", supplier_file_id: DF.voltxElec, source_filename: "Voltx_electricity_demo_12112026.xlsx", row_count: 12, publishing_runs: 0, config_name: product, config_version: 3, named: true };
     };
     prLive = [liveRow("Standard", "acquisition", R(4)), liveRow("Standard", "renewal", R(4)), liveRow("Gold", "acquisition", R(5)), liveRow("Gold", "renewal", R(5))];
     prRuns = {};
@@ -1310,10 +1371,8 @@
     prRuns[R(5)] = { supplierId: "voltx", fuel: "electricity", product: "Gold", saleType: "all" };
     prRecorded = {};
     [R(4), R(5)].forEach(function (id) { prRecorded[id] = [{ layout: "broker", path: "outputs/" + id + "/broker.xlsx", sha256: "c".repeat(64) }, { layout: "ud_upload", path: "outputs/" + id + "/ud_upload.xlsx", sha256: "c".repeat(64) }]; });
-    // The default sets give each fuel its Standard and Gold; the demo adds Silver and Advanced Saver to gas.
-    addNamed("gas", "Gas Silver", "Silver", 800, [320, 280, 245, 215, 185], [0, 0, 0, 0, 0], prLadder.gas.bands, 2);
-    addNamed("gas", "Gas Advanced Saver", "Advanced Saver", 900, [380, 340, 300, 270, 240], [0, 0, 0, 0, 0], prLadder.gas.bands, 2);
-    prBundles.forEach(function (b) { if (b.name === "Gas range") b.members = ["Gas Standard", "Gas Gold", "Gas Silver"]; });
+    // Gas starts with no band sets, as in dyce-prod: the demo's gas files are priced by making band
+    // sets on the Price screen (New band set), then Save or Apply.
     // A tab that has already been used carries on from where it was.
     try {
       var saved = JSON.parse(sessionStorage.getItem(DEMO_KEY) || "null");

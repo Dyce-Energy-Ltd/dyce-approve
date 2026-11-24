@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import {
-  BROKER_HEADER, UD_HEADER, BROKER_SHEET, UD_SHEET, brokerSheet, udUploadSheet, workbookFor,
+  BROKER_HEADER, BROKER_GAS_HEADER, UD_HEADER, BROKER_SHEET, BROKER_GAS_SHEET, UD_SHEET, brokerSheet,
+  brokerGasSheet, udUploadSheet, workbookFor,
 } from './exports.js';
 
 const XLSX = createRequire(import.meta.url)('../vendor/xlsx.full.min.js');
@@ -29,7 +30,7 @@ function book(over = {}) {
     sell_unit_rate_day_pence_2dp: null, sell_unit_rate_night_pence_2dp: null,
     sell_unit_rate_ew_pence_2dp: null, sell_capacity_rate_pence_2dp: null,
     tariff_code: 'DV SR Standard', ...NAMES, split_used: null, sell_tac_pence: 123456,
-    quote_valid_from: null, quote_valid_until: null, published_by: 'someone@example.invalid',
+    quote_valid_from: '2026-11-20', quote_valid_until: '2026-11-27', published_by: 'someone@example.invalid',
     published_at: '2026-11-20T09:00:00Z', ...over,
   };
 }
@@ -42,8 +43,12 @@ const hh = (over = {}) => dayNight({
   meter_type: 'hh', profile_class: null, llf_band_group: 'lv', llf_band_number: 2,
   sell_capacity_rate_pence_2dp: '1.75', ...over,
 });
-const gas = () => book({ fuel: 'gas', dno_id: null, ldz: 'EA', meter_type: null, profile_class: null,
-  rate_structure: 'single', llf_band_group: null, llf_band_number: null });
+const gas = (over = {}) => book({ fuel: 'gas', dno_id: null, ldz: 'EA', meter_type: null, profile_class: null,
+  rate_structure: 'single', llf_band_group: null, llf_band_number: null, piece_min_kwh: 1000,
+  piece_max_kwh: 10000, tariff_code: 'GAS Gold', sell_standing_charge_pence_2dp: '63.33',
+  sell_unit_rate_single_pence_2dp: '8.71', ...over });
+const TODAY = '2026-11-20';
+const at = (r, n) => r[UD_HEADER.indexOf(n)];
 
 test('Broker header is exactly the old file\'s 20 columns', () => {
   assert.deepEqual(BROKER_HEADER, [
@@ -56,19 +61,30 @@ test('Broker header is exactly the old file\'s 20 columns', () => {
   assert.deepEqual(s.aoa, [BROKER_HEADER]);
 });
 
-test('UD Upload header is exactly the old file\'s 32 columns', () => {
+test('UD Upload header is exactly the 35 column Template layout', () => {
   assert.deepEqual(UD_HEADER, [
-    'Amr', 'Band', 'BrokerId', 'ContractDuration', 'DayRate', 'DnoId', 'EveningWeekendRate',
-    'ExitZone', 'FixedContractEndDate', 'GreenEnergy', 'Ldz', 'MaximumAnnualConsumption',
-    'MaximumContractStartDate', 'MaximumCreditScore', 'MaximumValidQuoteDate',
-    'MinimumAnnualConsumption', 'MinimumContractStartDate', 'MinimumCreditScore',
-    'MinimumValidQuoteDate', 'NightRate', 'PaymentMethod', 'ProductName', 'ProfileClass',
-    'RateStructure', 'SaleType', 'SetUplift', 'StandingCharge', 'StandingChargeType',
-    'TariffInformation1', 'UnitRate', 'Utility', 'Version']);
-  assert.equal(UD_HEADER.length, 32);
-  const s = udUploadSheet([]);
-  assert.equal(s.name, 'UD_Upload_NHH');
+    'BrokerId', 'Utility', 'DnoId', 'ProfileClass', 'RateStructure', 'Ldz', 'ExitZone', 'SaleType',
+    'ContractDuration', 'MinimumAnnualConsumption', 'MaximumAnnualConsumption',
+    'MinimumContractStartDate', 'MaximumContractStartDate', 'MinimumValidQuoteDate',
+    'MaximumValidQuoteDate', 'PaymentMethod', 'ProductName', 'StandingChargeType', 'GreenEnergy',
+    'Amr', 'MinimumCreditScore', 'MaximumCreditScore', 'SetUplift', 'StandingCharge', 'DayRate',
+    'NightRate', 'EveningWeekendRate', 'UnitRate', 'FixedContractEndDate', 'Version',
+    'TariffInformation1', 'TariffInformation2', 'TariffInformation3', 'TariffInformation4',
+    'TariffInformation5']);
+  assert.equal(UD_HEADER.length, 35);
+  const s = udUploadSheet([], TODAY);
+  assert.equal(s.name, 'Template');
   assert.deepEqual(s.aoa, [UD_HEADER]);
+});
+
+test('Gas broker header is exactly the 14 columns of the old gas file', () => {
+  assert.deepEqual(BROKER_GAS_HEADER, [
+    'Type', 'Tariff ID', 'Ldz', 'ContractDuration', 'AQ Min', 'AQ Max', 'MinimumContractStartDate',
+    'MaximumContractStartDate', 'MinimumValidQuoteDate', 'MaximumValidQuoteDate', 'Carbon_Offset',
+    'StandingCharge', 'UnitRate', 'Version']);
+  const s = brokerGasSheet([], TODAY);
+  assert.equal(s.name, 'Gas Broker Pricing');
+  assert.deepEqual(s.aoa, [BROKER_GAS_HEADER]);
 });
 
 test('a single rate acquisition row gives the Broker line in the old shape, at 2 dp', () => {
@@ -102,12 +118,11 @@ test('a sale type all row gives an Acquisition line and a Renewal line, each wit
   assert.deepEqual([aoa[1][0], aoa[1][1]], ['Acquisition', 'Dec26-12M-Acq Gold Standard']);
   assert.deepEqual([aoa[2][0], aoa[2][1]], ['Renewal', 'Dec26-12M-Ren Gold Standard']);
   assert.deepEqual(aoa[1].slice(2), aoa[2].slice(2));
-  const ud = udUploadSheet([book({ sale_type: 'all' })]).aoa;
+  const ud = udUploadSheet([book({ sale_type: 'all' })], TODAY).aoa;
   assert.equal(ud.length, 3);
-  const at = (r, n) => r[UD_HEADER.indexOf(n)];
-  assert.deepEqual([at(ud[1], 'SaleType'), at(ud[1], 'ProductName')],
+  assert.deepEqual([at(ud[1], 'SaleType'), at(ud[1], 'TariffInformation2')],
     ['Acquisition', 'Dec26-12M-Acq Gold Standard']);
-  assert.deepEqual([at(ud[2], 'SaleType'), at(ud[2], 'ProductName')],
+  assert.deepEqual([at(ud[2], 'SaleType'), at(ud[2], 'TariffInformation2')],
     ['Renewal', 'Dec26-12M-Ren Gold Standard']);
 });
 
@@ -120,10 +135,11 @@ test('an acquisition row or a renewal row gives one line', () => {
 
 test('a line with no tariff name is refused, not dropped', () => {
   assert.throws(() => brokerSheet([book({ tariff_name_acquisition: null })]), /tariff name/i);
-  assert.throws(() => udUploadSheet([book({ sale_type: 'all', tariff_name_renewal: null })]), /tariff name/i);
+  assert.throws(() => udUploadSheet([book({ sale_type: 'all', tariff_name_renewal: null })], TODAY), /tariff name/i);
+  assert.throws(() => brokerGasSheet([gas({ tariff_name_acquisition: null })], TODAY), /tariff name/i);
 });
 
-test('Broker keeps half hourly rows with the Capacity rate; gas rows are in neither file', () => {
+test('Broker keeps half hourly rows with the Capacity rate; gas rows are not in it', () => {
   const { aoa } = brokerSheet([book(), hh(), gas()]);
   assert.equal(aoa.length, 3);
   const line = aoa[2];
@@ -132,57 +148,84 @@ test('Broker keeps half hourly rows with the Capacity rate; gas rows are in neit
   assert.equal(line[17], 1.75);
 });
 
-test('UD Upload omits half hourly rows and gas rows', () => {
-  const { aoa } = udUploadSheet([hh(), gas(), dayNight()]);
-  assert.equal(aoa.length, 2);
-  assert.equal(aoa[1][UD_HEADER.indexOf('RateStructure')], 'Day Night');
+test('UD Upload omits half hourly rows, keeps gas rows', () => {
+  const { aoa } = udUploadSheet([hh(), gas(), dayNight()], TODAY);
+  assert.equal(aoa.length, 3);
+  assert.deepEqual(aoa.slice(1).map((r) => at(r, 'Utility')), ['Gas', 'Electricity']);
+  assert.equal(at(aoa[2], 'RateStructure'), 'Day Night Band 1');
 });
 
-test('UD Upload line: ProductName is the name, TariffInformation1 the code, GreenEnergy 0 or 1', () => {
-  const at = (r, n) => r[UD_HEADER.indexOf(n)];
-  const a = udUploadSheet([book()]).aoa[1];
-  assert.equal(a.length, 32);
-  assert.equal(at(a, 'ProductName'), 'Dec26-12M-Acq Gold Standard');
-  assert.equal(at(a, 'TariffInformation1'), 'DV SR Standard');
-  assert.equal(at(a, 'Band'), 'Band 1');
-  assert.equal(at(a, 'ContractDuration'), 12);
-  assert.equal(at(a, 'DnoId'), 10);
-  assert.equal(at(a, 'ProfileClass'), 3);
-  assert.equal(at(a, 'MinimumAnnualConsumption'), 1000);
-  assert.equal(at(a, 'MaximumAnnualConsumption'), 10000);
-  assert.equal(at(a, 'GreenEnergy'), 0);
-  assert.equal(at(a, 'UnitRate'), 31.47);
-  assert.equal(at(a, 'StandingCharge'), 61.23);
-  assert.equal(at(a, 'SaleType'), 'Acquisition');
-  for (const blank of ['Amr', 'BrokerId', 'ExitZone', 'Ldz', 'MinimumContractStartDate',
-    'MaximumContractStartDate', 'MinimumValidQuoteDate', 'MaximumValidQuoteDate', 'Utility',
-    'Version', 'SetUplift', 'FixedContractEndDate', 'DayRate', 'NightRate']) {
-    assert.equal(at(a, blank), null, blank);
-  }
-  assert.equal(at(udUploadSheet([book({ green_energy: true })]).aoa[1], 'GreenEnergy'), 1);
-  const dn = udUploadSheet([dayNight()]).aoa[1];
+test('UD Upload leaves out terms under 6 months; the broker files keep them', () => {
+  const rows = [book({ term_months: 3 }), book({ term_months: 6 }), gas({ term_months: 3 })];
+  const ud = udUploadSheet(rows, TODAY).aoa;
+  assert.equal(ud.length, 2);
+  assert.equal(at(ud[1], 'ContractDuration'), 6);
+  assert.equal(brokerSheet(rows).aoa.length, 3);
+  assert.equal(brokerGasSheet(rows, TODAY).aoa.length, 2);
+});
+
+test('UD Upload electricity line, cell by cell', () => {
+  const a = udUploadSheet([book()], TODAY).aoa[1];
+  assert.equal(a.length, 35);
+  assert.deepEqual(a, [
+    'Dyce', 'Electricity', 10, 3, 'Standard Band 1', null, null, 'Acquisition', 12, 1000, 10000,
+    '01/12/2026', '31/12/2026', '20/11/2026', '27/11/2026', 'Direct Debit', 'Example Fixed',
+    'With S/C', 'N', null, null, null, null, 61.23, null, null, null, 31.47, null, '20/11/2026',
+    'DV SR Standard', 'Dec26-12M-Acq Gold Standard', null, null, null]);
+  assert.equal(at(udUploadSheet([book({ green_energy: true })], TODAY).aoa[1], 'GreenEnergy'), 'Y');
+  const dn = udUploadSheet([dayNight()], TODAY).aoa[1];
   assert.deepEqual([at(dn, 'DayRate'), at(dn, 'NightRate'), at(dn, 'UnitRate')], [35.11, 20.42, null]);
+  const noBand = udUploadSheet([book({ llf_band_group: null, llf_band_number: null })], TODAY).aoa[1];
+  assert.equal(at(noBand, 'RateStructure'), 'Standard');
+});
+
+test('UD Upload gas line, cell by cell', () => {
+  const a = udUploadSheet([gas({ product_name: 'DY4 Gold' })], TODAY).aoa[1];
+  assert.deepEqual(a, [
+    'Dyce', 'Gas', null, null, 'Standard', 'EA', null, 'Acquisition', 12, 1000, 10000,
+    '01/12/2026', '31/12/2026', '20/11/2026', '27/11/2026', 'Direct Debit', 'DY4 Gold',
+    'With S/C', 'N', null, null, null, null, 63.33, null, null, null, 8.71, null, '20/11/2026',
+    'GAS Gold', 'Dec26-12M-Acq Gold Standard', null, null, null]);
+});
+
+test('UD Upload Version is the injected date, and the default is today', () => {
+  assert.equal(at(udUploadSheet([book()], '2026-01-05').aoa[1], 'Version'), '05/01/2026');
+  assert.equal(at(udUploadSheet([book()], new Date(2026, 10, 3)).aoa[1], 'Version'), '03/11/2026');
+  assert.match(at(udUploadSheet([book()]).aoa[1], 'Version'), /^\d{2}\/\d{2}\/\d{4}$/);
+});
+
+test('Gas broker file: gas rows only, in the old gas file\'s shape, at 2 dp', () => {
+  const { aoa } = brokerGasSheet([book(), gas({ sale_type: 'all' }), gas({ carbon_offset: true, term_months: 3 })], TODAY);
+  assert.equal(aoa.length, 4);
+  assert.deepEqual(aoa[1], [
+    'Acquisition', 'Dec26-12M-Acq Gold Standard', 'EA', 12, 1000, 10000, '01/12/2026', '31/12/2026',
+    '20/11/2026', '27/11/2026', 'Standard', 63.33, 8.71, '20/11/2026']);
+  assert.deepEqual([aoa[2][0], aoa[2][1]], ['Renewal', 'Dec26-12M-Ren Gold Standard']);
+  assert.equal(aoa[3][3], 3);
+  assert.equal(aoa[3][10], 'Carbon Offset');
 });
 
 test('no output column name mentions Cost, Margin or TAC', () => {
-  for (const name of [...BROKER_HEADER, ...UD_HEADER]) {
+  for (const name of [...BROKER_HEADER, ...BROKER_GAS_HEADER, ...UD_HEADER]) {
     assert.doesNotMatch(name, /cost|margin|tac/i, name);
   }
 });
 
 test('no cost or margin figure leaks into a line', () => {
   const r = book({ cost_tac_pence: 777001, margin_pence: 888002, sell_tac_pence: 999003 });
-  for (const v of [...brokerSheet([r]).aoa[1], ...udUploadSheet([r]).aoa[1]]) {
+  for (const v of [...brokerSheet([r]).aoa[1], ...udUploadSheet([r], TODAY).aoa[1],
+    ...brokerGasSheet([{ ...r, fuel: 'gas' }], TODAY).aoa[1]]) {
     assert.ok(![777001, 888002, 999003].includes(v));
   }
 });
 
 test('workbookFor round trips: sheet name and header row survive a write and a read', () => {
-  const rows = [book(), dayNight({ sale_type: 'all' })];
+  const rows = [book(), dayNight({ sale_type: 'all' }), gas()];
   for (const [layout, name, header, n] of [
-    ['broker', BROKER_SHEET, BROKER_HEADER, 4], ['ud_upload', UD_SHEET, UD_HEADER, 4],
+    ['broker', BROKER_SHEET, BROKER_HEADER, 4], ['ud_upload', UD_SHEET, UD_HEADER, 5],
+    ['broker_gas', BROKER_GAS_SHEET, BROKER_GAS_HEADER, 2],
   ]) {
-    const bytes = workbookFor(XLSX, layout, rows);
+    const bytes = workbookFor(XLSX, layout, rows, TODAY);
     assert.ok(bytes instanceof Uint8Array);
     const wb = XLSX.read(bytes, { type: 'array' });
     assert.deepEqual(wb.SheetNames, [name]);
@@ -196,4 +239,18 @@ test('workbookFor round trips: sheet name and header row survive a write and a r
   assert.equal(back[1][12], 31.47);
   assert.equal(back[1][10], '01/12/2026');
   assert.throws(() => workbookFor(XLSX, 'portal', [book()]), /layout/i);
+});
+
+test('workbookFor compresses: a large Broker file is a fraction of its stored size, and reads back whole', () => {
+  // 2,000 pieces, as both sale types: 4,000 rows. Stored uncompressed, as SheetJS does by default,
+  // the same sheet is several times larger; 23/11/2026 a Voltx file was 84 MB, over the 50 MB bucket.
+  const rows = Array.from({ length: 2000 }, (_, i) => book({ piece_min_kwh: 1000 + i, piece_max_kwh: 1000 + i }));
+  const bytes = workbookFor(XLSX, 'broker', rows, TODAY);
+  const { name, aoa } = brokerSheet(rows, TODAY);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name);
+  const stored = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }).byteLength;
+  assert.ok(bytes.byteLength * 2 < stored, `compressed ${bytes.byteLength} against stored ${stored}`);
+  const back = XLSX.utils.sheet_to_json(XLSX.read(bytes, { type: 'array' }).Sheets[name], { header: 1 });
+  assert.equal(back.length, aoa.length);
 });

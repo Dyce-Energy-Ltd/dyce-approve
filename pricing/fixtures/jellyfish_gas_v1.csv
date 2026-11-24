@@ -1,4 +1,4 @@
 id,name,region,standingCharge,unitRate,minAq,maxAq,effectiveFrom,effectiveTo,term
-9100001,Test Product (v1),XA,22.528,8.257,1,10000,01/10/2030,31/08/2031,3
+9100001,Test Product (v1),XA,22.528,8.257,1,10000,01/10/2030,31/08/2031,6
 9100002,Test Product (v1),XB,40.757,7.507,10001,20000,01/10/2030,31/08/2031,12
 9100003,Test Product (v1),XC,58.037,6.139,20001,293000,02/10/2030,31/08/2031,36

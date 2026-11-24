@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
   parseMargin, parseShare, formatMargin, midpointAnnualPounds, makeGrid, addColumn, setCells, shiftCells,
   copyColumn, pasteBlock, changedNames, problems, carryToLadder, toSavePayload, toPreviewItems,
-  selectionProblem, chartScale, dragValue, marginSplit, DAYS_PER_YEAR, setCostPerMeter, editedNames,
+  selectionProblem, chartScale, dragValue, marginSplit, DAYS_PER_YEAR, setCostPerMeter, editedNames, firstGap, isComplete,
+  chartAxis, CHART_MAX, toggleChartPick, syncChartPicks, changedCellCount, cellFacts, reviewLines, midpointText, bandRange,
+  forSupplier, repeatedProductType, newConfigNames, currentConfig, defaultConfigName, liveChoice,
 } from './grid.js';
 
 // Invented figures only.
@@ -155,7 +157,8 @@ test('toSavePayload and toPreviewItems', () => {
   const p = toSavePayload(g, ['Gold', 'New'], 'Autumn review');
   assert.equal(p.reason, 'Autumn review');
   assert.equal(p.sets.length, 2);
-  assert.deepEqual(Object.keys(p.sets[0]), ['name', 'fuel', 'product', 'costPerMeterPence', 'isNew', 'ladderId', 'bands']);
+  assert.deepEqual(Object.keys(p.sets[0]), ['name', 'fuel', 'product', 'costPerMeterPence', 'isNew', 'ladderId', 'bands', 'supplierId']);
+  assert.equal(p.sets[0].supplierId, null, 'a product for every supplier sends null');
   assert.equal(p.sets[0].isNew, false);
   assert.equal(p.sets[1].isNew, true);
   assert.equal(p.sets[0].fuel, 'electricity');
@@ -169,10 +172,10 @@ test('toSavePayload and toPreviewItems', () => {
 test('selectionProblem', () => {
   const prod = { 'Gold': 'Gold', 'Gold Voltx': 'Gold', 'Silver': 'Silver' };
   const f = n => prod[n];
-  assert.equal(selectionProblem([{ name: 'Gold', saleType: 'all' }, { name: 'Gold Voltx', saleType: 'acquisition' }], f), 'Gold is chosen twice for acquisition.');
+  assert.equal(selectionProblem([{ name: 'Gold', saleType: 'all' }, { name: 'Gold Voltx', saleType: 'acquisition' }], f), 'Two products of product type Gold are chosen for acquisition. Choose one product per product type.');
   assert.equal(selectionProblem([{ name: 'Gold', saleType: 'acquisition' }, { name: 'Gold Voltx', saleType: 'renewal' }], f), null);
-  assert.equal(selectionProblem([{ name: 'Gold', saleType: 'acquisition' }, { name: 'Gold', saleType: 'acquisition' }], f), 'Gold is chosen twice for acquisition.');
-  assert.equal(selectionProblem([{ name: 'Gold', saleType: 'renewal' }, { name: 'Gold Voltx', saleType: 'all' }], f), 'Gold is chosen twice for renewal.');
+  assert.equal(selectionProblem([{ name: 'Gold', saleType: 'acquisition' }, { name: 'Gold', saleType: 'acquisition' }], f), 'Two products of product type Gold are chosen for acquisition. Choose one product per product type.');
+  assert.equal(selectionProblem([{ name: 'Gold', saleType: 'renewal' }, { name: 'Gold Voltx', saleType: 'all' }], f), 'Two products of product type Gold are chosen for renewal. Choose one product per product type.');
   assert.equal(selectionProblem([{ name: 'Gold', saleType: 'all' }, { name: 'Silver', saleType: 'all' }], f), null);
   assert.equal(selectionProblem([], f), null);
 });
@@ -288,4 +291,246 @@ test('makeGrid keeps the ladderId; saves and preview items carry it', () => {
   assert.deepEqual(toSavePayload(g, ['Gold', 'New'], 'r').sets.map(s => s.ladderId), ['ladder-7', 'ladder-7']);
   assert.deepEqual(toPreviewItems(g, [{ name: 'Gold', saleType: 'all' }, { name: 'New', saleType: 'renewal' }]).map(i => i.ladderId), ['ladder-7', 'ladder-7']);
   assert.equal(makeGrid(LADDER, [], 'gas').ladderId, null, 'none given: null');
+});
+
+// The Price screen (19/11/2026): a blank new band set stays blank, and the preview waits until every
+// band of every chosen band set has a margin and a share. firstGap names the first one to fill.
+test('firstGap and isComplete: a blank new set stays blank until filled, margins before shares', () => {
+  let g = makeGrid(LADDER, [], 'gas', 'ladder-1');
+  assert.equal(g.columns.length, 0);
+  assert.equal(g.bands.length, LADDER.length, 'no products: the ladder still gives the rows');
+  assert.equal(firstGap(g), null);
+  g = addColumn(g, { name: 'Gas One', product: 'Standard', costPerMeterPence: 800 });
+  assert.ok(g.columns[0].margins.every(v => v == null) && g.columns[0].shares.every(v => v == null), 'nothing is filled in');
+  assert.deepEqual(firstGap(g), { name: 'Gas One', layer: 'margin' });
+  assert.equal(isComplete(g.columns[0]), false);
+  const all = LADDER.map(b => at('Gas One', b.bandIndex));
+  g = setCells(g, all.slice(0, -1), 'margin', 300);
+  assert.deepEqual(firstGap(g), { name: 'Gas One', layer: 'margin' }, 'one band still blank');
+  g = setCells(g, all, 'margin', 300);
+  assert.deepEqual(firstGap(g), { name: 'Gas One', layer: 'share' }, 'then the shares');
+  g = setCells(g, all, 'share', 0);
+  assert.equal(firstGap(g), null);
+  assert.equal(isComplete(g.columns[0]), true);
+  assert.deepEqual(problems(g), []);
+  // The first blank set in grid order is named, not a later one.
+  g = addColumn(addColumn(g, { name: 'B', product: 'Gold', costPerMeterPence: 0 }), { name: 'C', product: 'Silver', costPerMeterPence: 0, fromName: 'Gas One' });
+  assert.deepEqual(firstGap(g), { name: 'B', layer: 'margin' });
+  assert.equal(isComplete(g.columns[2]), true, 'a copy of a full set is full');
+});
+
+// ---------- The Margins page's look (Phil Brook's mockup, 19/11/2026)
+
+test('the On chart row takes four products at most', () => {
+  assert.equal(CHART_MAX, 4);
+  let picks = [];
+  for (const n of ['A', 'B', 'C', 'D']) {
+    const r = toggleChartPick(picks, n);
+    assert.equal(r.refused, false);
+    picks = r.picks;
+  }
+  assert.deepEqual(picks.map(p => p.slot), [0, 1, 2, 3], 'each in its own slot');
+  const fifth = toggleChartPick(picks, 'E');
+  assert.equal(fifth.refused, true, 'a fifth is refused');
+  assert.equal(fifth.picks, picks, 'and nothing changes');
+  // Untick one: the freed slot goes to the next one ticked.
+  picks = toggleChartPick(picks, 'B').picks;
+  assert.deepEqual(picks.map(p => p.name), ['A', 'C', 'D']);
+  picks = toggleChartPick(picks, 'E').picks;
+  assert.deepEqual(picks.find(p => p.name === 'E'), { name: 'E', slot: 1 });
+  assert.equal(toggleChartPick(picks, 'F').refused, true);
+});
+
+test('the chart starts with the first four and keeps in step with the grid', () => {
+  let s = syncChartPicks([], ['A', 'B', 'C', 'D', 'E', 'F'], null);
+  assert.deepEqual(s.picks.map(p => p.name), ['A', 'B', 'C', 'D'], 'the first four, never more');
+  // Unticked by the person: a later sync does not tick it again.
+  let picks = toggleChartPick(s.picks, 'B').picks;
+  s = syncChartPicks(picks, ['A', 'B', 'C', 'D', 'E', 'F'], s.seen);
+  assert.deepEqual(s.picks.map(p => p.name), ['A', 'C', 'D']);
+  // A band set new to the grid joins while there is room; one that has left the grid leaves the chart.
+  s = syncChartPicks(s.picks, ['A', 'C', 'D', 'E', 'F', 'G'], s.seen);
+  assert.deepEqual(s.picks.map(p => p.name), ['A', 'C', 'D', 'G']);
+  s = syncChartPicks(s.picks, ['C', 'D', 'G', 'H', 'I'], s.seen);
+  assert.deepEqual(s.picks.map(p => p.name), ['C', 'D', 'G', 'H']);
+  assert.ok(s.picks.length <= 4);
+});
+
+test('chartAxis: round gridlines a little above the largest margin', () => {
+  const a = chartAxis([760, 600, null], 164);
+  assert.equal(a.top, 1000);
+  assert.deepEqual(a.ticks, [0, 250, 500, 750, 1000]);
+  assert.equal(a.toY(1000), 0);
+  assert.equal(a.toY(0), 164);
+  assert.equal(dragValue(a, 82), 500, 'dragValue takes the axis as it takes chartScale');
+  assert.equal(chartAxis([], 100).top, 100, 'an empty chart still has a scale');
+  assert.ok(chartAxis([3000], 100).top >= 3450);
+});
+
+test('changedCellCount counts the cells that differ from what was saved', () => {
+  let g = grid0();
+  assert.equal(changedCellCount(g), 0);
+  g = setCells(g, [at('Gold', 0), at('Gold', 1)], 'margin', 5000);
+  g = setCells(g, [at('Silver', 0)], 'share', 12);
+  assert.equal(changedCellCount(g), 3);
+  g = setCells(g, [at('Gold', 0)], 'share', 12);
+  assert.equal(changedCellCount(g), 3, 'a cell with both layers changed counts once');
+  g = addColumn(g, { name: 'New', product: 'Gold', costPerMeterPence: 0 });
+  assert.equal(changedCellCount(g), 3, 'a blank new product has no changed cells yet');
+  g = setCells(g, [at('New', 2)], 'margin', 300);
+  assert.equal(changedCellCount(g), 4);
+});
+
+test('cellFacts: what the Cell detail panel shows for one band', () => {
+  let g = grid0();
+  const band = g.bands[1];
+  let rows = cellFacts(g.columns[0], band, 1);
+  const v = (k) => (rows.find(r => r.k === k) || {}).v;
+  assert.equal(v('Saved margin'), '1.100 p/kWh');
+  assert.equal(v('New margin'), undefined, 'no new margin until it changes');
+  assert.equal(v('Annual margin at midpoint, saved'), midpointText(1100, band.eacMinKwh, band.eacMaxKwh));
+  assert.equal(v('Standing charge share'), '40%');
+  const mid = (band.eacMinKwh + band.eacMaxKwh) / 2;
+  assert.equal(v('Added to the standing charge'), (1100 * mid / 1000 * 0.4 / 365).toFixed(3) + ' p/day');
+  assert.equal(v('Added to each unit rate'), (1.1 * 0.6).toFixed(3) + ' p/kWh');
+  assert.equal(v('Cost per meter'), '£0.05 a year');
+  assert.equal(v('Product type'), 'Gold');
+  g = setCells(g, [at('Gold', 1)], 'margin', 1500);
+  rows = cellFacts(g.columns[0], band, 1);
+  assert.equal(v('New margin'), '1.500 p/kWh');
+  assert.equal(v('Annual margin at midpoint, new'), midpointText(1500, band.eacMinKwh, band.eacMaxKwh));
+  g = addColumn(g, { name: 'Blank', product: 'Silver', costPerMeterPence: 700 });
+  rows = cellFacts(g.columns[2], band, 1);
+  assert.equal(v('Saved margin'), undefined, 'a new product has nothing saved');
+  assert.equal(v('New margin'), 'none yet');
+  assert.equal(v('Added to each unit rate'), undefined, 'no split without a margin and a share');
+});
+
+test('reviewLines: the changes of one product, in words', () => {
+  let g = setCells(grid0(), [at('Gold', 0)], 'margin', 1250);
+  g = setCells(g, [at('Gold', 2)], 'share', 35);
+  const lines = reviewLines(g, 'Gold');
+  assert.equal(lines.length, 2);
+  assert.ok(lines[0].startsWith(bandRange(g.bands[0]) + ' kWh: 1.000 to 1.250 p/kWh, annual margin at midpoint '));
+  assert.equal(lines[1], bandRange(g.bands[2]) + ' kWh: standing charge share 40% to 35%');
+  g = setCostPerMeter(g, 'Silver', 900);
+  assert.equal(reviewLines(g, 'Silver')[0], 'Cost per meter £0.05 to £9.00 a year');
+  g = addColumn(g, { name: 'New', product: 'Gold', costPerMeterPence: 1500, fromName: 'Silver' });
+  const nl = reviewLines(g, 'New');
+  assert.equal(nl[0], 'New product, cost per meter £15.00 a year.');
+  assert.equal(nl.length, 1 + g.bands.length);
+});
+
+// ---------- An optional supplier on products and product configurations (Phil Brook, 19/11/2026)
+
+test('the supplier is kept on columns, given to new ones, and sent on save', () => {
+  let g = makeGrid(LADDER, [set('Gold', 'Gold', 1000, 40, { supplierId: 'yu' }), set('Silver', 'Silver', 800, 30)], 'electricity');
+  assert.equal(g.columns[0].supplierId, 'yu');
+  assert.equal(g.columns[1].supplierId, null);
+  g = addColumn(g, { name: 'Voltx Gold', product: 'Gold', costPerMeterPence: 0, fromName: 'Gold', supplierId: 'voltx' });
+  g = addColumn(g, { name: 'Any', product: 'Silver', costPerMeterPence: 0 });
+  assert.equal(g.columns[2].supplierId, 'voltx', 'a copy takes the supplier it is given, not its source');
+  assert.equal(g.columns[3].supplierId, null);
+  const p = toSavePayload(g, ['Gold', 'Voltx Gold', 'Any'], 'r');
+  assert.deepEqual(p.sets.map(x => x.supplierId), ['yu', 'voltx', null]);
+});
+
+test('forSupplier: no supplier is every supplier', () => {
+  assert.equal(forSupplier({ supplierId: null }, 'yu'), true);
+  assert.equal(forSupplier({}, 'yu'), true);
+  assert.equal(forSupplier({ supplierId: 'yu' }, 'yu'), true);
+  assert.equal(forSupplier({ supplierId: 'voltx' }, 'yu'), false);
+});
+
+test('repeatedProductType: one product per product type in a configuration', () => {
+  const type = { Gold: 'Gold', 'Gold renewal': 'Gold', Silver: 'Silver' };
+  assert.equal(repeatedProductType(['Gold', 'Silver'], n => type[n]), null);
+  assert.equal(repeatedProductType(['Gold', 'Silver', 'Gold renewal'], n => type[n]), 'Gold');
+});
+
+test('newConfigNames: <configuration name> <product type>, refused in plain words when taken', () => {
+  const gold = { name: 'Gold', product: 'Gold' }, std = { name: 'Standard', product: 'Standard' };
+  assert.deepEqual(newConfigNames('Aggressive Pricing', [gold, std], new Set(['Gold', 'Standard'])),
+    [{ from: 'Gold', name: 'Aggressive Pricing Gold' }, { from: 'Standard', name: 'Aggressive Pricing Standard' }]);
+  assert.deepEqual(newConfigNames('Aggressive Pricing', [], new Set()), []);
+  assert.equal(newConfigNames('Aggressive Pricing', [gold], new Set(['Aggressive Pricing Gold'])).error,
+    'There is already a product called Aggressive Pricing Gold. Choose another name for the product configuration.');
+  assert.match(newConfigNames('Aggressive Pricing', [gold, { name: 'Gold renewal', product: 'Gold' }], new Set()).error, /^Two changed products are Gold/);
+  assert.match(newConfigNames('x'.repeat(57), [gold], new Set()).error, /longer than 60 characters/);
+});
+
+// The Price screen opens on the current product configuration (Phil Brook, 20/11/2026). Which products
+// are live cannot be read from the dna-pricing ops, so "current" is the most recently saved active
+// configuration for the file's supplier, else for every supplier; a configuration's date is the newest
+// save among its members.
+test('currentConfig: the supplier first, then every supplier, the most recently saved', () => {
+  const sets = [
+    { name: 'A', savedAt: '2026-11-10T09:00:00Z' }, { name: 'B', savedAt: '2026-11-12T09:00:00Z' },
+    { name: 'C', savedAt: '2026-11-18T09:00:00Z' }, { name: 'D', savedAt: '2026-11-19T09:00:00Z' },
+  ];
+  const bundles = [
+    { bundleId: 1, name: 'Old Yu', supplierId: 'yu', members: ['A'] },
+    { bundleId: 2, name: 'Yu', supplierId: 'yu', members: ['A', 'B'] },
+    { bundleId: 3, name: 'Voltx', supplierId: 'voltx', members: ['D'] },
+    { bundleId: 4, name: 'Everyone', supplierId: null, members: ['C'] },
+    { bundleId: 5, name: 'Everyone older', supplierId: null, members: ['A'] },
+  ];
+  assert.equal(currentConfig(bundles, sets, 'yu').bundle.name, 'Yu');
+  assert.equal(currentConfig(bundles, sets, 'yu').scope, 'supplier');
+  assert.equal(currentConfig(bundles, sets, 'jellyfish').bundle.name, 'Everyone');
+  assert.equal(currentConfig(bundles, sets, 'jellyfish').scope, 'all');
+  assert.equal(currentConfig([], sets, 'yu'), null);
+  // A configuration with no member left among the products is skipped.
+  assert.equal(currentConfig([{ bundleId: 9, name: 'Gone', supplierId: 'yu', members: ['Z'] }], sets, 'yu'), null);
+  // A tie keeps the first in the order given.
+  assert.equal(currentConfig([{ bundleId: 7, name: 'P', supplierId: null, members: ['A'] }, { bundleId: 8, name: 'Q', supplierId: null, members: ['A'] }], sets, 'yu').bundle.name, 'P');
+});
+
+test('defaultConfigName: " (2)", " (3)" when the name or a product it would make is taken', () => {
+  assert.equal(defaultConfigName('Yu gas 20/11/2026', new Set(), ['Gold']), 'Yu gas 20/11/2026');
+  assert.equal(defaultConfigName('Yu gas 20/11/2026', new Set(['Yu gas 20/11/2026']), []), 'Yu gas 20/11/2026 (2)');
+  assert.equal(defaultConfigName('Yu gas 20/11/2026', new Set(['Yu gas 20/11/2026', 'Yu gas 20/11/2026 (2)']), []), 'Yu gas 20/11/2026 (3)');
+  assert.equal(defaultConfigName('Yu gas 20/11/2026', new Set(['Yu gas 20/11/2026 Gold']), ['Gold']), 'Yu gas 20/11/2026 (2)');
+});
+
+// Phil Brook, 20/11/2026: "current" is what is live. book_live names the band set of each live run
+// (config_name, config_version, named); the older unnamed runs (named false) are left out.
+const liveRow = (product, sale, name, version, extra) => Object.assign({ supplier_id: 'yu', fuel: 'gas', product, sale_type: sale,
+  published_at: '2026-11-18T09:30:00+00:00', config_name: name, config_version: version, named: true }, extra);
+const LIVE_SETS = [{ name: 'Yu Standard', version: 2 }, { name: 'Yu Gold', version: 1 }, { name: 'Spare', version: 1 }];
+const LIVE_BUNDLES = [{ bundleId: 'b1', name: 'Everyone', supplierId: null, members: ['Yu Standard', 'Yu Gold'] },
+  { bundleId: 'b2', name: 'Yu', supplierId: 'yu', members: ['Yu Gold', 'Yu Standard'] },
+  { bundleId: 'b3', name: 'Voltx', supplierId: 'voltx', members: ['Yu Standard', 'Yu Gold'] }];
+
+test('liveChoice: the live band sets, the same for both sale types, and the configuration holding exactly them', () => {
+  const rows = [liveRow('Standard', 'acquisition', 'Yu Standard', 2), liveRow('Standard', 'renewal', 'Yu Standard', 2),
+    liveRow('Gold', 'acquisition', 'Yu Gold', 1), liveRow('Gold', 'renewal', 'Yu Gold', 1),
+    liveRow('Silver', 'acquisition', null, null, { named: false }),
+    liveRow('Standard', 'acquisition', 'Other', 1, { supplier_id: 'voltx' }), liveRow('Standard', 'acquisition', 'Elec', 1, { fuel: 'electricity' })];
+  const c = liveChoice(rows, 'yu', 'gas', LIVE_SETS, LIVE_BUNDLES);
+  assert.deepEqual(c.acq, ['Yu Standard', 'Yu Gold']);
+  assert.deepEqual(c.ren, ['Yu Standard', 'Yu Gold']);
+  assert.equal(c.same, true);
+  assert.equal(c.bundle.name, 'Yu', "the supplier's own configuration before an every-supplier one");
+  assert.deepEqual(c.missing, []);
+  assert.deepEqual(c.older, []);
+  assert.equal(c.since, '2026-11-18T09:30:00+00:00');
+});
+
+test('liveChoice: different per sale type, no configuration matching, a retired band set and an older version', () => {
+  const rows = [liveRow('Standard', 'acquisition', 'Yu Standard', 1), liveRow('Standard', 'renewal', 'Yu Standard', 1),
+    liveRow('Gold', 'acquisition', 'Yu Gold', 1), liveRow('Saver', 'renewal', 'Gone Saver', 3)];
+  const c = liveChoice(rows, 'yu', 'gas', LIVE_SETS, LIVE_BUNDLES);
+  assert.deepEqual(c.acq, ['Yu Standard', 'Yu Gold']);
+  assert.deepEqual(c.ren, ['Yu Standard']);
+  assert.equal(c.same, false);
+  assert.equal(c.bundle, null);
+  assert.deepEqual(c.missing, ['Gone Saver']);
+  assert.deepEqual(c.older, [{ name: 'Yu Standard', live: 1, now: 2 }]);
+});
+
+test('liveChoice: null when nothing named is live for the supplier and fuel', () => {
+  assert.equal(liveChoice([], 'yu', 'gas', LIVE_SETS, LIVE_BUNDLES), null);
+  assert.equal(liveChoice([liveRow('Gold', 'acquisition', null, null, { named: false })], 'yu', 'gas', LIVE_SETS, LIVE_BUNDLES), null);
+  assert.equal(liveChoice(null, 'yu', 'gas', LIVE_SETS, LIVE_BUNDLES), null);
 });

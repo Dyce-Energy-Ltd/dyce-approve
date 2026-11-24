@@ -1,4 +1,4 @@
 id,name,region,meterType,profileClass,standingCharge,allOrDayUnitRate,nightRate,eveningWeekendRate,minAq,maxAq,effectiveFrom,effectiveTo,term
 9000001,Test Product (v1),_A,DAY,3,50.5,24.521,0,0,1,300000,01/10/2030,31/08/2031,12
 9000002,Test Product (v1),_B,E7,4,50.5,25.257,20.146,0,1,300000,01/10/2030,31/08/2031,24
-9000003,Test Product (v1),_P,EWN,4,55.037,26.037,21.037,23.514,1,300000,01/10/2030,31/08/2031,3
+9000003,Test Product (v1),_P,EWN,4,55.037,26.037,21.037,23.514,1,300000,01/10/2030,31/08/2031,6

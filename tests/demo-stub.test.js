@@ -27,6 +27,16 @@ function demoPage(sessionStorage = makeStore(), localStorage = makeStore()) {
     async call(body, url = PR) { const r = await win.fetch(url, { method: "POST", body: JSON.stringify({ token: "stubdemo", ...body }) }); return { status: r.status, body: await r.json() }; } };
 }
 const bySupplier = (files, id, fuel) => files.filter((f) => f.supplierId === id && f.fuel === fuel);
+// Gas starts with no band sets, as in dyce-prod on 19/11/2026. This saves one, as Save on the Price
+// screen does (band_sets_save with isNew), and returns it as band_sets gives it.
+async function gasSet(d, name = "Gas Standard", product = "Standard") {
+  const gas = (await d.call({ op: "band_sets", fuel: "gas" })).body;
+  const bands = gas.ladder.bands.map((b, i) => ({ ...b, marginMilliPencePerKwh: 300 - i * 30, standingSharePct: 0 }));
+  const sv = await d.call({ op: "band_sets_save", reason: "demo", sets: [{ name, fuel: "gas", product, isNew: true, costPerMeterPence: 800, ladderId: gas.ladder.ladderId, bands }] });
+  assert.equal(sv.status, 200, JSON.stringify(sv.body));
+  const after = (await d.call({ op: "band_sets", fuel: "gas" })).body;
+  return { ladder: after.ladder, set: after.bandSets.find((s) => s.name === name) };
+}
 
 test("the demo signs in with no sign-in screen and answers no call from outside the page", async () => {
   const d = demoPage();
@@ -79,7 +89,7 @@ test("an older file of the same supplier and fuel turns replaced when the newer 
   const d = demoPage();
   const jf = (await d.call({ op: "overview" })).body.files.filter((f) => f.supplierId === "jellyfish");
   const newer = jf.find((f) => f.state === "awaiting_bandings");
-  const gas = (await d.call({ op: "band_sets", fuel: "gas" })).body, bs = gas.bandSets[0];
+  const { ladder, set: bs } = await gasSet(d), gas = { ladder };
   const items = [{ label: bs.name, product: bs.product, saleType: "all", costPerMeterPence: bs.costPerMeterPence, ladderId: gas.ladder.ladderId, bands: bs.bands }];
   const pv = (await d.call({ op: "preview_selection", fileId: newer.supplierFileId, region: "EA", usages: [20000], items })).body;
   assert.equal(pv.attentionCount, 0);
@@ -125,7 +135,7 @@ test("the newest finished file can be priced whatever its state; an older or loa
   const live = (await d.call({ op: "book_live" })).body.live.filter((x) => x.supplier_id === "voltx" && x.fuel === "electricity");
   assert.deepEqual(live.map((x) => x.product + " " + x.sale_type).sort(), ["Silver acquisition", "Silver renewal"], "the whole live set is replaced");
   const old = files.find((f) => f.supplierId === "jellyfish" && f.state === "replaced");
-  const gas = (await d.call({ op: "band_sets", fuel: "gas" })).body, gs = gas.bandSets[0];
+  const { ladder: gasLadder, set: gs } = await gasSet(d), gas = { ladder: gasLadder };
   const refused = await d.call({ op: "preview_selection", fileId: old.supplierFileId, region: "EA", usages: [20000], items: [{ label: gs.name, product: gs.product, saleType: "all", costPerMeterPence: gs.costPerMeterPence, ladderId: gas.ladder.ladderId, bands: gs.bands }] });
   assert.equal(refused.status, 400);
   assert.match(refused.body.error, /^Only the newest file of that supplier and fuel can be priced: Jellyfish_gas_demo_13112026\.xlsx\.$/);
@@ -160,4 +170,40 @@ test("the state lasts for the tab: a reload from the same session storage carrie
   assert.ok(yu);
   const fresh = demoPage();
   assert.ok(!(await fresh.call({ op: "band_sets", fuel: "electricity" })).body.bundles.some((b) => b.name === "Kept bundle"));
+});
+
+test("the price check answers a live run's prices by term and sale type, and nothing for a run that is not live", async () => {
+  const d = demoPage();
+  const live = (await d.call({ op: "book_live" })).body.live;
+  const run = live[0].price_run_id, sales = live.filter((x) => x.price_run_id === run).map((x) => x.sale_type).sort();
+  const r = await d.call({ op: "book_check", priceRunId: run, region: "23", usages: [10000] });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual([...new Set(r.body.rows.map((x) => x.termMonths))], [12, 24, 36]);
+  assert.deepEqual([...new Set(r.body.rows.map((x) => x.saleType))].sort(), sales);
+  assert.ok(r.body.rows.every((x) => x.sellAnnualPence === Math.round(x.unitRatePence2dp * 10000 + x.standingChargePence2dp * 365)));
+  assert.deepEqual((await d.call({ op: "book_check", priceRunId: "00000000-0000-4000-8000-000000000000", region: "23", usages: [10000] })).body.rows, []);
+  assert.equal((await d.call({ op: "book_check", priceRunId: run, region: "23", usages: [0] })).status, 400);
+});
+
+// The Price screen (Phil Brook, 19/11/2026): with no gas band sets there is still a ladder to band
+// against; a band set made there and saved, with a bundle, changes no file and no live price.
+test("gas starts with no band sets; saving a new one and a bundle changes no file and no live price", async () => {
+  const d = demoPage();
+  const gas0 = (await d.call({ op: "band_sets", fuel: "gas" })).body;
+  assert.deepEqual([gas0.bandSets.length, gas0.bundles.length], [0, 0]);
+  assert.equal(gas0.ladder.bands.length, 5, "the gas ladder is there to band against");
+  const files0 = (await d.call({ op: "overview" })).body.files, live0 = (await d.call({ op: "book_live" })).body.live;
+  const yuGas = files0.find((f) => f.supplierId === "yu" && f.fuel === "gas");
+  const { ladder, set } = await gasSet(d, "Gas Gold", "Gold");
+  assert.equal(set.version, 1);
+  const bu = await d.call({ op: "bundle_save", fuel: "gas", name: "Gas range", members: ["Gas Gold"] });
+  assert.equal(bu.status, 200, JSON.stringify(bu.body));
+  assert.deepEqual((await d.call({ op: "overview" })).body.files.map((f) => f.state), files0.map((f) => f.state), "no file changed state");
+  assert.deepEqual((await d.call({ op: "book_live" })).body.live, live0, "no live price changed");
+  const pv = await d.call({ op: "preview_selection", fileId: yuGas.supplierFileId, region: "EA", usages: [20000], items: [{ label: set.name, product: set.product, saleType: "all", costPerMeterPence: set.costPerMeterPence, ladderId: ladder.ladderId, bands: set.bands }] });
+  assert.equal(pv.status, 200, JSON.stringify(pv.body));
+  assert.ok(pv.body.rows.length > 0);
+  // A second new band set or a bundle by a name already used is refused, as the database refuses it.
+  const again = await d.call({ op: "band_sets_save", reason: "demo", sets: [{ name: "Gas range", fuel: "gas", product: "Standard", isNew: true, costPerMeterPence: 0, ladderId: ladder.ladderId, bands: set.bands }] });
+  assert.deepEqual([again.status, again.body.error], [400, "There is already a band set or bundle with that name."]);
 });

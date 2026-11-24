@@ -123,6 +123,7 @@ function columnFromSet(set, ladderBands) {
   return {
     name: set.name, product: set.product, costPerMeterPence: set.costPerMeterPence,
     priceConfigId: set.priceConfigId == null ? null : set.priceConfigId,
+    supplierId: set.supplierId == null ? null : set.supplierId,
     isNew: false, stale,
     margins, shares,
     saved: { margins: margins.slice(), shares: shares.slice(), costPerMeterPence: set.costPerMeterPence },
@@ -148,7 +149,7 @@ function withColumns(grid, columns) { return Object.assign({}, grid, { columns }
 
 function colIndex(grid, name) {
   const i = grid.columns.findIndex(c => c.name === name);
-  if (i < 0) throw new Error('No band set called ' + name + ' in the grid.');
+  if (i < 0) throw new Error('No product called ' + name + ' in the grid.');
   return i;
 }
 
@@ -160,7 +161,7 @@ function bandPos(grid, bandIndex) {
 
 export function addColumn(grid, spec) {
   if (grid.columns.some(c => c.name === spec.name)) {
-    throw new Error('There is already a band set called ' + spec.name + ' in the grid.');
+    throw new Error('There is already a product called ' + spec.name + ' in the grid.');
   }
   const n = grid.bands.length;
   let margins = blank(n), shares = blank(n);
@@ -171,7 +172,7 @@ export function addColumn(grid, spec) {
   }
   const col = {
     name: spec.name, product: spec.product, costPerMeterPence: spec.costPerMeterPence,
-    priceConfigId: null, isNew: true, stale: false, margins, shares,
+    priceConfigId: null, supplierId: spec.supplierId == null ? null : spec.supplierId, isNew: true, stale: false, margins, shares,
     saved: { margins: blank(n), shares: blank(n), costPerMeterPence: null },
   };
   return withColumns(grid, grid.columns.concat([col]));
@@ -263,7 +264,7 @@ export function pasteBlock(grid, start, pasted, layer) {
     errors.push('Pasted ' + rows.length + ' rows; the ladder has ' + grid.bands.length + ' bands.');
   }
   if (wide) {
-    errors.push('Pasted ' + wide + ' columns; there are only ' + (grid.columns.length - si) + ' band sets from ' + start.name + ' onwards.');
+    errors.push('Pasted ' + wide + ' columns; there are only ' + (grid.columns.length - si) + ' products from ' + start.name + ' onwards.');
   }
   return { grid: withColumns(grid, columns), errors };
 }
@@ -294,6 +295,21 @@ export function editedNames(grid) {
   return grid.columns.filter(isEdited).map(c => c.name);
 }
 
+// Every band has a margin and a standing charge share.
+export function isComplete(c) {
+  return complete(c.margins) && complete(c.shares);
+}
+
+// The first band set with a blank band, and the layer that is blank (margin before share), or null.
+// A blank new band set stays blank: nothing is filled in for the person.
+export function firstGap(grid) {
+  for (const c of grid.columns) {
+    if (!complete(c.margins)) return { name: c.name, layer: 'margin' };
+    if (!complete(c.shares)) return { name: c.name, layer: 'share' };
+  }
+  return null;
+}
+
 export function problems(grid) {
   const out = [];
   for (const c of grid.columns) {
@@ -316,14 +332,17 @@ function bandsFor(grid, c) {
 }
 
 // The band_sets_save request body: {reason, sets: [{name, fuel, product, costPerMeterPence, isNew,
-// ladderId, bands}]}.
+// ladderId, bands, supplierId}]}. supplierId (19/11/2026) is the product's supplier, or null for a
+// product for every supplier; a new version sends the supplier the product already has.
 export function toSavePayload(grid, names, reason) {
   const sets = names.map(n => {
     const c = grid.columns[colIndex(grid, n)];
-    return {
+    const set = {
       name: c.name, fuel: grid.fuel, product: c.product,
       costPerMeterPence: c.costPerMeterPence, isNew: !!c.isNew, ladderId: grid.ladderId, bands: bandsFor(grid, c),
     };
+    set.supplierId = c.supplierId == null ? null : c.supplierId;
+    return set;
   });
   return { reason, sets };
 }
@@ -339,7 +358,7 @@ export function toPreviewItems(grid, picks) {
   });
 }
 
-// The database's rule: one band set per product for each sale type, 'all' counting as both.
+// The database's rule: one product per product type for each sale type, 'all' counting as both.
 export function selectionProblem(picks, productOf) {
   const seen = { acquisition: new Set(), renewal: new Set() };
   const dup = { acquisition: null, renewal: null };
@@ -352,7 +371,7 @@ export function selectionProblem(picks, productOf) {
     }
   }
   for (const t of ['acquisition', 'renewal']) {
-    if (dup[t] != null) return dup[t] + ' is chosen twice for ' + t + '.';
+    if (dup[t] != null) return 'Two products of product type ' + dup[t] + ' are chosen for ' + t + '. Choose one product per product type.';
   }
   return null;
 }
@@ -371,4 +390,228 @@ export function chartScale(milliValues, heightPx) {
 // A dragged point to a margin: nearest 10 milli-pence (0.01p), never below 10.
 export function dragValue(scale, y) {
   return Math.max(MARGIN_MIN, Math.round(scale.fromY(y) / 10) * 10);
+}
+
+// ---------- The Margins page's look (Phil Brook's mockup, 19/11/2026): the chart's axis, the On chart
+// row, the changed-cell count, the cell detail and the review lines. Display only, never a price.
+
+// The chart's top is four round steps, a little above the largest margin, so the five gridlines read
+// as round figures (0, 0.25, 0.50, 0.75, 1.00 p/kWh, for example). toY and fromY work as chartScale's,
+// so dragValue takes either.
+const AXIS_STEPS = [25, 50, 100, 125, 250, 500, 1000, 1250, 2500, 5000, 10000, 25000, 50000];
+export function chartAxis(milliValues, heightPx) {
+  const vals = (milliValues || []).filter(v => v != null && isFinite(v));
+  const want = Math.max(MARGIN_MIN, vals.length ? Math.max.apply(null, vals) : 0) * 1.15;
+  const step = AXIS_STEPS.find(s => s * 4 >= want) || Math.ceil(want / 4 / 50000) * 50000;
+  const top = step * 4;
+  return {
+    top, ticks: [0, 1, 2, 3, 4].map(k => k * step),
+    toY: milli => heightPx * (1 - milli / top),
+    fromY: y => top * (1 - y / heightPx),
+  };
+}
+
+// The chart shows at most four band sets, each in its own slot (line, colour and marker shape).
+export const CHART_MAX = 4;
+
+function freeSlot(picks, max) {
+  for (let s = 0; s < max; s++) if (!picks.some(p => p.slot === s)) return s;
+  return -1;
+}
+
+// Tick or untick a band set in the On chart row. A fifth is refused: { picks, refused: true }.
+export function toggleChartPick(picks, name, max) {
+  const cap = max || CHART_MAX;
+  if (picks.some(p => p.name === name)) return { picks: picks.filter(p => p.name !== name), refused: false };
+  if (picks.length >= cap) return { picks, refused: true };
+  return { picks: picks.concat([{ name, slot: freeSlot(picks, cap) }]), refused: false };
+}
+
+// Keeps the ticks in step with the grid's columns (names, in the order shown): a band set that has
+// left the grid leaves the chart, and one the grid has not shown before is ticked while there is room.
+// So the chart starts with the first four, and a band set added later joins it if fewer are ticked.
+export function syncChartPicks(picks, names, seen, max) {
+  const cap = max || CHART_MAX;
+  const known = new Set(names);
+  let out = (picks || []).filter(p => known.has(p.name));
+  for (const n of names) {
+    if (seen && seen.has(n)) continue;
+    if (out.length >= cap) break;
+    if (!out.some(p => p.name === n)) out = out.concat([{ name: n, slot: freeSlot(out, cap) }]);
+  }
+  return { picks: out, seen: new Set(names) };
+}
+
+// Cells whose margin or share differs from what was saved (every filled cell of a new band set).
+export function changedCellCount(grid) {
+  let n = 0;
+  for (const c of grid.columns) {
+    for (let i = 0; i < grid.bands.length; i++) {
+      if (c.isNew) { if (c.margins[i] != null || c.shares[i] != null) n++; continue; }
+      if (c.margins[i] !== c.saved.margins[i] || c.shares[i] !== c.saved.shares[i]) n++;
+    }
+  }
+  return n;
+}
+
+const GBP2 = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
+const kwh = n => Number(n).toLocaleString('en-GB');
+const m3 = milli => (milli / 1000).toFixed(3);
+const midPounds = (milli, b) => milli / 1000 * ((b.eacMinKwh + b.eacMaxKwh) / 2) / 100;
+// The annual margin at the band midpoint to the penny, as the strip under each margin shows it.
+export function midpointText(milli, eacMinKwh, eacMaxKwh) {
+  if (milli == null || eacMinKwh == null || eacMaxKwh == null) return '';
+  return GBP2.format(midPounds(milli, { eacMinKwh, eacMaxKwh }));
+}
+export function bandRange(b) { return kwh(b.eacMinKwh) + ' to ' + kwh(b.eacMaxKwh); }
+
+// The Cell detail panel's rows for one band of one band set, as [{k, v}]: the margin (saved, and new
+// when changed), what it earns a year at the band midpoint, the standing charge share and how the
+// margin splits between the standing charge and the unit rate, the cost per meter and the product.
+export function cellFacts(col, band, bi) {
+  const rows = [];
+  const m = col.margins[bi], s = col.shares[bi];
+  const sm = col.isNew ? null : col.saved.margins[bi], ss = col.isNew ? null : col.saved.shares[bi];
+  const mChanged = col.isNew || m !== sm, sChanged = col.isNew || s !== ss;
+  if (!col.isNew) rows.push({ k: 'Saved margin', v: sm == null ? 'none' : m3(sm) + ' p/kWh' });
+  if (mChanged) rows.push({ k: 'New margin', v: m == null ? 'none yet' : m3(m) + ' p/kWh' });
+  if (!col.isNew && sm != null) rows.push({ k: 'Annual margin at midpoint, saved', v: GBP2.format(midPounds(sm, band)) });
+  if (mChanged && m != null) rows.push({ k: 'Annual margin at midpoint, new', v: GBP2.format(midPounds(m, band)) });
+  rows.push({ k: 'Standing charge share', v: (s == null ? 'none yet' : s + '%') + (!col.isNew && sChanged ? ' (saved ' + (ss == null ? 'none' : ss + '%') + ')' : '') });
+  const sp = marginSplit(m, band.eacMinKwh, band.eacMaxKwh, s);
+  if (sp) {
+    rows.push({ k: 'Added to the standing charge', v: sp.standingPencePerDay.toFixed(3) + ' p/day' });
+    rows.push({ k: 'Added to each unit rate', v: sp.unitPencePerKwh.toFixed(3) + ' p/kWh' });
+  }
+  const cost = col.costPerMeterPence, savedCost = col.saved.costPerMeterPence;
+  rows.push({ k: 'Cost per meter', v: (cost == null ? 'none' : GBP2.format(cost / 100) + ' a year') + (!col.isNew && cost !== savedCost && savedCost != null ? ' (saved ' + GBP2.format(savedCost / 100) + ')' : '') });
+  rows.push({ k: 'Product type', v: String(col.product == null ? '' : col.product) });
+  return rows;
+}
+
+// What the Review changes panel lists for one changed band set, a sentence a line.
+export function reviewLines(grid, name) {
+  const c = grid.columns[colIndex(grid, name)];
+  const out = [];
+  if (c.isNew) {
+    out.push('New product, cost per meter ' + (c.costPerMeterPence == null ? 'not given' : GBP2.format(c.costPerMeterPence / 100) + ' a year') + '.');
+    grid.bands.forEach((b, i) => {
+      out.push(bandRange(b) + ' kWh: ' + (c.margins[i] == null ? 'no margin' : m3(c.margins[i]) + ' p/kWh') + ', standing charge share ' + (c.shares[i] == null ? 'none' : c.shares[i] + '%'));
+    });
+    return out;
+  }
+  if (c.costPerMeterPence !== c.saved.costPerMeterPence) {
+    out.push('Cost per meter ' + (c.saved.costPerMeterPence == null ? 'none' : GBP2.format(c.saved.costPerMeterPence / 100)) + ' to ' + GBP2.format(c.costPerMeterPence / 100) + ' a year');
+  }
+  grid.bands.forEach((b, i) => {
+    const om = c.saved.margins[i], nm = c.margins[i], os = c.saved.shares[i], ns = c.shares[i];
+    if (om !== nm) {
+      out.push(bandRange(b) + ' kWh: ' + (om == null ? 'none' : m3(om)) + ' to ' + (nm == null ? 'none' : m3(nm)) + ' p/kWh, annual margin at midpoint ' +
+        (om == null ? 'none' : GBP2.format(midPounds(om, b))) + ' to ' + (nm == null ? 'none' : GBP2.format(midPounds(nm, b))));
+    }
+    if (os !== ns) out.push(bandRange(b) + ' kWh: standing charge share ' + (os == null ? 'none' : os + '%') + ' to ' + (ns == null ? 'none' : ns + '%'));
+  });
+  if (!out.length && c.stale) out.push('Made on an older ladder. Every band carried over, so saving moves it to the current ladder.');
+  return out;
+}
+
+// The supplier rule for the Price screen's lists (Phil Brook, 19/11/2026): an item with no supplier is
+// for every supplier; one with a supplier only for that supplier's files.
+export function forSupplier(item, supplierId) {
+  return item.supplierId == null || item.supplierId === supplierId;
+}
+
+// A product configuration holds one product per product type. The first product type chosen twice
+// among names (looked up with productOf), or null.
+export function repeatedProductType(names, productOf) {
+  const seen = new Set();
+  for (const n of names) {
+    const t = productOf(n);
+    if (seen.has(t)) return t;
+    seen.add(t);
+  }
+  return null;
+}
+
+// Save as a new product configuration: each changed product becomes a new product named
+// "<configuration name> <product type>". Returns [{from, name}] or {error} in a plain sentence when a
+// name is too long, already used, or would be used twice.
+export function newConfigNames(configName, changed, taken) {
+  const out = [], used = new Set();
+  for (const c of changed) {
+    const name = configName + ' ' + c.product;
+    if (name.length > 60) return { error: 'The product name ' + name + ' would be longer than 60 characters. Choose a shorter name for the product configuration.' };
+    if (taken.has(name)) return { error: 'There is already a product called ' + name + '. Choose another name for the product configuration.' };
+    if (used.has(name)) return { error: 'Two changed products are ' + c.product + ', so both would be called ' + name + '. Save one of them first, or choose them one per product type.' };
+    used.add(name);
+    out.push({ from: c.name, name });
+  }
+  return out;
+}
+
+// The Price screen opens on the current product configuration (Phil Brook, 20/11/2026). The dna-pricing
+// ops do not say which products are live, so the current one is the most recently saved active
+// configuration for the file's supplier, else the most recent for every supplier, else none. A
+// configuration's date is the newest save (savedAt) among its members still in bandSets; one with no
+// member left is skipped, and a tie keeps the first in the order given. Returns {bundle, scope} with
+// scope 'supplier' or 'all', or null.
+export function currentConfig(bundles, bandSets, supplierId) {
+  const savedAt = new Map((bandSets || []).map(s => [s.name, String(s.savedAt || '')]));
+  const newest = b => {
+    let at = null;
+    for (const m of b.members) if (savedAt.has(m) && (at === null || savedAt.get(m) > at)) at = savedAt.get(m);
+    return at;
+  };
+  const pick = list => {
+    let best = null, bestAt = null;
+    for (const b of list) {
+      const at = newest(b);
+      if (at !== null && (best === null || at > bestAt)) { best = b; bestAt = at; }
+    }
+    return best;
+  };
+  const mine = pick((bundles || []).filter(b => b.supplierId != null && b.supplierId === supplierId));
+  if (mine) return { bundle: mine, scope: 'supplier' };
+  const all = pick((bundles || []).filter(b => b.supplierId == null));
+  return all ? { bundle: all, scope: 'all' } : null;
+}
+
+// The name a new product configuration starts with: base ("<Supplier> <fuel> <DD/MM/YYYY>"), or with
+// " (2)", " (3)" and so on when that name, or a product "<name> <product type>" it would make for one of
+// productTypes, is already taken.
+export function defaultConfigName(base, taken, productTypes) {
+  for (let i = 1; ; i++) {
+    const name = i === 1 ? base : base + ' (' + i + ')';
+    if (!taken.has(name) && !(productTypes || []).some(t => taken.has(name + ' ' + t))) return name;
+  }
+}
+
+// What is live for one supplier and fuel, from book_live's rows (Phil Brook, 20/11/2026: the Price
+// screen opens on the live product configuration). Only rows for the supplier and fuel with named
+// true count; the older unnamed runs are left out. Returns null when none is live, else {acq, ren}
+// (the live band sets per sale type that are still in bandSets, in bandSets' order), same (both sale
+// types have the same band sets), missing (live band sets no longer in bandSets: retired), older
+// ([{name, live, now}]: live at an older version than bandSets' current), since (the newest
+// published_at), and bundle (the active configuration whose members are exactly the live band sets:
+// the supplier's own first, then one for every supplier; null when none).
+export function liveChoice(rows, supplierId, fuel, bandSets, bundles) {
+  const mine = (rows || []).filter(r => r.supplier_id === supplierId && r.fuel === fuel && r.named === true && r.config_name != null);
+  if (!mine.length) return null;
+  const sets = bandSets || [];
+  const known = new Map(sets.map(s => [s.name, s]));
+  const names = sale => [...new Set(mine.filter(r => r.sale_type === sale).map(r => r.config_name))];
+  const acqAll = names('acquisition'), renAll = names('renewal');
+  const inOrder = list => sets.map(s => s.name).filter(n => list.includes(n));
+  const all = [...new Set(acqAll.concat(renAll))];
+  const same = acqAll.length === renAll.length && acqAll.every(n => renAll.includes(n));
+  const older = [];
+  for (const n of all) {
+    const s = known.get(n), r = mine.find(x => x.config_name === n);
+    if (s && r.config_version != null && Number(r.config_version) < Number(s.version)) older.push({ name: n, live: Number(r.config_version), now: Number(s.version) });
+  }
+  const exactly = b => b.members.length === all.length && all.every(n => b.members.includes(n));
+  const fits = (bundles || []).filter(exactly);
+  const bundle = fits.find(b => b.supplierId != null && b.supplierId === supplierId) || fits.find(b => b.supplierId == null) || null;
+  const since = mine.map(r => String(r.published_at || '')).sort().pop() || null;
+  return { acq: inOrder(acqAll), ren: inOrder(renAll), same, missing: all.filter(n => !known.has(n)), older, since, bundle };
 }
