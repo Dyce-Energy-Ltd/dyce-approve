@@ -4019,19 +4019,22 @@ function ukDay(ms) {
             });
             left.append(cancel);
           }
-          if (x.status === "awaiting_approval") {
-            // Re-sends the approval email with a fresh link when an earlier one failed to send.
-            const again = document.createElement("button"); again.type = "button"; again.className = "btn ghost small"; again.textContent = "Ask for approval again"; again.style.marginTop = "6px"; again.style.marginLeft = "6px";
-            again.addEventListener("click", async () => {
-              again.disabled = true;
+          // Send now: the requester only, for an email requested before approval was removed
+          // (Phil Brook, 24/11/2026), within 24 hours of the request. The database checks all three.
+          if (x.status === "awaiting_approval" && x.requested_by === REQUESTER
+              && new Date(x.requested_at) > new Date(Date.now() - 24 * 3600000)) {
+            const now = smallBtn("Send now"); let armed = false;
+            now.addEventListener("click", async () => {
+              const n = x.broker_count;
+              if (!armed) { armed = true; now.textContent = "Yes, send it now"; where.textContent = `Send this email now${n ? ` to ${n} address${n === 1 ? "" : "es"}` : ""}? It goes straight away, with you recorded as the person who sent it. Press again to confirm.`; return; }
+              now.disabled = true;
               try {
-                if (!/^[0-9a-f-]{36}$/i.test(x.send_id || "")) throw { message: "No send id." };
-                const r = await api("ask_again", { send_id: x.send_id });
-                const who = (r && Array.isArray(r.approvers) ? r.approvers : []).map(a => (a && a.approver_email) || a);
-                where.textContent = `A new approval email is on its way to ${who.join(", ")}.`;
-              } catch (err) { where.textContent = explain(err); } finally { again.disabled = false; }
+                if (!isUuid(x.send_id)) throw { message: "No send id." };
+                await api("send_now", { send_id: x.send_id });
+                where.textContent = "Sending now."; setTimeout(loadRecent, 1500);
+              } catch (err) { where.textContent = explain(err); now.disabled = false; armed = false; now.textContent = "Send now"; }
             });
-            left.append(again);
+            left.append(now);
           }
           left.append(where);
           // The email as stored for this send (comms.send.html, what the brokers are given), in a
