@@ -654,7 +654,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       <div id="be" hidden>
         <div id="bePrice">
           <h1>Broker <em>emails</em></h1>
-          <p class="stand">Choose a price email or write your own, add the document as a file, a link or both, check the brokers, and send. Emails go from tpi@send.dyce-energy.co.uk; replies land in the tpi@ mailbox.</p>
+          <p class="stand">Choose a price email or write your own, add a file or a link if it needs one, check the brokers, and send. Emails go from tpi@send.dyce-energy.co.uk; replies land in the tpi@ mailbox.</p>
           <div class="banner" id="testBanner" hidden><b>Testing is on.</b> Brokers receive nothing: ticked brokers collapse to one copy to Phil Brook, and only Phil Brook and Chris Beardsmore can be added by hand. The exact list shows before you send.</div>
           <div class="msg" id="beAgainMsg" role="status" style="margin-top:14px" hidden></div>
 
@@ -699,7 +699,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 
               <section class="step" aria-labelledby="s2">
                 <h2 id="s2"><span class="n">2</span> The document</h2>
-                <p class="hint" style="margin:0 0 12px" id="docHint">A file, a link, or both. At least one.</p>
+                <p class="hint" style="margin:0 0 12px">Optional: a file, a link, both or neither. A link shows as a button in the email.</p>
                 <div class="field"><label for="file">File (up to 10 MB)</label><input type="file" id="file" accept=".pdf,.xlsx,.xls,.docx,.doc,.csv,.zip"><span class="hint" id="fileInfo"></span></div>
                 <div class="field" style="margin-top:14px"><label for="link">Link</label><input type="url" id="link" placeholder="https://"></div>
               </section>
@@ -1110,9 +1110,6 @@ const PR_HEALTH = {{PRICING_HEALTH}};
     const chosen = () => document.querySelector('input[name="email"]:checked').value;
     const own = () => chosen() === "own_email";
     const kind = () => { const k = document.querySelector('input[name="kind"]:checked'); return k ? k.value : null; };
-    // An ad hoc email may go with no file and no link (Phil Brook, 26/11/2026); the database
-    // (comms.request_send_selected) holds the same rule.
-    const docOptional = () => own() && kind() === "adhoc";
     const KIND = { pricing: "Pricing", newsletter: "Newsletter", adhoc: "Ad hoc" };
     // An own email's message: escaped, a blank line starts a paragraph, a single line break stays.
     const parasOf = (id) => $(id).value.replace(/\r\n?/g, "\n").trim().split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
@@ -1276,7 +1273,6 @@ const PR_HEALTH = {{PRICING_HEALTH}};
         if (!$("products").value.trim()) p.push("type the products");
       }
       const link = $("link").value.trim();
-      if (!fileMeta && !link && !docOptional()) p.push("add a file or a link");
       if (link && !/^https:\/\/\S+$/.test(link)) p.push("make the link start https://");
       if (!chosenSet().size && !typed.some(t => t.on)) p.push(isSeg() ? "select a contact or add an address" : "select a broker or add an address");
       const at = sendAtIso();
@@ -1347,8 +1343,6 @@ const PR_HEALTH = {{PRICING_HEALTH}};
       $("dateLabel").textContent = LABEL[chosen()];
       const np = chosen() === "new_prices";
       $("priceFields").hidden = own(); $("ownFields").hidden = !own();
-      $("docHint").textContent = docOptional() ? "Optional for an ad hoc email: a file, a link, both or neither."
-        : "A file, a link, or both. At least one.";
       $("productsField").hidden = np; $("extraField").hidden = np; $("newFields").hidden = !np;
       $("pNote").textContent = own() ? "Your wording. Brokers see it exactly as above."
         : np ? "Kelly Philpot's wording, 10/11/2026. Change the boxes for this week's news; brokers see it exactly as above."
