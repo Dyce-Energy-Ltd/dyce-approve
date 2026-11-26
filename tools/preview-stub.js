@@ -10,7 +10,9 @@
 // without the Dashboard Pool Review tick, so the tab shows only as the decider's), ?as=pricing (Quinn Example,
 // all four Pricing ticks), ?as=pricingview (Tara Example, Pricing View only), ?as=ceview (Cy Example,
 // Commission Engine View only), ?as=cedecide (Dee Example, Commission Engine Decide only, with
-// deciding counted as signed off), ?as=none (an address with no access: "start" answers as for anyone,
+// deciding counted as signed off), ?as=dpfview (Vera Example, DPF figures View only), ?as=dpfenter
+// (Eli Example, DPF figures View and Enter), ?as=dpfsign (Carl Example, all three DPF figures
+// ticks, as Carl Fisher signs months off), ?as=none (an address with no access: "start" answers as for anyone,
 // "finish" refuses). Admin Example is the Dashboard Pool's
 // decider, as Phil Brook is in the database.
 // Any 8-digit code signs in, except 00000000, which gets the wrong-code sentence.
@@ -86,6 +88,9 @@
     pricingview: "tara.example@dyce-energy.co.uk",
     ceview: "cy.example@dyce-energy.co.uk",
     cedecide: "dee.example@dyce-energy.co.uk",
+    dpfview: "vera.example@dyce-energy.co.uk",
+    dpfenter: "eli.example@dyce-energy.co.uk",
+    dpfsign: "carl.example@dyce-energy.co.uk",
     demo: "demo.example@dyce-energy.co.uk",
     none: null
   };
@@ -108,6 +113,9 @@
     { code: "pricing.publish", tool: "Pricing", label: "Publish" },
     { code: "commission.view", tool: "Commission Engine", label: "View" },
     { code: "commission.decide", tool: "Commission Engine", label: "Decide" },
+    { code: "dpf.view", tool: "DPF figures", label: "View" },
+    { code: "dpf.enter", tool: "DPF figures", label: "Enter and upload" },
+    { code: "dpf.sign_off", tool: "DPF figures", label: "Sign off" },
     { code: "dna_admin.admin", tool: "DNA Admin", label: "DNA Admin" }
   ];
   var people = [
@@ -154,6 +162,15 @@
   // The Decide-only Commission Engine person is listed only in their own preview.
   if (as === "cedecide") {
     people.push({ email: PERSONA.cedecide, display_name: "Dee Example", active: true, grants: ["commission.decide"], added_at: "2026-11-16T10:35:00+00:00", added_by: ADMIN });
+  }
+  // The DPF figures people are listed only in their own preview.
+  var DPF_PEOPLE = {
+    dpfview: { name: "Vera Example", grants: ["dpf.view"] },
+    dpfenter: { name: "Eli Example", grants: ["dpf.view", "dpf.enter"] },
+    dpfsign: { name: "Carl Example", grants: ["dpf.view", "dpf.enter", "dpf.sign_off"] }
+  };
+  if (DPF_PEOPLE[as]) {
+    people.push({ email: PERSONA[as], display_name: DPF_PEOPLE[as].name, active: true, grants: DPF_PEOPLE[as].grants, added_at: "2026-11-26T10:30:00+00:00", added_by: ADMIN });
   }
   var changes = people.map(function (p) {
     return { at: p.added_at, by: p.added_by, for: p.email, what: p.email === ADMIN ? "Added as Admin Example, with every tick" : "Added as " + p.display_name };
@@ -595,6 +612,178 @@
     return poolState(me);
   }
 
+  // ---------- DPF figures: hub.dpf_web_action's answers and checks (design 2026-11-26), on invented
+  // figures held in memory only. The financial year runs June to May; the data sits in the year
+  // holding today, so the preview always opens on it: June signed off by Carl Example, July
+  // complete (ready to sign), August with three figures missing, the rest empty. Every figure is
+  // invented. The checks follow the design: dpf.view for every action, dpf.enter to save or upload,
+  // dpf.sign_off to sign off or undo; months 01/06/2024 to 01/05/2031 and the first of a month;
+  // each item's own check; all or nothing; a change to a signed-off month clears its sign-off; a
+  // sign-off needs every figure and the fingerprint of the figures as shown.
+  var DPF_NO_ACCESS = "You do not have access to this. Ask Phil Brook to add it in DNA Admin.";
+  var DPF_SIGNER = "carl.example@dyce-energy.co.uk", DPF_OTHER = "eli.example@dyce-energy.co.uk";
+  var DPF_ITEMS = [
+    ["cost_of_sales_gbp", "Cost of sales", "GBP", "actual", null, null, false],
+    ["overheads_gbp", "Overheads", "GBP", "actual", null, null, false],
+    ["opex_gbp", "OPEX", "GBP", "actual", null, null, false],
+    ["bad_debt_written_off_gbp", "Bad debt written off", "GBP", "actual", 0, null, false],
+    ["trustpilot_score", "Trustpilot score at month end", "score", "actual", 0, 5, false],
+    ["trustpilot_new_reviews", "Trustpilot new reviews in the month", "count", "actual", 0, null, true],
+    ["plan_gm_gbp", "Plan gross margin", "GBP", "plan", null, null, false],
+    ["plan_ebitda_gbp", "Plan EBITDA", "GBP", "plan", null, null, false],
+    ["plan_volume_mwh", "Plan volume at month end", "MWh", "plan", 0, null, false],
+    ["plan_opex_gbp", "Plan OPEX", "GBP", "plan", null, null, false],
+    ["plan_bad_debt_pct", "Bad debt target", "% of revenue billed", "plan", 0, 100, false],
+    ["plan_trustpilot_score", "Trustpilot score target", "score", "plan", 0, 5, false],
+    ["plan_trustpilot_new_reviews", "Trustpilot new reviews target", "count", "plan", 0, null, true]
+  ].map(function (r, i) { return { code: r[0], label: r[1], unit: r[2], kind: r[3], sort: (i + 1) * 10, min_value: r[4], max_value: r[5], whole_number: r[6] }; });
+  var dpfItem = function (code) { return DPF_ITEMS.find(function (x) { return x.code === code; }) || null; };
+  var dpfPad = function (n) { return (n < 10 ? "0" : "") + n; };
+  var dpfFyOf = function (iso) { var y = +iso.slice(0, 4), m = +iso.slice(5, 7); return m >= 6 ? y : y - 1; };
+  var dpfFyNow = function () { var d = new Date(); return Math.min(2030, Math.max(2024, dpfFyOf(d.getFullYear() + "-" + dpfPad(d.getMonth() + 1) + "-01"))); };
+  var dpfMonths = function (y) { var out = []; for (var i = 0; i < 12; i++) { var n = 5 + i; out.push((y + Math.floor(n / 12)) + "-" + dpfPad(n % 12 + 1) + "-01"); } return out; };
+  var dpfMonthText = function (iso) { return iso.slice(5, 7) + "/" + iso.slice(0, 4); };
+  // figures: month -> code -> {value, by, at, source, file}. signoffs: month -> {by, at, fingerprint}.
+  var dpfFigures = {}, dpfSignoffs = {}, dpfChanges = [], dpfNextId = 1;
+  // Any stable digest of the month's figures in item order serves the preview (the database uses md5).
+  function dpfFingerprint(month) {
+    var f = dpfFigures[month] || {}, text = DPF_ITEMS.map(function (it) { return it.code + "=" + (f[it.code] ? f[it.code].value : ""); }).join("|"), h = 5381;
+    for (var i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0;
+    return "fp" + h.toString(16);
+  }
+  (function () {
+    var m = dpfMonths(dpfFyNow());
+    // Each month's figures were entered early in the month after it.
+    var at = function (i, day) { return m[(i + 1) % 12].slice(0, 8) + dpfPad(day) + "T10:15:00+00:00"; };
+    var june = { cost_of_sales_gbp: 412000, overheads_gbp: 96500, opex_gbp: 118250.5, bad_debt_written_off_gbp: 3400, trustpilot_score: 4.6, trustpilot_new_reviews: 18,
+      plan_gm_gbp: 155000, plan_ebitda_gbp: 37000, plan_volume_mwh: 158400.25, plan_opex_gbp: 120000, plan_bad_debt_pct: 0.5, plan_trustpilot_score: 4.5, plan_trustpilot_new_reviews: 20 };
+    var july = { cost_of_sales_gbp: 405500, overheads_gbp: 97100, opex_gbp: 119900, bad_debt_written_off_gbp: 0, trustpilot_score: 4.5, trustpilot_new_reviews: 22,
+      plan_gm_gbp: 158000, plan_ebitda_gbp: 38500, plan_volume_mwh: 159100, plan_opex_gbp: 121000, plan_bad_debt_pct: 0.5, plan_trustpilot_score: 4.5, plan_trustpilot_new_reviews: 20 };
+    var august = { cost_of_sales_gbp: 398000, overheads_gbp: 96000, opex_gbp: 120400,
+      plan_gm_gbp: 160500, plan_ebitda_gbp: 39000, plan_volume_mwh: 160200, plan_opex_gbp: 121500, plan_bad_debt_pct: 0.5, plan_trustpilot_score: 4.5, plan_trustpilot_new_reviews: 20 };
+    [[0, june, 2, "template", "dpf-figures-example.xlsx"], [1, july, 3, "form", null], [2, august, 4, "form", null]].forEach(function (x) {
+      var month = m[x[0]], when = at(x[0], x[2]);
+      dpfFigures[month] = {};
+      Object.keys(x[1]).forEach(function (code) {
+        dpfFigures[month][code] = { value: x[1][code], by: DPF_OTHER, at: when, source: x[3], file: x[4] };
+        dpfChanges.push({ id: dpfNextId++, month: month, item_code: code, old_value: null, new_value: x[1][code], source: x[3], source_file: x[4], changed_by: DPF_OTHER, changed_at: when, note: null });
+      });
+    });
+    dpfSignoffs[m[0]] = { by: DPF_SIGNER, at: m[1].slice(0, 8) + "05T09:30:00+00:00", fingerprint: dpfFingerprint(m[0]) };
+  })();
+  function dpfMonthState(month) {
+    var f = dpfFigures[month] || {}, figures = {}, entered = {};
+    Object.keys(f).forEach(function (code) { figures[code] = f[code].value; entered[code] = { by: f[code].by, at: f[code].at, source: f[code].source }; });
+    var s = dpfSignoffs[month];
+    return { month: month, figures: figures, entered: entered,
+      missing: DPF_ITEMS.filter(function (it) { return !f[it.code]; }).map(function (it) { return it.code; }),
+      fingerprint: dpfFingerprint(month), signed_off: s ? { by: s.by, at: s.at } : null };
+  }
+  function dpfState(me, y) {
+    return { me: { can_enter: has(me, "dpf.enter"), can_sign_off: has(me, "dpf.sign_off") }, fy_start_year: y, months: dpfMonths(y).map(dpfMonthState) };
+  }
+  // null when the month is allowed, else the sentence.
+  function dpfBadMonth(m) {
+    if (typeof m !== "string" || !/^\d{4}-(0[1-9]|1[0-2])-01$/.test(m)) return "The month must be the first of a month, as YYYY-MM-01.";
+    if (m < "2024-06-01" || m > "2031-05-01") return "The month " + dpfMonthText(m) + " is outside 06/2024 to 05/2031.";
+    return null;
+  }
+  function dpfBadValue(code, v) {
+    var it = dpfItem(code);
+    if (!it) return "Unknown item: " + code + ".";
+    if (v === null) return null;
+    if (typeof v !== "number" || !isFinite(v)) return it.label + ": not a number.";
+    if (it.whole_number && Math.floor(v) !== v) return it.label + ": must be a whole number.";
+    if ((it.min_value != null && v < it.min_value) || (it.max_value != null && v > it.max_value)) {
+      return it.label + ": must be " + (it.min_value != null && it.max_value != null ? "from " + it.min_value + " to " + it.max_value : it.min_value != null ? it.min_value + " or more" : it.max_value + " or less") + ".";
+    }
+    return null;
+  }
+  var DPF_SOURCES = ["form", "template", "plan_workbook"];
+  // Writes one month's values (already checked); answers how many changed. Unchanged values write nothing.
+  function dpfWrite(me, month, values, source, file) {
+    var f = dpfFigures[month] = dpfFigures[month] || {}, at = now(), changed = 0;
+    Object.keys(values).forEach(function (code) {
+      var v = values[code], old = f[code] ? f[code].value : null;
+      if (v === old) return;
+      if (v === null) delete f[code]; else f[code] = { value: v, by: me, at: at, source: source, file: file };
+      dpfChanges.push({ id: dpfNextId++, month: month, item_code: code, old_value: old, new_value: v, source: source, source_file: file, changed_by: me, changed_at: at, note: null });
+      changed++;
+    });
+    if (changed && dpfSignoffs[month]) {
+      delete dpfSignoffs[month];
+      dpfChanges.push({ id: dpfNextId++, month: month, item_code: null, old_value: null, new_value: null, source: source, source_file: file, changed_by: me, changed_at: at, note: "Sign-off cleared" });
+    }
+    return changed;
+  }
+  function dpfAction(me, action, args) {
+    if (!has(me, "dpf.view")) refuse(DPF_NO_ACCESS);
+    args = args || {};
+    if (action === "dpf_items") return { items: copy(DPF_ITEMS) };
+    if (action === "dpf_state") {
+      var y = args.fy_start_year == null ? dpfFyNow() : args.fy_start_year;
+      if (typeof y !== "number" || Math.floor(y) !== y || y < 2024 || y > 2030) refuse("The financial year must start in 2024 to 2030.");
+      return dpfState(me, y);
+    }
+    if (action === "dpf_history") {
+      var bad = dpfBadMonth(args.month); if (bad) refuse(bad);
+      return { changes: dpfChanges.filter(function (c) { return c.month === args.month; }).slice().reverse().slice(0, 200).map(function (c) {
+        return { item_code: c.item_code, label: c.item_code ? dpfItem(c.item_code).label : null, old_value: c.old_value, new_value: c.new_value, source: c.source, source_file: c.source_file, changed_by: c.changed_by, changed_at: c.changed_at, note: c.note };
+      }) };
+    }
+    if (action === "dpf_save" || action === "dpf_upload") {
+      if (!has(me, "dpf.enter")) refuse(DPF_NO_ACCESS);
+      if (DPF_SOURCES.indexOf(args.source) < 0) refuse("The source must be form, template or plan_workbook.");
+      var file = args.source_file == null ? null : String(args.source_file);
+      if (action === "dpf_save") {
+        var bm = dpfBadMonth(args.month); if (bm) refuse(bm);
+        var vals = args.values;
+        if (!vals || typeof vals !== "object" || Array.isArray(vals)) refuse("The values must be an object of item codes.");
+        Object.keys(vals).forEach(function (code) { var b = dpfBadValue(code, vals[code]); if (b) refuse(b); });
+        var n = dpfWrite(me, args.month, vals, args.source, file);
+        var st = dpfState(me, dpfFyOf(args.month));
+        st.changed = n;
+        return st;
+      }
+      var rows = args.rows;
+      if (!Array.isArray(rows) || !rows.length) refuse("There are no rows to save.");
+      var problems = [], seen = {};
+      rows.forEach(function (r, i) {
+        var b = dpfBadMonth(r && r.month) || dpfBadValue(r && r.code, r && r.value === null ? NaN : r && r.value);
+        if (!b && seen[r.month + "|" + r.code]) b = "the same month and item as row " + seen[r.month + "|" + r.code] + ".";
+        if (b) problems.push("Row " + (i + 1) + ": " + b); else seen[r.month + "|" + r.code] = i + 1;
+      });
+      if (problems.length) refuse("Nothing was saved. " + problems.slice(0, 5).join(" ") + (problems.length > 5 ? " And " + (problems.length - 5) + " more." : ""));
+      var byMonth = {}, total = 0, changedMonths = [];
+      rows.forEach(function (r) { (byMonth[r.month] = byMonth[r.month] || {})[r.code] = r.value; });
+      Object.keys(byMonth).sort().forEach(function (m) { var c = dpfWrite(me, m, byMonth[m], args.source, file); total += c; if (c) changedMonths.push(m); });
+      // The state of the first row's year, with the counts and the months that changed.
+      var out = dpfState(me, dpfFyOf(rows[0].month));
+      out.changed = total; out.unchanged = rows.length - total; out.changed_months = changedMonths;
+      return out;
+    }
+    if (action === "dpf_sign_off" || action === "dpf_unsign") {
+      if (!has(me, "dpf.sign_off")) refuse(DPF_NO_ACCESS);
+      var bad2 = dpfBadMonth(args.month); if (bad2) refuse(bad2);
+      if (action === "dpf_sign_off") {
+        // A month already signed off answers its state, as the database does.
+        if (dpfSignoffs[args.month]) return dpfState(me, dpfFyOf(args.month));
+        var ms = dpfMonthState(args.month);
+        if (ms.missing.length) refuse("These figures are missing: " + ms.missing.map(function (c) { return dpfItem(c).label; }).join(", ") + ".");
+        if (args.fingerprint !== ms.fingerprint) refuse("The figures have changed since you opened them. Check them again before signing off.");
+        dpfSignoffs[args.month] = { by: me, at: now(), fingerprint: ms.fingerprint };
+      } else {
+        var reason = args.reason == null ? "" : String(args.reason).trim();
+        if (!reason) refuse("Give a reason for undoing the sign-off.");
+        if (!dpfSignoffs[args.month]) refuse(dpfMonthText(args.month) + " is not signed off.");
+        delete dpfSignoffs[args.month];
+        dpfChanges.push({ id: dpfNextId++, month: args.month, item_code: null, old_value: null, new_value: null, source: null, source_file: null, changed_by: me, changed_at: now(), note: "Sign-off undone: " + reason });
+      }
+      return dpfState(me, dpfFyOf(args.month));
+    }
+    refuse("Unknown action.");
+  }
+
   function answer(body) {
     var op = body && body.op;
     if (op === "start") return [200, { ok: true }];
@@ -627,6 +816,7 @@
         }
         if (/^admin_/.test(action)) return [200, { ok: true, result: adminAction(me, action, args) }];
         if (/^pool_/.test(action)) return [200, { ok: true, result: poolAction(me, action, args) }];
+        if (/^dpf_/.test(action)) return [200, { ok: true, result: dpfAction(me, action, args) }];
         if (/^renewals_/.test(action) ? !has(me, "broker_emails.renewals") : !has(me, "broker_emails.request")) refuse(NO_ACCESS);
         return [200, { ok: true, result: brokerEmailsAction(me, action, args) }];
       } catch (e) {
@@ -1469,6 +1659,12 @@
     // The page shows it at its next pool_state (show the tool again, e.g. click Boards).
     poolVote: function (email, board, verdict, audiences, note) {
       return poolAction(email, "pool_vote", { board: board, verdict: verdict, audiences: audiences || [], note: note || "" });
-    }
+    },
+    // A DPF figure changed by someone else, on the server side only, as if from their own browser:
+    // e.g. __stub.dpfChange(__stub.dpfMonth(1), "opex_gbp", 1) changes July's OPEX in the year shown
+    // first, so a Sign off with the fingerprint the page holds is refused. value null clears it.
+    dpfChange: function (month, code, value) { var v = {}; v[code] = value; return dpfWrite(DPF_OTHER, month, v, "form", null); },
+    // The i-th month (0 is June) of the financial year holding today, as 'YYYY-MM-01'.
+    dpfMonth: function (i) { return dpfMonths(dpfFyNow())[i]; }
   };
 })();

@@ -607,6 +607,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
    The status tokens are used only on state badges, each with its word (parts/commission.css). */
 {{COMMISSION_CSS}}
 
+/* DPF figures: the Months grid, Upload's cards and preview (parts/dpf.css). No status colours. */
+{{DPF_CSS}}
+
 @media (max-width: 760px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .rail { position: static; height: auto; overflow: visible; }
@@ -823,6 +826,8 @@ const PR_ADAPTERS = {{PRICING_ADAPTERS}};
 const PR_EXPORTS = {{PRICING_EXPORTS}};
 const PR_GRID = {{PRICING_GRID}};
 const PR_HEALTH = {{PRICING_HEALTH}};
+// The DPF figures tab's template, workbook and value logic (dpf/import.js); it uses PR_XLSX above.
+const DPF_IMPORT = {{DPF_IMPORT}};
 </script>
 <script>
 (() => {
@@ -890,6 +895,7 @@ const PR_HEALTH = {{PRICING_HEALTH}};
   const POOL_REVIEW = "dashboard_pool.review";
   const PR_VIEW = "pricing.view";
   const CE_VIEW = "commission.view", CE_DECIDE = "commission.decide";
+  const DPF_VIEW = "dpf.view", DPF_ENTER = "dpf.enter", DPF_SIGN = "dpf.sign_off";
   const TOOLS = [
     { id: "broker_emails", label: "Broker Emails", allowed: (t) => t.some((c) => c.startsWith("broker_emails.")),
       items: [{ id: "new", label: "New email", group: "Price emails", need: REQUEST },
@@ -922,6 +928,12 @@ const PR_HEALTH = {{PRICING_HEALTH}};
               { id: "decisions", label: "Decisions", group: "Monthly run", need: CE_VIEW },
               { id: "runs", label: "Runs", group: "Monthly run", need: CE_VIEW }],
       render: renderCommission },
+    // DPF figures shows with View. Upload needs the Enter and upload tick; editing and signing off are drawn
+    // from dpf_state's me (can_enter, can_sign_off), and the database checks each tick again.
+    { id: "dpf", label: "DPF figures", allowed: (t) => t.includes(DPF_VIEW),
+      items: [{ id: "months", label: "Months", need: DPF_VIEW }, { id: "upload", label: "Upload", need: DPF_ENTER },
+              { id: "history", label: "History", need: DPF_VIEW }],
+      render: renderDpf },
     { id: "dna_admin", label: "DNA Admin", allowed: (t) => t.includes("dna_admin.admin"),
       items: [{ id: "people", label: "People and access" }, { id: "signins", label: "Who may sign in" },
               { id: "history", label: "Sign-in history" }, { id: "changes", label: "Changes made here" }], render: renderAdmin },
@@ -4339,6 +4351,9 @@ const PR_HEALTH = {{PRICING_HEALTH}};
 
 {{COMMISSION_JS}}
 
+  function renderDpf(item, g) { DPF.show(item, g); }
+{{DPF_JS}}
+
   // ---------- Dashboard Pool. Reviewers vote Keep, Maybe or Drop (or the quiet Pass) on each
   // candidate board, with audiences on Keep and Maybe and an optional note; Phil Brook decides.
   // The registry and figures (pool_content) and the votes and decisions (pool_state) are read
@@ -5044,7 +5059,7 @@ const PR_HEALTH = {{PRICING_HEALTH}};
     gen++; token = null; me = null; dropStored(TOKEN_KEY);
     // The side menu lives inside the rail's tool list, so it is emptied and kept, not cleared away.
     const side = $("sidemenu"); side.textContent = ""; side.hidden = true; $("tabs").replaceChildren(side); setCrumb(null);
-    clearMain(); BE.reset(); DV.reset(); POOL.reset(); PR.reset(); CE.reset();
+    clearMain(); BE.reset(); DV.reset(); POOL.reset(); PR.reset(); CE.reset(); DPF.reset();
     $("app").hidden = true; $("signin").hidden = false; $("who").hidden = true; $("conn").textContent = "";
     $("emailStep").hidden = false; $("codeStep").hidden = true; $("retryStep").hidden = true; $("siCode").value = "";
     setMsg(message || "");
