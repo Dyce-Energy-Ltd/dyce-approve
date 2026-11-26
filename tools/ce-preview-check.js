@@ -28,9 +28,19 @@
 // ?as=cedecide: Decide only, so the menu is Lines and Exceptions, and both open with their controls.
 // Keyboard (ruling, 16/11/2026): a Yes reached by an arrow key waits for Save or Enter; a Yes picked
 // with the mouse is sent at once; a save from the menu-opened Exceptions page keeps its place.
+// Building (piece 3), as Admin Example, who holds Build: Availability sits last under Monthly run and
+// draws its Build and Load buttons; its SharePoint folders open in a new tab without an opener and
+// nothing else named outside the hub opens; Build goes to the build's page, which is asked for again
+// every 3 seconds, silently, until the build has finished; Load goes to the load's page, asked for
+// every 10 seconds until every load has ended, its GitHub run links opening outside; a refused Load
+// shows its sentence and stays; Rebuild on Exceptions goes to a build that stays live, which is never
+// asked for while an ask is on its way, is no longer asked for once the person leaves, and stops being
+// asked for after 15 minutes. ?as=ceview sees Availability without Build or Load; ?as=cedecide has no
+// Availability; ?as=cebuild (Build only) has Availability alone, and signing out stops a live build's
+// page being asked for.
 (() => {
   const PAGES = ["/runs", "/run", "/lines", "/line", "/exceptions", "/decisions", "/decision", "/decide", "/set-broker",
-    "/choose-broker", "/resolve"];
+    "/choose-broker", "/resolve", "/availability", "/availability-month", "/build-job", "/load-job"];
   const REFUSAL = "You do not have access to this. Ask Phil Brook to add it in DNA Admin.";
   const FOOT = "Data class: Red. Source: dyce-prod, the commission tables. Decisions, uplifts, brokers and resolutions you save here are written to dyce-prod straight away.";
   const NO_REASON = "Withholding payment needs a stated reason. This is the row that stops a broker being paid, and a blank reason is the one decision nobody can review later.";
@@ -60,6 +70,15 @@
   const msg = () => text("#ce > .msg");
   const refused = () => $("#ce > .msg").classList.contains("refused");
   const sorted = (o) => JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));
+  // Building (piece 3): the calls for one job's page, and how far apart they were asked for.
+  const jobCalls = (path, id) => pageCalls().filter((c) => c.args.path === path && JSON.stringify(c.args.query) === JSON.stringify({ id: [id] }));
+  const gaps = (cs) => cs.slice(1).map((c, i) => Math.round(c.at - cs[i].at));
+  const heads = () => $$("#ce .ce-table thead th").map((th) => th.textContent.trim());
+  const submitForm = (action, month) => {
+    const f = $$(`#ce form[method="post"][action="${action}"]`).find((x) => (x.querySelector('input[name="month"]') || {}).value === month);
+    if (f) f.querySelector('button[type="submit"]').click();
+    return !!f;
+  };
   function done() { const pre = document.createElement("pre"); pre.id = "result"; pre.textContent = JSON.stringify({ as, results }); document.body.append(pre); }
 
   async function admin() {
@@ -69,7 +88,7 @@
     check("the tab sits after Dashboard Pool and Pricing, just before DNA Admin", tabs.indexOf("dashboard_pool") >= 0 && tabs.indexOf("dashboard_pool") < tabs.indexOf("pricing") && tabs.indexOf("pricing") + 1 === tabs.indexOf("commission") && tabs.indexOf("commission") + 1 === tabs.indexOf("dna_admin"), tabs.join(","));
     check("the tab is labelled and selected", text('#tabs button[data-tool="commission"]') === "Commission Engine" && $('#tabs button[data-tool="commission"]').getAttribute("aria-current") === "true");
     const side = $$("#sidemenu > *").map((n) => n.textContent.trim());
-    check("the side menu is Monthly run: Lines, Exceptions, Decisions, Runs", JSON.stringify(side) === JSON.stringify(["Monthly run", "Lines", "Exceptions", "Decisions", "Runs"]), JSON.stringify(side));
+    check("the side menu is Monthly run: Lines, Exceptions, Decisions, Runs, Availability", JSON.stringify(side) === JSON.stringify(["Monthly run", "Lines", "Exceptions", "Decisions", "Runs", "Availability"]), JSON.stringify(side));
     check("Runs is marked", current() && current().item === "runs");
     check("the heading is the tool's", text("#ce > h1") === "Commission Engine");
 
@@ -159,6 +178,7 @@
     check("a decision opens", heading() === "Decision 7003" && current().item === "decisions", heading());
 
     await decider();
+    await building();
 
     // An answer that arrives after a later move is dropped.
     window.__stub.delay.page = 1500;
@@ -410,6 +430,122 @@
     check("every act call was answered by the stub", acts().every((c) => c.status === 200 || c.status === 409), JSON.stringify(acts().map((c) => c.status)));
   }
 
+
+  async function building() {
+    const opened = [];
+    window.open = function () { opened.push([...arguments]); return null; };
+    menu("availability").click();
+    await until(() => heading() === "Month availability");
+    check("Availability opens under Monthly run", heading() === "Month availability" && current() && current().item === "availability" && text("#crumb") === CRUMB + "Availability", heading() + " / " + text("#crumb"));
+    check("the call carries the path and no query", lastCall().args.path === "/availability" && JSON.stringify(lastCall().args.query) === "{}", JSON.stringify(lastCall().args));
+    check("its grid has the Build and Load columns", heads().includes("Build") && heads().includes("Load"), heads().join(","));
+    check("its grid scrolls in one box, not two", $$("#ce .ce-scroll .ce-scroll").length === 0 && $$("#ce table").every((t) => t.parentElement.classList.contains("ce-scroll")));
+    check("the page itself does not scroll sideways", document.documentElement.scrollWidth <= document.documentElement.clientWidth, document.documentElement.scrollWidth + " > " + document.documentElement.clientWidth);
+    const off = $$("#ce .ce-button--off");
+    check("a month that cannot be built shows Build greyed, with its reason as a title and as text", off.length > 0 && off.every((b) => b.title && b.nextElementSibling && b.nextElementSibling.classList.contains("ce-visually-hidden")) && !$("#ce [disabled]"));
+    check("each mark carries its word as text", $$("#ce .ce-mark").length > 20 && $$("#ce .ce-mark-cell .ce-mark").every((m) => /^(Available|Missing|Check)$/.test(m.textContent)));
+    // Outside links: a SharePoint folder opens in a new tab with no opener; nothing else does.
+    const sp = $$("#ce .ce-body a[data-external-href]")[0];
+    const asked = window.__stub.calls.length;
+    if (sp) sp.click();
+    check("a SharePoint folder opens in a new tab without an opener", sp && opened.length === 1 && opened[0][0] === sp.getAttribute("data-external-href") && opened[0][1] === "_blank" && opened[0][2] === "noopener", JSON.stringify(opened));
+    check("and the page stays, asking nothing", heading() === "Month availability" && window.__stub.calls.length === asked);
+    const host = $("#ce .ce-body section");
+    for (const bad of ["http://dyceenergy.sharepoint.com/sites/x", "https://github.com.evil.example/Dyce-Energy-Ltd/x", "https://evil.example/",
+      "javascript:alert(1)", "https://github.com/someone-else/x/actions/runs/1", "https://user@dyceenergy.sharepoint.com/sites/x",
+      "//dyceenergy.sharepoint.com/sites/x", "https://dyceenergy.sharepoint.com:8443/sites/x", "data:text/html,x", ""]) {
+      const a = document.createElement("a"); a.setAttribute("href", "#"); a.setAttribute("data-external-href", bad); a.textContent = "x";
+      host.append(a); a.click(); a.remove();
+    }
+    check("any other place named outside the hub is not opened", opened.length === 1, JSON.stringify(opened));
+
+    // Build: the job's page, asked for every 3 seconds until the build has finished, silently.
+    let n = acts().length;
+    check("June26 can be built", submitForm("/build", "June26"));
+    await until(() => heading() === "Build June26");
+    check("Build posts the build action with its month", acts().length === n + 1 && lastAct().action === "build" && JSON.stringify(lastAct().args.fields) === '{"month":["June26"]}', JSON.stringify(lastAct()));
+    await until(() => msg() === "Build started.");
+    check("then the build's page, with the answer's message, under Availability", heading() === "Build June26" && msg() === "Build started." && current().item === "availability", msg());
+    check("the live build's page carries the poll marker", !!$("#ce .ce-build-job[data-poll]"));
+    const seen = [];
+    const watcher = new MutationObserver(() => seen.push(msg() + "|" + $("#ce > .msg").hidden));
+    watcher.observe($("#ce > .msg"), { childList: true, characterData: true, subtree: true, attributes: true });
+    let busy = false;
+    const busyWatch = new MutationObserver(() => { if ($("#ce").getAttribute("aria-busy")) busy = true; });
+    busyWatch.observe($("#ce"), { attributes: true, attributeFilter: ["aria-busy"] });
+    await until(() => !$("#ce .ce-build-job[data-poll]"), 400);
+    const b41 = jobCalls("/build-job", "41");
+    check("the build's page is asked for again every 3 seconds until it has finished", b41.length === 4 && gaps(b41).every((g) => g >= 2900 && g < 4500), b41.length + " calls, gaps " + gaps(b41).join(","));
+    check("each step drawn in turn", heading() === "Build June26" && /Finished/.test(text("#ce .ce-build-job-table")) && !!link("/lines?run=June26"), text("#ce .ce-build-job-table"));
+    await sleep(4000);
+    check("and is not asked for once it has finished", jobCalls("/build-job", "41").length === 4, jobCalls("/build-job", "41").length);
+    watcher.disconnect(); busyWatch.disconnect();
+    check("the asks are silent: the message line and the busy mark never change", seen.length === 0 && !busy && msg() === "Build started.", JSON.stringify(seen) + " busy " + busy);
+
+    // Load: the load's page, asked for every 10 seconds until every load has ended.
+    menu("availability").click();
+    await until(() => heading() === "Month availability");
+    check("June26 can be loaded", submitForm("/load", "June26"));
+    await until(() => heading() === "Load June26" && !$("#ce").getAttribute("aria-busy"));
+    check("Load posts the load action with its month", lastAct().action === "load" && JSON.stringify(lastAct().args.fields) === '{"month":["June26"]}', JSON.stringify(lastAct()));
+    check("then the load's page, with no message, carrying the poll marker", heading() === "Load June26" && msg() === "" && !!$("#ce .ce-load-job[data-poll]"), msg());
+    await until(() => !$("#ce .ce-load-job[data-poll]"), 800);
+    const l7 = jobCalls("/load-job", "7");
+    check("the load's page is asked for again every 10 seconds until every load has ended", l7.length === 3 && gaps(l7).every((g) => g >= 9900 && g < 11500), l7.length + " calls, gaps " + gaps(l7).join(","));
+    check("the ended loads, and the month rechecked", /Rechecked June 2026/.test(text("#ce .ce-body")) && $$("#ce .ce-load-job a[data-external-href]").length === 2, text("#ce .ce-body").slice(0, 300));
+    const run = $("#ce .ce-load-job a[data-external-href]");
+    if (run) run.click();
+    check("a GitHub run opens in a new tab without an opener", opened.length === 2 && /^https:\/\/github\.com\/Dyce-Energy-Ltd\/[\w.-]+\/actions\/runs\/\d+$/.test(opened[1][0]) && opened[1][2] === "noopener", JSON.stringify(opened[1]));
+    // A refused Load: the sentence, and the page stays.
+    menu("availability").click();
+    await until(() => heading() === "Month availability");
+    check("July26 can be loaded", submitForm("/load", "July26"));
+    await until(() => refused() && !$("#ce").getAttribute("aria-busy"));
+    check("a refused Load shows its sentence and stays on Availability", /^A load is already running, started at \d\d:\d\d by /.test(msg()) && heading() === "Month availability", msg());
+
+    // Rebuild on Exceptions: a build that stays live.
+    menu("exceptions").click();
+    await until(() => heading() === "June26 exceptions" && $('#ce .ce-rebuild form[action="/build"]'));
+    $('#ce .ce-rebuild button[type="submit"]').click();
+    await until(() => heading() === "Build June26" && $("#ce .ce-build-job[data-poll]") && !$("#ce").getAttribute("aria-busy"));
+    check("Rebuild posts the build action with its month and goes to the build's page", lastAct().action === "build" && JSON.stringify(lastAct().args.fields) === '{"month":["June26"]}' && current().item === "availability", JSON.stringify(lastAct()));
+    // Never asked for while an ask is on its way: each answer is held back 5 seconds.
+    window.__stub.delay.page = 5000;
+    const from = jobCalls("/build-job", "42").length;
+    await sleep(15000);
+    delete window.__stub.delay.page;
+    const slow = jobCalls("/build-job", "42").slice(from);
+    check("an ask is never sent while one is on its way", slow.length >= 2 && gaps(slow).every((g) => g >= 7900), "gaps " + gaps(slow).join(","));
+    await sleep(5500);
+    window.scrollTo(0, document.documentElement.scrollHeight);
+    const y = window.scrollY, before = jobCalls("/build-job", "42").length;
+    await until(() => jobCalls("/build-job", "42").length > before);
+    await sleep(400);
+    check("an ask redraws the page where it was", Math.abs(window.scrollY - y) <= 2 && heading() === "Build June26", y + " then " + window.scrollY);
+    // Leaving the page stops the asks.
+    await sleep(800);
+    menu("lines").click();
+    await until(() => heading() === "Lines");
+    const left = jobCalls("/build-job", "42").length;
+    await sleep(7000);
+    check("leaving the page stops the asks", jobCalls("/build-job", "42").length === left, left + " then " + jobCalls("/build-job", "42").length);
+    // 15 minutes: the asks stop, and the page says so once.
+    menu("exceptions").click();
+    await until(() => heading() === "June26 exceptions" && $('#ce .ce-rebuild form[action="/build"]'));
+    $('#ce .ce-rebuild button[type="submit"]').click();
+    await until(() => heading() === "Build June26" && $("#ce .ce-build-job[data-poll]") && !$("#ce").getAttribute("aria-busy"));
+    const realNow = Date.now;
+    const shift = 15 * 60 * 1000 + 1000;
+    Date.now = () => realNow.call(Date) + shift;
+    const at15 = jobCalls("/build-job", "42").length;
+    await sleep(7000);
+    Date.now = realNow;
+    check("after 15 minutes the page is not asked for again", jobCalls("/build-job", "42").length === at15, at15 + " then " + jobCalls("/build-job", "42").length);
+    check("and the message line says it stopped checking", msg() === "This page stopped checking after 15 minutes. Open it again to see where it is.", msg());
+    menu("runs").click();
+    await until(() => heading() === "Runs");
+  }
+
   async function ceview() {
     if (!(await until(() => heading() === "Runs"))) { check("Runs is drawn", false, text("#main").slice(0, 300)); return; }
     menu("lines").click();
@@ -419,6 +555,9 @@
     menu("exceptions").click();
     await until(() => heading() === "June26 exceptions");
     check("Exceptions draws no form that posts for View only", heading() === "June26 exceptions" && !$('#ce form[method="post"]') && !link("/set-broker?exception=9005&next=%2Fexceptions%3Frun%3DJune26"));
+    menu("availability").click();
+    await until(() => heading() === "Month availability");
+    check("View opens Availability, with no Build or Load column and no form that posts", heading() === "Month availability" && !heads().includes("Build") && !heads().includes("Load") && !$('#ce form[method="post"]'), heads().join(","));
     check("nothing is sent", acts().length === 0, JSON.stringify(acts()));
   }
 
@@ -440,8 +579,33 @@
     menu("exceptions").click();
     await until(() => heading() === "June26 exceptions");
     check("Exceptions opens with its forms", heading() === "June26 exceptions" && !!$('#ce form[method="post"][action="/uplift"]'), heading());
-    check("no Decisions or Runs item", !menu("decisions") && !menu("runs"));
+    check("no Decisions, Runs or Availability item", !menu("decisions") && !menu("runs") && !menu("availability"));
   }
 
-  (as === "viewer" ? viewer() : as === "ceview" ? ceview() : as === "cedecide" ? cedecide() : admin()).catch((e) => check("the check ran to the end", false, e && e.stack)).finally(done);
+  // Build alone: the menu is Availability (the last place, Runs, is not open to them), with its Build
+  // and Load buttons; signing out while a build's page is being asked for stops the asks.
+  async function cebuild() {
+    if (!(await until(() => heading() === "Month availability"))) { check("Availability is drawn", false, text("#main").slice(0, 300)); return; }
+    const side = $$("#sidemenu > *").map((n) => n.textContent.trim());
+    check("the side menu is Monthly run: Availability", JSON.stringify(side) === JSON.stringify(["Monthly run", "Availability"]), JSON.stringify(side));
+    check("Build and Load are drawn", heads().includes("Build") && heads().includes("Load"), heads().join(","));
+    check("June26 can be built", submitForm("/build", "June26"));
+    await until(() => heading() === "Build June26");
+    await until(() => !$("#ce .ce-build-job[data-poll]"), 400);
+    check("the build is followed until it has finished", jobCalls("/build-job", "41").length === 4, jobCalls("/build-job", "41").length);
+    menu("availability").click();
+    await until(() => heading() === "Month availability");
+    submitForm("/build", "June26");
+    await until(() => heading() === "Build June26" && $("#ce .ce-build-job[data-poll]"));
+    await until(() => jobCalls("/build-job", "42").length >= 2, 200);
+    // Signed out once the answer is drawn, with the next ask waiting on its timer.
+    await sleep(800);
+    $("#signOutBtn").click();
+    await sleep(300);
+    const after = pageCalls().length;
+    await sleep(7000);
+    check("signing out stops the asks", jobCalls("/build-job", "42").length >= 2 && pageCalls().length === after && !$("#ce"), after + " then " + pageCalls().length);
+  }
+
+  (as === "viewer" ? viewer() : as === "ceview" ? ceview() : as === "cedecide" ? cedecide() : as === "cebuild" ? cebuild() : admin()).catch((e) => check("the check ran to the end", false, e && e.stack)).finally(done);
 })();

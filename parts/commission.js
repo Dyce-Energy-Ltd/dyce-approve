@@ -18,19 +18,33 @@
   // shown, it is drawn again where it was, and focus goes back to the row whose dropdown saved. A
   // refusal shows its sentence and draws the page shown again, in place. While a call is on its way
   // every control on the page is disabled by the DOM (the sanitiser drops a disabled attribute).
+  //
+  // Piece 3 (building). Availability's Build and Load buttons, and Exceptions' Rebuild, are post forms
+  // (/build, /load) sent as the build and load actions; the answer's go is the job's page
+  // (/build-job?id=, /load-job?id=). While that page carries the function's data-poll marker (the job
+  // is live) it is asked for again, every 3 seconds for a build and every 10 for a load (POLL: the
+  // hub's intervals, never the page's), one ask at a time: the next is timed from the answer to the
+  // last, as a GitHub call behind a load's page can take 20 seconds. Each ask is silent (no Loading
+  // line, no busy mark) and redraws the page where it was, focus kept in place. The asks stop when the
+  // marker has gone (the job has finished), when the person moves anywhere (ceGen), on sign-out
+  // (reset), or after 15 minutes, which the message line then says once. Places outside the hub (a
+  // SharePoint folder, a GitHub run) come as data-external-href, since the sanitiser follows only page
+  // paths: they open in a new tab with no opener, for https on github.com (Dyce-Energy-Ltd) or the Dyce
+  // SharePoint host only; anything else does nothing.
   // Inlined into hub.html's script by build.py (the COMMISSION_JS include), so it uses the hub's token, me,
   // gen, where, TOOLS, el, $, say, explain, showSignIn, setCrumb, keepWhere and dvSanitise.
   const CE = (() => {
     const CE_ENDPOINT = "https://rlpnbwjppylhcpybpqim.supabase.co/functions/v1/commission-engine";
     // The function's pages (core.ts PAGE_PIECE). A link or form to any other address is not followed.
-    const PAGES = new Set(["/runs", "/run", "/lines", "/line", "/exceptions", "/decisions", "/decision", "/decide", "/set-broker", "/choose-broker", "/resolve"]);
+    const PAGES = new Set(["/runs", "/run", "/lines", "/line", "/exceptions", "/decisions", "/decision", "/decide", "/set-broker", "/choose-broker", "/resolve", "/availability", "/availability-month", "/build-job", "/load-job"]);
     // A form that posts is an act call; its path names the action. /uplift is a form action only, never a page.
-    const ACT = { "/decide": "decide", "/uplift": "enter_uplift", "/set-broker": "set_broker", "/choose-broker": "choose_broker", "/resolve": "resolve" };
+    const ACT = { "/decide": "decide", "/uplift": "enter_uplift", "/set-broker": "set_broker", "/choose-broker": "choose_broker", "/resolve": "resolve", "/build": "build", "/load": "load" };
     // The side menu item each page sits under, and the page each item opens.
     const ITEM = { "/runs": "runs", "/run": "runs", "/lines": "lines", "/line": "lines", "/exceptions": "exceptions",
       "/decisions": "decisions", "/decision": "decisions", "/decide": "lines", "/set-broker": "exceptions",
-      "/choose-broker": "exceptions", "/resolve": "exceptions" };
-    const START = { lines: "/lines", exceptions: "/exceptions", decisions: "/decisions", runs: "/runs" };
+      "/choose-broker": "exceptions", "/resolve": "exceptions", "/availability": "availability", "/availability-month": "availability",
+      "/build-job": "availability", "/load-job": "availability" };
+    const START = { lines: "/lines", exceptions: "/exceptions", decisions: "/decisions", runs: "/runs", availability: "/availability" };
     // What the function counts as blank in a reason (pystr.ts BLANK_CHARACTERS, the laptop's
     // decisions.BLANK_CHARACTERS), and the laptop's sentence for a No without one (deciding.ts).
     const BLANK = " \u00a0\t\r\n";
@@ -44,7 +58,7 @@
       try {
         res = await fetch(CE_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ op, token: t, ...fields }), signal: AbortSignal.timeout(30000) });
         j = await res.json();
-      } catch { throw { message: "The server did not answer. Check your connection and try again." }; }
+      } catch { throw { message: "The server did not answer. Check your connection and try again.", unanswered: true }; }
       if (!j || typeof j !== "object") throw { message: "Unexpected answer from the server." };
       if (res.status === 401 && j.signedOut) { if (t && token === t) showSignIn("Your session has ended. Sign in again."); throw { signedOut: true, message: "Your session has ended. Sign in again." }; }
       if (!j.ok) throw { message: j.error || "Something went wrong." };
@@ -118,6 +132,7 @@
     // after (an act's answer): the sentence to show once the page is drawn, refused or not, and,
     // when the page is the one shown before, where it was (keep) and the row to focus (line).
     async function go(t, moved, after) {
+      stopFollowing();
       const n = ++ceGen;
       say(parts.msg, "Loading…"); root.setAttribute("aria-busy", "true");
       try {
@@ -131,6 +146,7 @@
           if (h) { h.setAttribute("tabindex", "-1"); h.focus({ preventScroll: true }); }
           if (root.getBoundingClientRect().top < 0) root.scrollIntoView();
         }
+        watch(t, Date.now());
       } catch (err) {
         if (still(n) && !(err && err.signedOut)) {
           // The page shown stays; after an act its controls are freed and its sentence is kept.
@@ -149,8 +165,11 @@
       body.setAttribute("aria-label", String(p.title ?? ""));
       body.append(dvSanitise(String(p.html ?? "")));
       shown = t;
-      // A wide table scrolls in its own box rather than widening the page.
-      for (const t of [...body.querySelectorAll("table")]) { const w = el("div", { class: "ce-scroll" }); t.replaceWith(w); w.append(t); }
+      // A wide table scrolls in its own box rather than widening the page (Availability's grid comes in one).
+      for (const t of [...body.querySelectorAll("table")]) {
+        if (t.parentElement && t.parentElement.classList.contains("ce-scroll")) continue;
+        const w = el("div", { class: "ce-scroll" }); t.replaceWith(w); w.append(t);
+      }
       const cur = ITEM[t.path];
       for (const b of $("sidemenu").querySelectorAll("button[data-item]")) { if (b.dataset.item === cur) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
       // A link or form that moved the page under another menu item (a line's run, a decision's
@@ -181,6 +200,7 @@
     async function act(action, fields, line) {
       const from = shown;
       if (!from) return;
+      stopFollowing();
       const n = ++ceGen;
       const keep = place();
       hold(); root.setAttribute("aria-busy", "true");
@@ -268,6 +288,63 @@
       save(box);
     }
 
+    // ---------- following a build or a load (piece 3)
+    const POLL = { "/build-job": 3000, "/load-job": 10000 };
+    const POLL_FOR = 15 * 60 * 1000;
+    const STOPPED_CHECKING = "This page stopped checking after 15 minutes. Open it again to see where it is.";
+    let follow = null;
+    function stopFollowing() { if (follow) clearTimeout(follow.timer); follow = null; }
+    // After the page t is drawn: the next ask, if t is a job's page and the job is live. since is when
+    // the person opened the page; the asks it leads to keep it.
+    function watch(t, since) {
+      stopFollowing();
+      const every = POLL[t.path];
+      if (!every || !parts || !parts.body.querySelector("[data-poll]")) return;
+      const n = ceGen;
+      follow = { timer: setTimeout(() => ask(t, n, since), every) };
+    }
+    // The page's focusable things, so focus can go back to the same one after a redraw.
+    const focusable = () => [...parts.body.querySelectorAll("h2, a, button, input, select")];
+    function focusedAt() { const a = document.activeElement; return a && parts.body.contains(a) ? focusable().indexOf(a) : -1; }
+    function focusAt(i) {
+      if (i < 0) return;
+      const c = focusable()[i] || parts.body.querySelector("h2");
+      if (!c) return;
+      if (c.tagName === "H2") c.setAttribute("tabindex", "-1");
+      c.focus({ preventScroll: true });
+    }
+    async function ask(t, n, since) {
+      follow = null;
+      if (!still(n)) return;
+      if (Date.now() - since >= POLL_FOR) { say(parts.msg, STOPPED_CHECKING); return; }
+      let r;
+      try {
+        r = await call("page", { path: t.path, query: t.query });
+      } catch (err) {
+        if (!still(n) || (err && err.signedOut)) return;
+        // No answer: ask again at the next turn. A refusal ends the asks with its sentence.
+        if (err && err.unanswered) { watch(t, since); return; }
+        say(parts.msg, explain(err), true);
+        return;
+      }
+      if (!still(n)) return;
+      const keep = place(), f = focusedAt();
+      draw(r.page, t);
+      window.scrollTo(window.scrollX, keep.y);
+      [...parts.body.querySelectorAll(".ce-scroll")].forEach((s, i) => { if (i < keep.x.length) s.scrollLeft = keep.x[i]; });
+      focusAt(f);
+      watch(t, since);
+    }
+    // A place outside the hub the page names (data-external-href): https on the Dyce SharePoint host,
+    // or on github.com under Dyce-Energy-Ltd, with no user, password or port. Else null.
+    function outside(v) {
+      let u;
+      try { u = new URL(v); } catch { return null; }
+      if (u.protocol !== "https:" || u.username || u.password || u.port) return null;
+      if (u.hostname === "dyceenergy.sharepoint.com" || (u.hostname === "github.com" && u.pathname.startsWith("/Dyce-Energy-Ltd/"))) return u.href;
+      return null;
+    }
+
     // ---------- links, forms and the Broker list's search
     function onClick(e) {
       if (!parts) return;
@@ -276,6 +353,11 @@
       const a = e.target.closest("a");
       if (!a || !parts.body.contains(a)) return;
       e.preventDefault();
+      if (a.hasAttribute("data-external-href")) {
+        const u = outside(a.getAttribute("data-external-href"));
+        if (u) window.open(u, "_blank", "noopener");
+        return;
+      }
       const t = target(a.getAttribute("data-dv-href") || "");
       if (t) go(t, true);
     }
@@ -312,7 +394,7 @@
     }
 
     // On sign-out nothing from these pages stays: showSignIn has emptied #main and the side menu,
-    // and answers on their way are dropped.
-    function reset() { ceGen++; root = null; parts = null; shown = null; }
+    // answers on their way are dropped, and a job's page is not asked for again.
+    function reset() { stopFollowing(); ceGen++; root = null; parts = null; shown = null; }
     return { show, reset };
   })();

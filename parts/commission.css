@@ -37,7 +37,8 @@
 #ce .ce-filters input[type="search"], #ce .ce-search input[type="text"] { flex: 1 1 200px; width: auto; min-width: 0; font-size: 14px; padding: 8px 12px; }
 
 /* Tables. Each is put in a .ce-scroll by the page, so a wide one scrolls rather than widening it. */
-#ce .ce-scroll { overflow-x: auto; max-width: 100%; }
+/* position: relative keeps the visually hidden words inside it (absolute, they would widen the page). */
+#ce .ce-scroll { overflow-x: auto; max-width: 100%; position: relative; }
 #ce table.ce-table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 20px; }
 #ce .ce-table th { text-align: left; font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); padding: 8px 8px; border-bottom: 1px solid var(--hairline); vertical-align: bottom; }
 #ce .ce-table td { padding: 8px 8px; border-bottom: 1px solid var(--hairline); vertical-align: top; overflow-wrap: break-word; }
@@ -154,6 +155,44 @@
 #ce .ce-fix-facts, #ce .ce-fix-deals { max-width: 880px; margin-bottom: 14px; }
 #ce .ce-fix-facts th { width: 240px; }
 #ce .ce-page > form { margin-top: 14px; }
+
+/* Building (piece 3): the Availability grid and month page, the Build, Load and Rebuild forms, and the
+   build's and the load's pages. A mark is a shape as well as a colour (available a filled circle,
+   missing an empty square, worth checking a diamond), and carries its word as hidden text. A button
+   that is not offered is a greyed word: the sanitiser keeps no disabled attribute. */
+#ce .ce-availability th, #ce .ce-availability td { padding: 8px 5px; }
+#ce .ce-availability th a { font-weight: 800; color: var(--ink); }
+#ce .ce-availability tbody th { font-size: 13px; line-height: 20px; letter-spacing: 0; text-transform: none; color: var(--ink); vertical-align: top; }
+#ce .ce-availability form { margin: 0; }
+#ce .ce-availability button, #ce .ce-button { padding: 5px 12px; }
+#ce .ce-mark-cell { min-width: 22px; }
+#ce .ce-mark { display: inline-block; width: 12px; height: 12px; vertical-align: -1px; box-sizing: border-box; }
+#ce .ce-mark--ok { background: var(--status-ok); border-radius: 50%; }
+#ce .ce-mark--missing { border: 2px solid var(--status-critical); background: var(--status-critical-wash); border-radius: 2px; }
+#ce .ce-mark--check { background: var(--status-warn); transform: rotate(45deg) scale(0.85); }
+#ce .ce-mark-key .ce-mark { margin: 0 2px 0 4px; }
+#ce .ce-button { display: inline-block; font-weight: 800; font-size: 13px; line-height: 20px; border-radius: 8px; border: 1px solid; white-space: nowrap; }
+#ce .ce-button--off { color: var(--muted); background: var(--surface-raised); border-color: var(--hairline); cursor: not-allowed; }
+#ce .ce-save-locations { display: flex; flex-direction: column; gap: 4px; margin: 0 0 14px; max-width: 880px; overflow-wrap: anywhere; }
+#ce .ce-save-locations p { margin: 0; }
+#ce .ce-save-locations a, #ce .ce-load-job a[data-external-href] { color: var(--ink); font-weight: 800; cursor: pointer; }
+#ce .ce-mark-key { margin: 0 0 14px; max-width: 880px; }
+#ce .ce-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#ce .ce-missing { font-weight: 800; }
+#ce .ce-file { overflow-wrap: anywhere; }
+#ce .ce-key-value, #ce .ce-build-job-table { max-width: 880px; }
+#ce .ce-key-value th, #ce .ce-build-job-table th { width: 240px; vertical-align: top; }
+#ce .ce-key-value td, #ce .ce-build-job-table td { font-size: 14px; line-height: 22px; }
+#ce .ce-findings { display: flex; flex-direction: column; gap: 8px; max-width: 880px; margin: 0 0 10px; }
+#ce .ce-finding { margin: 0; padding: 8px 12px; border-left: 3px solid; border-radius: 0 8px 8px 0; font-size: 14px; line-height: 22px; overflow-wrap: anywhere; }
+#ce .ce-finding--blocking { border-color: var(--status-critical); background: var(--status-critical-wash); }
+#ce .ce-finding--warning { border-color: var(--status-warn); background: var(--status-warn-wash); }
+#ce .ce-finding--info { border-color: var(--status-info); background: var(--status-info-wash); }
+#ce .ce-code { display: block; font-size: 10px; line-height: 14px; letter-spacing: 0.08em; font-weight: 800; color: var(--ink); }
+#ce .ce-availability-page > h2 .ce-badge { vertical-align: 4px; margin-right: 6px; }
+#ce .ce-rebuild { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 14px 0; }
+#ce .ce-rebuild form { margin: 0; }
+#ce .ce-build-job .ce-note, #ce .ce-load-job .ce-note { margin-top: 14px; }
 
 /* The filter box goes above the list where the two would be cramped side by side. */
 @media (max-width: 1000px) {

@@ -19,6 +19,16 @@
 // submit to, so the preview follows them, and so are the pages their forms go back to. CE_SAY holds
 // the function's own sentences (deciding.ts) for the stub's act answers, made here so the stub does
 // not copy them by hand.
+//
+// Piece 3 (building): every page is drawn for four people: one who can decide and build (the stub's
+// Admin Example), one who can only decide, one who can only view and one who can only build; an
+// entry drawn differently for some of them lists them in "who" ("decide" or "view", with "+build").
+// Availability is drawn over the invented reads of the function's own golden grid
+// (golden/availability-cases.json, gridRows' first case), with Load set up (an invented stand-in
+// token that is never sent anywhere), and each month it links to. The build's and the load's pages
+// are drawn in steps ("step" on the request), as the stub answers successive asks: build 41 (June26)
+// from Topping up brokers to Finished, build 42 staying live, and load 7 from waiting for GitHub to
+// every load ended, its GitHub answers invented here (no request leaves Node).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -41,13 +51,20 @@ const { dealsFromRows, makeResolver } = await load('exceptions-data.ts');
 const { lineMatches, searchTerms } = await load('filters.ts');
 const { sumDec } = await load('format.ts');
 const say = await load('deciding.ts');
+const { goldenCases } = await load('golden-cases.ts');
+const { makeAvailabilityView } = await load('availability.ts');
+const { makeLoadJobView, newRun, WORKFLOWS, LIVE: LOAD_LIVE, hhmm } = await load('load.ts');
+const { STARTED } = await load('build-job.ts');
 const FIX = JSON.parse(readFileSync(join(folder, 'golden', 'fixtures.json'), 'utf8')).exceptions;
 
 const copy = (v) => JSON.parse(JSON.stringify(v));
 
-// Who the pages are drawn for: the stub's Admin Example, who can decide, and someone who can only view.
-const DECIDER = { email: 'admin.example@dyce-energy.co.uk', canDecide: true };
-const VIEWER = { email: 'cy.example@dyce-energy.co.uk', canDecide: false };
+// Who the pages are drawn for, each with the stub's name for them: the stub's Admin Example, who can
+// decide and build, someone who can only decide, someone who can only view and someone who can only build.
+const ADMIN = { email: 'admin.example@dyce-energy.co.uk', canDecide: true, canBuild: true };
+const PEOPLE = [['decide+build', ADMIN], ['decide', { email: 'dee.example@dyce-energy.co.uk', canDecide: true, canBuild: false }],
+  ['view', { email: 'cy.example@dyce-energy.co.uk', canDecide: false, canBuild: false }],
+  ['view+build', { email: 'bea.example@dyce-energy.co.uk', canDecide: false, canBuild: true }]];
 
 // ---- the invented runs: June26 is the fixtures' run; Mar26 records the wrong usage month.
 const JUNE = '11111111-1111-4111-8111-111111111111';
@@ -182,6 +199,56 @@ const db = {
   exceptionsByIds: async (ids) => FIX.exceptions.filter((e) => ids.includes(e.exception_id))
     .sort((a, b) => Number(a.exception_id) - Number(b.exception_id))
     .map((e) => ({ exception_id: e.exception_id, resolved_at: e.resolved_at ?? null, month_token: 'June26' })),
+  // Building (piece 3): the Availability reads, the build jobs and the load job (below).
+  availabilityArrears: async () => copy(READS.arrears),
+  availabilityUpfront: async () => copy(READS.upfront),
+  availabilityVoltx: async () => copy(READS.voltx),
+  availabilityContractBook: async () => copy(READS.contract_book),
+  availabilityUpfrontList: async () => copy(READS.upfront_list),
+  availabilityRuns: async () => copy(READS.runs),
+  liveLoad: async () => null,
+  buildJob: async (id) => copy(BUILD_JOBS[id] ?? null),
+  loadJob: async (id) => copy(LOAD_JOBS[id] ?? null),
+  loadUpdate: async (id, loads, finished, message) => {
+    const j = LOAD_JOBS[id];
+    if (loads !== null) j.loads = copy(loads);
+    if (finished && j.finished_at === null) j.finished_at = NOW.toISOString();
+    if (message !== null) j.message = message;
+    return { outcome: 'written' };
+  },
+};
+
+// ---- building (piece 3): the golden grid's invented reads, two builds and a load, all made up.
+const READS = goldenCases('gridRows', 'availability-cases.json')[0].args[1];
+const at = (seconds) => new Date(NOW.getTime() - seconds * 1000).toISOString();
+const job = (o) => ({ build_job_id: '41', month_token: 'June26', requested_by: ADMIN.email, requested_at: at(20),
+  started_at: at(19), heartbeat_at: at(2), finished_at: null, status: 'running', stage: null, stage_detail: null, message: null,
+  run_id: null, revision: null, counts: null, ...o });
+const BUILD_STEPS = [
+  job({ stage: 'Topping up brokers', stage_detail: '' }),
+  job({ stage: 'Reading the ID625 statements', stage_detail: '' }),
+  job({ stage: 'Saving', stage_detail: '1,234 lines' }),
+  job({ status: 'succeeded', stage: 'Saving', stage_detail: '1,234 lines', finished_at: at(1), run_id: '55555555-5555-4555-8555-555555555555',
+    revision: 3, counts: { yu: { Yes: 812, No: 41, Maybe: 156 }, voltx: { Yes: 198, No: 6, Maybe: 21 } } }),
+];
+const BUILD_JOBS = { 42: job({ build_job_id: '42', stage: 'Reading HubSpot deals', stage_detail: '' }) };
+const LOADER = 'example-loader';
+const LOAD_JOBS = { 7: { load_job_id: '7', month_token: 'June26', requested_by: ADMIN.email, requested_at: at(120),
+  loads: WORKFLOWS.map((w) => newRun(w, '2026-06-01', at(119), LOADER)), finished_at: null, message: null } };
+// GitHub as the load's page sees it at each step: no run yet, both running, both ended.
+let loadStep = 0;
+const RUN_IDS = { 'Dyce-Energy-Ltd/dyce-data-pipelines': 9100000001, 'Dyce-Energy-Ltd/hubspot-supabase': 9100000002 };
+const runOf = (repo, status, conclusion) => ({ id: RUN_IDS[repo], created_at: at(110).slice(0, 19) + 'Z', event: 'workflow_dispatch',
+  html_url: `https://github.com/${repo}/actions/runs/${RUN_IDS[repo]}`, triggering_actor: { login: LOADER }, status, conclusion });
+const GITHUB = {
+  token: () => 'preview-stand-in',
+  fetch: async (url) => {
+    const m = /^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/actions\/(workflows\/[^/]+\/runs|runs\/\d+)/.exec(url);
+    if (!m) return { status: 404, text: async () => '' };
+    const body = m[2].startsWith('workflows') ? { workflow_runs: loadStep === 0 ? [] : [runOf(m[1], 'in_progress', null)] }
+      : runOf(m[1], 'completed', 'success');
+    return { status: 200, text: async () => JSON.stringify(body) };
+  },
 };
 
 // ---- the requests the preview answers: the four pages, a filter, a month, and the details.
@@ -208,9 +275,11 @@ function queryOf(pairs) {
 const unesc = (v) => v.replaceAll('&quot;', '"').replaceAll('&#x27;', "'").replaceAll('&lt;', '<').replaceAll('&gt;', '>')
   .replaceAll('&amp;', '&');
 
+// The views drawn here with a stand-in for GitHub: Availability (Load set up) and the load's page.
+const VIEW = { ...VIEWS, '/availability': makeAvailabilityView(GITHUB), '/load-job': makeLoadJobView(GITHUB) };
 async function draw(path, query, who) {
   try {
-    const page = await VIEWS[path](db, query, NOW, who);
+    const page = await VIEW[path](db, query, NOW, who);
     return { status: 200, title: page.title, html: page.html };
   } catch (e) {
     if (!(e instanceof UserError)) throw e;
@@ -220,22 +289,29 @@ async function draw(path, query, who) {
 
 const answers = [];
 const asked = new Set();
-function keep(path, query, answer) {
-  const same = answers.find((a) => a.who === answer.who && a.status === answer.status && a.title === answer.title &&
+function keep(path, query, answer, step) {
+  const who = JSON.stringify(answer.who ?? null);
+  const same = answers.find((a) => JSON.stringify(a.who ?? null) === who && a.status === answer.status && a.title === answer.title &&
     a.html === answer.html && a.error === answer.error);
-  if (same) same.requests.push({ path, query });
-  else answers.push(answer.who ? { who: answer.who, requests: [{ path, query }], ...answer } : { requests: [{ path, query }], ...answer });
+  const request = step === undefined ? { path, query } : { path, query, step };
+  if (same) same.requests.push(request);
+  else answers.push(answer.who ? { who: answer.who, requests: [request], ...answer } : { requests: [request], ...answer });
 }
-// A page for both people: one entry when they see the same, else one for each.
+// A page for the four people: one entry when they all see the same, else one for each page seen,
+// listing who sees it.
 async function both(path, query) {
   const key = path + JSON.stringify(query);
   if (asked.has(key)) return null;
   asked.add(key);
-  const forDecider = await draw(path, query, DECIDER);
-  const forViewer = await draw(path, query, VIEWER);
-  if (forDecider.html === forViewer.html && forDecider.error === forViewer.error) keep(path, query, forDecider);
-  else { keep(path, query, { ...forDecider, who: 'decide' }); keep(path, query, { ...forViewer, who: 'view' }); }
-  return forDecider;
+  const seen = [];
+  for (const [label, who] of PEOPLE) {
+    const page = await draw(path, query, who);
+    const same = seen.find((x) => x.page.html === page.html && x.page.error === page.error && x.page.status === page.status);
+    if (same) same.who.push(label); else seen.push({ page, who: [label] });
+  }
+  if (seen.length === 1) keep(path, query, seen[0].page);
+  else for (const x of seen) keep(path, query, { ...x.page, who: x.who });
+  return seen[0].page;
 }
 
 const drawn = [];
@@ -263,7 +339,7 @@ for (const html of drawn) {
 }
 add('/choose-broker', { exception: ['9001'], next: ['/exceptions?run=June26'] });
 for (const [path, query] of deciding.values()) {
-  const page = await draw(path, query, DECIDER);
+  const page = await draw(path, query, ADMIN);
   keep(path, query, page);
   // Where its forms and links go back to, so the preview can follow them.
   for (const m of (page.html ?? '').matchAll(/name="next" value="([^"]*)"/g)) {
@@ -281,6 +357,21 @@ for (const html of drawn) {
   }
 }
 
+// Building: Availability, each month it links to, and the job pages step by step.
+const availability = await both('/availability', {});
+for (const m of (availability.html ?? '').matchAll(/href="(\/availability-month\?[^"]*)"/g)) {
+  const u = new URL(unesc(m[1]), 'https://ce.invalid');
+  await both(u.pathname, queryOf(u.searchParams));
+}
+for (const [i, b] of BUILD_STEPS.entries()) {
+  BUILD_JOBS[41] = b;
+  keep('/build-job', { id: ['41'] }, await draw('/build-job', { id: ['41'] }, ADMIN), i);
+}
+keep('/build-job', { id: ['42'] }, await draw('/build-job', { id: ['42'] }, ADMIN), 0);
+for (loadStep = 0; loadStep < 3; loadStep++) {
+  keep('/load-job', { id: ['7'] }, await draw('/load-job', { id: ['7'] }, ADMIN), loadStep);
+}
+
 // The function's own sentences, for the stub's act answers.
 const SAY = {
   noReason: say.validate('No', ''),
@@ -294,6 +385,8 @@ const SAY = {
   marked1Yes: say.markedMessage(1, 'Yes'), marked1No: say.markedMessage(1, 'No'),
   marked2Yes: say.markedMessage(2, 'Yes'), marked2No: say.markedMessage(2, 'No'),
   resolved1: say.resolvedMessage(1, 0), resolved2: say.resolvedMessage(2, 0),
+  buildStarted: STARTED,
+  loadLive: LOAD_LIVE.replace('{at}', hhmm(LOAD_JOBS[7].requested_at)).replace('{who}', ADMIN.email),
 };
 
 // ASCII only, and no "</" or "<!", so the stub is safe inside the page's <script>.

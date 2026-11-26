@@ -761,7 +761,7 @@ class CommittedPagesTests(unittest.TestCase):
         i_pool, i_ce, i_admin = (page.index('{ id: "%s"' % t) for t in ("dashboard_pool", "commission", "dna_admin"))
         self.assertLess(i_pool, i_ce)
         self.assertLess(i_ce, i_admin)
-        self.assertIn('const CE_VIEW = "commission.view", CE_DECIDE = "commission.decide";', page)
+        self.assertIn('const CE_VIEW = "commission.view", CE_DECIDE = "commission.decide", CE_BUILD = "commission.build";', page)
         self.assertIn('{ id: "commission", label: "Commission Engine", allowed: (t) => t.some((c) => c.startsWith("commission.")),', page)
         # Decide alone opens Lines and Exceptions (spec 4.2.1, the function's PAGE_TICKS); Decisions and
         # Runs need View. A need may be a list, and both menu filters read it through mayOpen.
@@ -774,7 +774,11 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertNotIn("Piece 1 is read-only", page)
         self.assertNotIn("Piece 1 of the Commission Engine is read-only", page)
         self.assertIn('{ id: "decisions", label: "Decisions", group: "Monthly run", need: CE_VIEW },', page)
-        self.assertIn('{ id: "runs", label: "Runs", group: "Monthly run", need: CE_VIEW }],', page)
+        self.assertIn('{ id: "runs", label: "Runs", group: "Monthly run", need: CE_VIEW },', page)
+        # Piece 3 (building): Availability opens with View or Build, as the function's PAGE_TICKS does;
+        # Build and Load are its buttons, and their job pages are reached from it (no menu item).
+        self.assertIn('{ id: "availability", label: "Availability", group: "Monthly run", need: [CE_VIEW, CE_BUILD] }],', page)
+        self.assertNotIn('label: "Build", group', page)
         self.assertIn("render: renderCommission },", page)
         # The module uses the hub's session, helpers and sanitiser, so it is inlined inside the
         # hub's script after the sanitiser; its styles are in the style element.
@@ -790,10 +794,25 @@ class CommittedPagesTests(unittest.TestCase):
         # Its own allowlist of the function's pages (ruling R6), the four deciding pages added in piece 2;
         # DNA Viewer's pagePath is not widened. /uplift is a form action only, never a page.
         self.assertIn('const PAGES = new Set(["/runs", "/run", "/lines", "/line", "/exceptions", "/decisions", "/decision",'
-                      ' "/decide", "/set-broker", "/choose-broker", "/resolve"]);', js)
+                      ' "/decide", "/set-broker", "/choose-broker", "/resolve",'
+                      ' "/availability", "/availability-month", "/build-job", "/load-job"]);', js)
         # A form that posts is an act call, its action named by the form's path.
         self.assertIn('const ACT = { "/decide": "decide", "/uplift": "enter_uplift", "/set-broker": "set_broker",'
-                      ' "/choose-broker": "choose_broker", "/resolve": "resolve" };', js)
+                      ' "/choose-broker": "choose_broker", "/resolve": "resolve", "/build": "build", "/load": "load" };', js)
+        # Piece 3: a job page carrying the function's data-poll marker is asked for again, every 3 s for
+        # a build and 10 s for a load (the interval is the hub's, not the page's), one call at a time,
+        # for at most 15 minutes; leaving the page or signing out stops it.
+        self.assertIn('const POLL = { "/build-job": 3000, "/load-job": 10000 };', js)
+        self.assertIn("const POLL_FOR = 15 * 60 * 1000;", js)
+        self.assertIn('parts.body.querySelector("[data-poll]")', js)
+        self.assertIn("function reset() { stopFollowing();", js)
+        self.assertNotIn("setInterval", js)
+        # Outside links (data-external-href) open in a new tab without an opener, for https on
+        # github.com (Dyce-Energy-Ltd) or the Dyce SharePoint host only.
+        self.assertIn('window.open(u, "_blank", "noopener")', js)
+        self.assertIn('u.hostname === "dyceenergy.sharepoint.com"', js)
+        self.assertIn('u.hostname === "github.com" && u.pathname.startsWith("/Dyce-Energy-Ltd/")', js)
+        self.assertEqual(js.count("window.open("), 1)
         self.assertIn('call("act", { action, fields })', js)
         # Every value of a form is sent, repeats kept, with the button that sent it (Yes or No).
         self.assertEqual(js.count("new FormData(f, e.submitter || null)"), 1, "one reading of a form, for get and post")
@@ -849,7 +868,8 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertNotIn("<!", block)
         paths = set(re.findall(r'"path":"(/[a-z-]+)"', block))
         self.assertTrue({"/runs", "/lines", "/exceptions", "/decisions", "/run", "/line", "/decision",
-                         "/decide", "/set-broker", "/choose-broker", "/resolve"} <= paths, paths)
+                         "/decide", "/set-broker", "/choose-broker", "/resolve",
+                         "/availability", "/availability-month", "/build-job", "/load-job"} <= paths, paths)
         self.assertIn('{ code: "commission.view", tool: "Commission Engine", label: "View" }', stub)
         # Piece 2: the Decide tick, the act op's answers and the function's own sentences.
         self.assertIn('{ code: "commission.decide", tool: "Commission Engine", label: "Decide" }', stub)
@@ -857,6 +877,11 @@ class CommittedPagesTests(unittest.TestCase):
         self.assertIn("function ceAct(", stub)
         self.assertIn('ceview: "cy.example@dyce-energy.co.uk"', stub)
         self.assertIn('cedecide: "dee.example@dyce-energy.co.uk"', stub)
+        # Piece 3: the Build tick, a Build-only person, and the job pages drawn step by step.
+        self.assertIn('{ code: "commission.build", tool: "Commission Engine", label: "Build" }', stub)
+        self.assertIn('cebuild: "bea.example@dyce-energy.co.uk"', stub)
+        self.assertIn('"step":', block)
+        self.assertIn('var CE_ACTION_TICKS = {', stub)
 
     def test_commission_preview_in_a_browser(self):
         # The preview hub, signed in through the stub, driven by tools/ce-preview-check.js in a
@@ -887,13 +912,14 @@ class CommittedPagesTests(unittest.TestCase):
         (tmp / "check.html").write_text(page, encoding="utf-8")
         # ?as=ceview: View only, so no decide control is drawn and nothing is sent. ?as=cedecide:
         # Decide only, so the menu is Lines and Exceptions, and Lines opens with its controls.
-        for query in ("as=admin", "as=viewer", "as=ceview", "as=cedecide"):
+        # ?as=cebuild: Build only, so the menu is Availability, with its Build and Load buttons.
+        for query in ("as=admin", "as=viewer", "as=ceview", "as=cedecide", "as=cebuild"):
             with self.subTest(query=query):
                 r = subprocess.run(
                     [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
                      "--user-data-dir=" + str(tmp / ("profile-" + re.sub(r"\W", "-", query))),
-                     "--virtual-time-budget=60000", "--dump-dom", (tmp / "check.html").as_uri() + "?" + query],
-                    capture_output=True, text=True, encoding="utf-8", timeout=180)
+                     "--virtual-time-budget=180000", "--dump-dom", (tmp / "check.html").as_uri() + "?" + query],
+                    capture_output=True, text=True, encoding="utf-8", timeout=240)
                 found = re.findall(r'<pre id="result">(.*?)</pre>', r.stdout, re.S)
                 self.assertTrue(found and found[-1], "the check wrote no result: %s" % r.stderr[-500:])
                 result = json.loads(html.unescape(found[-1]))

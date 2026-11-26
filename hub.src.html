@@ -889,7 +889,7 @@ const PR_HEALTH = {{PRICING_HEALTH}};
   const DV_VIEW = "dna_viewer.view", DV_REVIEW = "dna_viewer.review", DV_ORIGINALS = "dna_viewer.originals";
   const POOL_REVIEW = "dashboard_pool.review";
   const PR_VIEW = "pricing.view";
-  const CE_VIEW = "commission.view", CE_DECIDE = "commission.decide";
+  const CE_VIEW = "commission.view", CE_DECIDE = "commission.decide", CE_BUILD = "commission.build";
   const TOOLS = [
     { id: "broker_emails", label: "Broker Emails", allowed: (t) => t.some((c) => c.startsWith("broker_emails.")),
       items: [{ id: "new", label: "New email", group: "Price emails", need: REQUEST },
@@ -915,12 +915,14 @@ const PR_HEALTH = {{PRICING_HEALTH}};
     // The Commission Engine shows for any of its ticks (commission.*). View opens every page; Decide
     // (piece 2) also opens Lines and Exceptions, where its controls sit, as the function's
     // PAGE_TICKS does (spec 4.2.1: any action tick opens the pages that action needs). A need may
-    // be a list: any one of its ticks is enough.
+    // be a list: any one of its ticks is enough. Availability (piece 3) opens with View or Build; its
+    // Build and Load buttons lead to the build's and the load's pages, so they have no item of their own.
     { id: "commission", label: "Commission Engine", allowed: (t) => t.some((c) => c.startsWith("commission.")),
       items: [{ id: "lines", label: "Lines", group: "Monthly run", need: [CE_VIEW, CE_DECIDE] },
               { id: "exceptions", label: "Exceptions", group: "Monthly run", need: [CE_VIEW, CE_DECIDE] },
               { id: "decisions", label: "Decisions", group: "Monthly run", need: CE_VIEW },
-              { id: "runs", label: "Runs", group: "Monthly run", need: CE_VIEW }],
+              { id: "runs", label: "Runs", group: "Monthly run", need: CE_VIEW },
+              { id: "availability", label: "Availability", group: "Monthly run", need: [CE_VIEW, CE_BUILD] }],
       render: renderCommission },
     { id: "dna_admin", label: "DNA Admin", allowed: (t) => t.includes("dna_admin.admin"),
       items: [{ id: "people", label: "People and access" }, { id: "signins", label: "Who may sign in" },
@@ -4334,7 +4336,7 @@ const PR_HEALTH = {{PRICING_HEALTH}};
   function renderCommission(item, g) {
     if (item) { CE.show(item, g); return; }
     $("main").append(el("h1", {}, "Commission ", el("em", { text: "Engine" })),
-      el("p", { class: "stand", text: "To see the commission runs, lines, exceptions and decisions, ask Phil Brook to add View in DNA Admin. Decide opens Lines and Exceptions." }));
+      el("p", { class: "stand", text: "To see the commission runs, lines, exceptions and decisions, ask Phil Brook to add View in DNA Admin. Decide opens Lines and Exceptions; Build opens Availability." }));
   }
 
 {{COMMISSION_JS}}
