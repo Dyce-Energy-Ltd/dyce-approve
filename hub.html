@@ -901,7 +901,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
       <div id="be" hidden>
         <div id="bePrice">
           <h1>Broker <em>emails</em></h1>
-          <p class="stand">Choose a price email or write your own, add the document as a file, a link or both, check the brokers, and send. Emails go from tpi@send.dyce-energy.co.uk; replies land in the tpi@ mailbox.</p>
+          <p class="stand">Choose a price email or write your own, add a file or a link if it needs one, check the brokers, and send. Emails go from tpi@send.dyce-energy.co.uk; replies land in the tpi@ mailbox.</p>
           <div class="banner" id="testBanner" hidden><b>Testing is on.</b> Brokers receive nothing: ticked brokers collapse to one copy to Phil Brook, and only Phil Brook and Chris Beardsmore can be added by hand. The exact list shows before you send.</div>
           <div class="msg" id="beAgainMsg" role="status" style="margin-top:14px" hidden></div>
 
@@ -946,7 +946,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 
               <section class="step" aria-labelledby="s2">
                 <h2 id="s2"><span class="n">2</span> The document</h2>
-                <p class="hint" style="margin:0 0 12px">A file, a link, or both. At least one.</p>
+                <p class="hint" style="margin:0 0 12px">Optional: a file, a link, both or neither. A link shows as a button in the email.</p>
                 <div class="field"><label for="file">File (up to 10 MB)</label><input type="file" id="file" accept=".pdf,.xlsx,.xls,.docx,.doc,.csv,.zip"><span class="hint" id="fileInfo"></span></div>
                 <div class="field" style="margin-top:14px"><label for="link">Link</label><input type="url" id="link" placeholder="https://"></div>
               </section>
@@ -3674,7 +3674,6 @@ function ukDay(ms) {
         if (!$("products").value.trim()) p.push("type the products");
       }
       const link = $("link").value.trim();
-      if (!fileMeta && !link) p.push("add a file or a link");
       if (link && !/^https:\/\/\S+$/.test(link)) p.push("make the link start https://");
       if (!chosenSet().size && !typed.some(t => t.on)) p.push(isSeg() ? "select a contact or add an address" : "select a broker or add an address");
       const at = sendAtIso();
@@ -3771,6 +3770,8 @@ function ukDay(ms) {
     // The price email's button goes to the pricing documents page unless someone types another link.
     fillNewPrices(); $("link").value = PRICING_PAGE;
     $("e1").addEventListener("change", () => { if (!$("link").value.trim()) { $("link").value = PRICING_PAGE; refresh(); } });
+    // Your own email starts with no button: the pricing page link filled in above is cleared, a typed one is kept.
+    $("e4").addEventListener("change", () => { if ($("link").value.trim() === PRICING_PAGE) { $("link").value = ""; refresh(); } });
 
     $("file").addEventListener("change", () => {
       const f = $("file").files[0]; fileB64 = null; fileMeta = null; $("fileInfo").textContent = "";
