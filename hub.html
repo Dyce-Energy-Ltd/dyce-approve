@@ -855,35 +855,51 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 
 
 /* DPF figures: the Months grid and its template, and History (parts/dpf.css). No status colours. */
-/* DPF figures: the Months grid (typed into directly, with the template beside Save changes), and
-   History's month choice, on the hub's tokens and scoped to #dpf. No status colours: a month's state is carried by
-   its words (Complete, N missing). Magenta is a rule only: under a changed figure.
-   A figure that fails its check has a dashed navy outline, and the message line says why. */
-#dpf .dpf-year { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-top: 22px; }
-#dpf .dpf-year h2 { font-size: 23px; line-height: 30px; min-width: 260px; }
-#dpf .dpf-wrap { margin-top: 14px; }
+/* DPF figures: the Months grid (typed into directly, with the template in the toolbar) and
+   History's month choice, on the hub's tokens and scoped to #dpf. No status colours: a month's state
+   is carried by its words (Complete, N missing) and a thin navy line filling as figures arrive.
+   Magenta is a rule only: the current month's heading, the group dots, under a changed figure, and
+   the line of a complete month. A figure that fails its check has a dashed navy outline, and the
+   message line says why. */
+#dpf .dpf-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; margin-top: 22px; padding: 10px 12px 10px 8px; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); box-shadow: var(--shadow-card); }
+#dpf .dpf-year { display: flex; align-items: center; gap: 4px; min-width: 0; }
+#dpf .dpf-year h2 { font-size: 19px; line-height: 26px; padding: 0 10px; white-space: nowrap; }
+#dpf .dpf-step { min-width: 36px; padding-left: 0; padding-right: 0; font-size: 20px; line-height: 1; }
+#dpf .dpf-savebar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+#dpf .dpf-tpl, #dpf .dpf-commit { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+#dpf .dpf-tpl { padding-right: 16px; border-right: 1px solid var(--hairline); }
+#dpf .dpf-pending { font-size: 13px; line-height: 18px; color: var(--muted); margin-right: 4px; }
+#dpf .dpf-pending.has { color: var(--ink); font-weight: 800; }
+#dpf .dpf-hint { margin: 10px 2px 0; font-size: 13px; line-height: 20px; color: var(--muted); max-width: 900px; }
+#dpf .dpf-wrap { margin-top: 12px; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); }
 #dpf table.dpf-grid { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; line-height: 18px; font-variant-numeric: tabular-nums; }
-#dpf .dpf-grid th, #dpf .dpf-grid td { padding: 8px 7px; border-bottom: 1px solid var(--hairline); text-align: right; vertical-align: top; background: var(--surface); white-space: nowrap; }
-#dpf .dpf-grid thead th { font-size: 11px; line-height: 16px; font-weight: 800; color: var(--ink); vertical-align: bottom; }
-#dpf .dpf-grid .dpf-item { text-align: left; position: sticky; left: 0; z-index: 1; min-width: 190px; white-space: normal; font-weight: 400; border-right: 1px solid var(--hairline); }
-#dpf .dpf-grid thead .dpf-item { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
-#dpf .dpf-grid .dpf-unit { display: block; font-size: 11px; line-height: 16px; color: var(--muted); }
-#dpf .dpf-grid tr.dpf-group th { text-align: left; font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); background: var(--surface-raised); padding-top: 10px; }
+#dpf .dpf-grid th, #dpf .dpf-grid td { padding: 5px 6px; border-bottom: 1px solid var(--hairline); text-align: right; vertical-align: middle; background: var(--surface); white-space: nowrap; }
+#dpf .dpf-grid tbody tr:last-child > * { border-bottom: 0; }
+#dpf .dpf-grid .dpf-item { text-align: left; position: sticky; left: 0; z-index: 1; min-width: 210px; max-width: 250px; white-space: normal; font-weight: 400; padding-left: 14px; border-right: 1px solid var(--hairline); }
+#dpf .dpf-grid .dpf-unit { display: block; font-size: 11px; line-height: 15px; color: var(--muted); }
+#dpf .dpf-grid thead th { vertical-align: bottom; padding-top: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--ink); }
+#dpf .dpf-grid thead .dpf-corner { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); font-weight: 400; }
+#dpf .dpf-grid th.dpf-m { min-width: 74px; font-weight: 400; }
+#dpf .dpf-mname { display: block; font-size: 12px; line-height: 16px; font-weight: 800; color: var(--ink); }
+#dpf .dpf-mstate { display: block; font-size: 11px; line-height: 15px; color: var(--muted); }
+#dpf th.dpf-m.complete .dpf-mstate { color: var(--ink); }
+#dpf .dpf-meter { display: block; height: 3px; margin: 6px 0 0 auto; width: 56px; border-radius: 2px; background: var(--hairline); overflow: hidden; }
+#dpf .dpf-meter > span { display: block; height: 100%; background: var(--ink); }
+#dpf th.dpf-m.complete .dpf-meter > span { background: var(--brand-magenta); }
+#dpf .dpf-grid th.dpf-m.now { box-shadow: inset 0 3px 0 var(--brand-magenta); }
+#dpf .dpf-grid th.now, #dpf .dpf-grid td.now { background: var(--surface-raised); }
+#dpf .dpf-grid tr.dpf-group th { text-align: left; font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--ink); background: var(--surface); padding: 14px 6px 6px 14px; border-bottom: 1px solid var(--hairline); }
+#dpf .dpf-grid tr.dpf-group th > span { position: sticky; left: 14px; display: inline-flex; align-items: center; gap: 8px; }
+#dpf .dpf-grid tr.dpf-group th > span::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--brand-magenta); }
 #dpf .dpf-grid td.gap { color: var(--muted); }
-#dpf .dpf-grid td:has(> input.dpf-in) { padding: 3px 3px; }
-#dpf input.dpf-in { font: inherit; font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; width: 100%; min-width: 96px; box-sizing: border-box; padding: 5px 6px; border: 1px solid transparent; border-radius: 6px; background: transparent; }
-#dpf input.dpf-in::placeholder { color: var(--muted); opacity: 1; }
+#dpf .dpf-grid td:has(> input.dpf-in) { padding: 3px 4px; }
+#dpf input.dpf-in { font: inherit; font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; max-width: none; box-sizing: border-box; padding: 5px 6px; border: 1px solid transparent; border-radius: 6px; background: transparent; }
+#dpf input.dpf-in::placeholder { color: var(--muted); opacity: 0.6; }
 #dpf input.dpf-in:hover { border-color: var(--hairline); background: var(--field); }
 #dpf input.dpf-in:focus { outline: none; border-color: var(--ink); background: var(--field); }
 #dpf input.dpf-in[disabled] { cursor: progress; }
 #dpf .dpf-grid td.chg input.dpf-in { font-weight: 800; box-shadow: inset 0 -2px 0 var(--brand-magenta); }
 #dpf .dpf-grid td.bad input.dpf-in { outline: 2px dashed var(--ink); outline-offset: -2px; }
-#dpf .dpf-savebar { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin-top: 14px; }
-#dpf .dpf-pending { font-size: 14px; line-height: 20px; font-weight: 800; min-width: 170px; }
-#dpf .dpf-tpl { display: inline-flex; flex-wrap: wrap; gap: 10px; padding-left: 14px; border-left: 1px solid var(--hairline); }
-#dpf .dpf-grid tfoot th, #dpf .dpf-grid tfoot td { white-space: normal; min-width: 80px; overflow-wrap: anywhere; font-size: 12px; line-height: 17px; vertical-align: top; }
-#dpf .dpf-grid tfoot .dpf-item { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); }
-#dpf .dpf-st.missing { font-weight: 800; }
 #dpf .dpf-grid tbody tr:not(.dpf-group):hover > * { background: var(--magenta-tint); }
 #dpf .dpf-grid tbody tr:not(.dpf-group):hover > :first-child { box-shadow: inset 4px 0 0 var(--brand-magenta); }
 #dpf .dpf-upyear { max-width: 320px; margin-top: 22px; }
@@ -7476,8 +7492,8 @@ function formChanges(items, held, typed) {
 
     // ---------- Months: the financial year as a grid
     function yearBar(onMove) {
-      const prev = el("button", { type: "button", class: "btn ghost small", "data-dpf": "prev", text: "Previous year", disabled: fy <= FY_FIRST || busy });
-      const next = el("button", { type: "button", class: "btn ghost small", "data-dpf": "next", text: "Next year", disabled: fy >= FY_LAST || busy });
+      const prev = el("button", { type: "button", class: "btn ghost small dpf-step", "data-dpf": "prev", "aria-label": "Previous year", title: "Previous year", text: "\u2039", disabled: fy <= FY_FIRST || busy });
+      const next = el("button", { type: "button", class: "btn ghost small dpf-step", "data-dpf": "next", "aria-label": "Next year", title: "Next year", text: "\u203a", disabled: fy >= FY_LAST || busy });
       prev.addEventListener("click", () => onMove(fy - 1));
       next.addEventListener("click", () => onMove(fy + 1));
       return el("div", { class: "dpf-year" }, prev, el("h2", { id: "dpfYear", text: I.fyLabel(fy) }), next);
@@ -7498,22 +7514,35 @@ function formChanges(items, held, typed) {
       body.textContent = "";
       if (!s) { body.append(el("p", { class: "empty", text: "This year could not be read." })); return; }
       const its = sorted(), months = Array.isArray(s.months) ? s.months : [], enter = canEnter();
-      body.append(yearBar(moveYear));
-      if (enter) body.append(saveBar());
-      const head = el("tr", {}, el("th", { scope: "col", class: "dpf-item", text: "Item" }));
-      for (const m of months) head.append(el("th", { scope: "col", class: "dpf-m", text: I.monthName(m.month) }));
+      body.append(el("div", { class: "dpf-toolbar" }, yearBar(moveYear), enter ? saveBar() : null));
+      body.append(el("p", { class: "dpf-hint", text: enter
+        ? "Type into the table, or fill in the template and choose it, then Save changes. Enter moves down, Esc puts a figure back, and clearing a figure deletes it. Point at a figure to see who entered it."
+        : "Point at a figure to see who entered it." }));
+      // Each month's heading carries its status: complete, or how many figures are missing, with a
+      // thin line filling as figures arrive. The current month is marked.
+      const now = thisMonth(), total = its.length || 1;
+      const head = el("tr", {}, el("th", { scope: "col", class: "dpf-item dpf-corner", text: "Item" }));
+      for (const m of months) {
+        const st = I.monthStatus(m), missing = Array.isArray(m.missing) ? m.missing.length : 0;
+        const share = Math.max(0, Math.min(100, Math.round((1 - missing / total) * 100)));
+        head.append(el("th", { scope: "col", class: "dpf-m " + st.kind + (m.month === now ? " now" : ""), "data-month": m.month },
+          el("span", { class: "dpf-mname", text: I.monthName(m.month) }),
+          el("span", { class: "dpf-mstate", text: st.text, title: m.month === now ? "This month" : null }),
+          el("span", { class: "dpf-meter", "aria-hidden": "true" }, el("span", { style: `width:${share}%` }))));
+      }
       const tb = el("tbody");
       for (const kind of ["actual", "plan"]) {
         const group = its.filter((x) => (x.kind === "plan" ? "plan" : "actual") === kind);
         if (!group.length) continue;
-        tb.append(el("tr", { class: "dpf-group" }, el("th", { scope: "colgroup", colspan: String(months.length + 1), text: kind === "plan" ? "Plan" : "Actuals" })));
+        tb.append(el("tr", { class: "dpf-group" }, el("th", { scope: "colgroup", colspan: String(months.length + 1) },
+          el("span", { text: kind === "plan" ? "Plan" : "Actuals" }))));
         for (const it of group) {
           const tr = el("tr", { "data-code": it.code }, el("th", { scope: "row", class: "dpf-item" }, el("span", { text: String(it.label) }), el("span", { class: "dpf-unit", text: String(it.unit ?? "") })));
           for (const m of months) {
             const v = (m.figures || {})[it.code], has = v != null;
             const e = (m.entered || {})[it.code];
             const tip = has ? (who(e) ? "Entered by " + who(e) : null) : "Not entered";
-            const td = el("td", { class: "dpf-v" + (has ? "" : " gap"), "data-month": m.month, title: tip });
+            const td = el("td", { class: "dpf-v" + (has ? "" : " gap") + (m.month === now ? " now" : ""), "data-month": m.month, title: tip });
             if (enter) td.append(cellBox(it, m, td));
             else td.textContent = has ? I.formatValue(it, v) : "–";
             tr.append(td);
@@ -7521,16 +7550,7 @@ function formChanges(items, held, typed) {
           tb.append(tr);
         }
       }
-      const status = el("tr", { class: "dpf-status" }, el("th", { scope: "row", class: "dpf-item", text: "Status" }));
-      for (const m of months) {
-        const st = I.monthStatus(m);
-        status.append(el("td", { class: "dpf-st " + st.kind, "data-month": m.month, text: st.text }));
-      }
-      const foot = el("tfoot", {}, status);
-      body.append(el("div", { class: "grid-wrap dpf-wrap" }, el("table", { class: "dpf-grid" }, el("thead", {}, head), tb, foot)),
-        el("p", { class: "hint", style: "margin:8px 0 0", text: enter
-          ? "Type into the table, or download the template, fill it in and choose it: its figures come into the table. Then press Save changes. Enter moves down, Esc puts a figure back as it was, and clearing a figure deletes it. A blank cell in the template leaves that figure as it is. Point at a figure to see who entered it."
-          : "Point at a figure to see who entered it." }));
+      body.append(el("div", { class: "grid-wrap dpf-wrap" }, el("table", { class: "dpf-grid" }, el("thead", {}, head), tb)));
       refreshBar();
     }
 
@@ -7541,6 +7561,9 @@ function formChanges(items, held, typed) {
       const input = el("input", { type: "text", inputmode: "decimal", autocomplete: "off", class: "dpf-in", "data-month": m.month, "data-code": it.code,
         "aria-label": `${it.label}, ${I.monthName(m.month)}`, placeholder: "–", disabled: busy });
       input.value = Object.prototype.hasOwnProperty.call(typed, key) ? typed[key] : I.inputValue(it, held);
+      // Each box is as wide as its figure, so a long one is never cut off and an empty one takes little room.
+      const fit = () => { input.style.width = `calc(${Math.max(5, input.value.length + 1)}ch + 14px)`; };
+      fit();
       const mark = () => {
         const has = Object.prototype.hasOwnProperty.call(typed, key);
         const v = has ? I.parseNumber(typed[key]) : null;
@@ -7550,9 +7573,9 @@ function formChanges(items, held, typed) {
         td.classList.toggle("bad", bad);
         input.setAttribute("aria-invalid", bad ? "true" : "false");
       };
-      input.addEventListener("input", () => { typed[key] = input.value; delete fromFile[key]; mark(); refreshBar(); });
+      input.addEventListener("input", () => { typed[key] = input.value; delete fromFile[key]; fit(); mark(); refreshBar(); });
       input.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") { delete typed[key]; delete fromFile[key]; input.value = I.inputValue(it, held); mark(); refreshBar(); e.preventDefault(); return; }
+        if (e.key === "Escape") { delete typed[key]; delete fromFile[key]; input.value = I.inputValue(it, held); fit(); mark(); refreshBar(); e.preventDefault(); return; }
         if (e.key !== "Enter") return;
         e.preventDefault();
         const boxes = [...parts.body.querySelectorAll(`input.dpf-in[data-month="${m.month}"]`)];
@@ -7587,24 +7610,27 @@ function formChanges(items, held, typed) {
     // template, read into the table). While any change waits, the year cannot be moved.
     function saveBar() {
       const count = el("span", { class: "dpf-pending", id: "dpfPending" });
-      const save = el("button", { type: "button", class: "btn", "data-dpf": "save", text: "Save changes" });
-      const discard = el("button", { type: "button", class: "btn ghost", "data-dpf": "discard", text: "Discard" });
-      const dl = el("button", { type: "button", class: "btn ghost", "data-dpf": "download", text: "Download template" });
+      const save = el("button", { type: "button", class: "btn small", "data-dpf": "save", text: "Save changes" });
+      const discard = el("button", { type: "button", class: "btn ghost small", "data-dpf": "discard", text: "Discard" });
+      const dl = el("button", { type: "button", class: "btn ghost small", "data-dpf": "download", text: "Download template" });
       const file = el("input", { type: "file", id: "dpfTemplate", accept: ".xlsx,.csv", hidden: true });
-      const choose = el("button", { type: "button", class: "btn ghost", "data-dpf": "choose", text: "Choose file" });
+      const choose = el("button", { type: "button", class: "btn ghost small", "data-dpf": "choose", text: "Choose file" });
       save.addEventListener("click", saveGrid);
       discard.addEventListener("click", () => { typed = {}; fromFile = {}; say(parts.msg, ""); drawMonths(); });
       dl.addEventListener("click", () => downloadTemplate(dl));
       choose.addEventListener("click", () => file.click());
       file.addEventListener("change", () => loadTemplate(file));
-      return el("div", { class: "dpf-savebar" }, count, save, discard,
-        el("span", { class: "dpf-tpl" }, dl, choose, file));
+      return el("div", { class: "dpf-savebar" },
+        el("span", { class: "dpf-tpl" }, dl, choose, file),
+        el("span", { class: "dpf-commit" }, count, discard, save));
     }
     function refreshBar() {
       if (!parts) return;
       const n = pending(), bar = parts.body.querySelector(".dpf-savebar");
       if (bar) {
-        bar.querySelector(".dpf-pending").textContent = n === 0 ? "No unsaved changes." : n === 1 ? "1 unsaved change." : `${n} unsaved changes.`;
+        const p = bar.querySelector(".dpf-pending");
+        p.textContent = n === 0 ? "No unsaved changes." : n === 1 ? "1 unsaved change." : `${n} unsaved changes.`;
+        p.classList.toggle("has", n > 0);
         for (const b of bar.querySelectorAll('[data-dpf="save"], [data-dpf="discard"]')) b.disabled = busy || n === 0;
         for (const b of bar.querySelectorAll('[data-dpf="download"], [data-dpf="choose"]')) b.disabled = busy;
       }
