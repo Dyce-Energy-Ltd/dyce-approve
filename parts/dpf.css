@@ -17,7 +17,7 @@
 /* Fixed columns, so the year fits the page: the item column is set and the twelve months share the
    rest. Below 1000px the table scrolls rather than squeezing figures out of their boxes. */
 #dpf table.dpf-grid { table-layout: fixed; border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1000px; font-size: 11.5px; line-height: 15px; font-variant-numeric: tabular-nums; }
-#dpf .dpf-grid col.dpf-col-item { width: 148px; }
+#dpf .dpf-grid col.dpf-col-item { width: 140px; }
 #dpf .dpf-grid th, #dpf .dpf-grid td { padding: 3px 3px; border-bottom: 1px solid var(--hairline); text-align: right; vertical-align: middle; background: var(--surface); white-space: nowrap; }
 #dpf .dpf-grid tbody tr:last-child > * { border-bottom: 0; }
 #dpf .dpf-grid .dpf-item { text-align: left; position: sticky; left: 0; z-index: 1; white-space: normal; font-weight: 400; padding-left: 10px; padding-right: 6px; border-right: 1px solid var(--hairline); }
@@ -37,13 +37,16 @@
 #dpf .dpf-grid tr.dpf-group th > span { position: sticky; left: 10px; display: inline-flex; align-items: center; gap: 8px; }
 #dpf .dpf-grid tr.dpf-group th > span::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--brand-magenta); }
 #dpf .dpf-grid td.gap { color: var(--muted); }
-#dpf .dpf-grid td:has(> input.dpf-in) { padding: 2px 1px; }
-#dpf input.dpf-in { font: inherit; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; width: 100%; box-sizing: border-box; padding: 3px 1px; letter-spacing: -0.01em; border: 1px solid transparent; border-radius: 6px; background: transparent; }
-#dpf input.dpf-in::placeholder { color: var(--muted); opacity: 0.6; }
-#dpf input.dpf-in:hover { border-color: var(--hairline); background: var(--field); }
-#dpf input.dpf-in:focus { outline: none; border-color: var(--ink); background: var(--field); }
+#dpf .dpf-grid td:has(> input.dpf-in) { padding: 3px 1px; }
+/* Each box has a visible edge and a white face, so it is clear where to type: a navy tint at rest
+   (3:1 against white), darker on hover, navy with a magenta-tint ring while typing. */
+#dpf input.dpf-in { font: inherit; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; width: 100%; box-sizing: border-box; padding: 4px 2px 4px 0; letter-spacing: -0.015em; border: 1px solid color-mix(in srgb, var(--ink) 45%, var(--brand-white)); border-radius: 4px; background: var(--field); }
+#dpf input.dpf-in::placeholder { color: var(--muted); opacity: 0.45; }
+#dpf input.dpf-in:hover { border-color: color-mix(in srgb, var(--ink) 75%, var(--brand-white)); }
+#dpf input.dpf-in:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--magenta-tint); }
 #dpf input.dpf-in[disabled] { cursor: progress; }
-#dpf .dpf-grid td.chg input.dpf-in { box-shadow: inset 0 -2px 0 var(--brand-magenta); }
+#dpf .dpf-grid td.chg input.dpf-in { border-color: var(--brand-magenta); box-shadow: inset 0 -2px 0 var(--brand-magenta); }
+#dpf .dpf-grid td.chg input.dpf-in:focus { box-shadow: inset 0 -2px 0 var(--brand-magenta), 0 0 0 3px var(--magenta-tint); }
 #dpf .dpf-grid td.bad input.dpf-in { outline: 2px dashed var(--ink); outline-offset: -2px; }
 #dpf .dpf-grid tbody tr:not(.dpf-group):hover > * { background: var(--magenta-tint); }
 #dpf .dpf-grid tbody tr:not(.dpf-group):hover > :first-child { box-shadow: inset 4px 0 0 var(--brand-magenta); }
