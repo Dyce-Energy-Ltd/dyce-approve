@@ -859,7 +859,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
    History's month choice, on the hub's tokens and scoped to #dpf. No status colours: a month's state
    is carried by its words (Complete, N missing) and a thin navy line filling as figures arrive.
    Magenta is a rule only: the current month's heading, the group dots and the line of a complete
-   month. A changed box, not yet saved, has a blue glow (the Dyce dashboard info colour, as Pricing
+   month, and the edge of every box. A changed box, not yet saved, has a blue glow (the Dyce dashboard info colour, as Pricing
    and the Commission Engine use it), with the figure held under it, small and in italics (Phil
    Brook, 27/11/2026). A figure that fails its check has a dashed navy outline, and the message line
    says why. */
@@ -898,11 +898,12 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #dpf .dpf-grid tr.dpf-group th > span::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--brand-magenta); }
 #dpf .dpf-grid td.gap { color: var(--muted); }
 #dpf .dpf-grid td:has(> input.dpf-in) { padding: 3px 1px; }
-/* Each box has a visible edge and a white face, so it is clear where to type: a navy tint at rest
-   (3:1 against white), darker on hover, navy with a magenta-tint ring while typing. */
-#dpf input.dpf-in { font: inherit; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; width: 100%; box-sizing: border-box; padding: 4px 2px 4px 0; letter-spacing: -0.015em; border: 1px solid color-mix(in srgb, var(--ink) 45%, var(--brand-white)); border-radius: 4px; background: var(--field); }
+/* Each box has a white face and a pink (magenta) edge, so it is clear where to type; navy on hover,
+   and navy with a magenta-tint ring while typing. An edited box turns blue, so edits stand apart
+   from the rest (Phil Brook, 27/11/2026). */
+#dpf input.dpf-in { font: inherit; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; width: 100%; box-sizing: border-box; padding: 4px 2px 4px 0; letter-spacing: -0.015em; border: 1px solid var(--brand-magenta); border-radius: 4px; background: var(--field); }
 #dpf input.dpf-in::placeholder { color: var(--muted); opacity: 0.45; }
-#dpf input.dpf-in:hover { border-color: color-mix(in srgb, var(--ink) 75%, var(--brand-white)); }
+#dpf input.dpf-in:hover { border-color: var(--ink); }
 #dpf input.dpf-in:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--magenta-tint); }
 #dpf input.dpf-in[disabled] { cursor: progress; }
 #dpf .dpf-grid td.chg input.dpf-in { border-color: var(--status-info); background: var(--status-info-wash); box-shadow: 0 0 0 3px var(--status-info-edge); }
