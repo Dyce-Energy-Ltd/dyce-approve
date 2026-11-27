@@ -156,14 +156,11 @@ export function sortItems(items) {
   return (Array.isArray(items) ? items : []).slice().sort((a, b) => k(a) - k(b) || (+a.sort || 0) - (+b.sort || 0));
 }
 
-const LONDON_DAY = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', day: '2-digit', month: '2-digit', year: 'numeric' });
-const ukDay = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : LONDON_DAY.format(d); };
-
-// The month's status line: signed off (by whom, when), ready to sign (nothing missing), or N missing.
+// The month's status line: complete (nothing missing) or how many figures are missing. Saving a
+// figure is its approval; there is no sign-off (Phil Brook, 27/11/2026).
 export function monthStatus(m) {
-  if (m && m.signed_off) return { kind: 'signed', text: `Signed off by ${m.signed_off.by} on ${ukDay(m.signed_off.at)}` };
   const n = Array.isArray(m && m.missing) ? m.missing.length : 0;
-  return n ? { kind: 'missing', text: `${n} missing` } : { kind: 'ready', text: 'Ready to sign' };
+  return n ? { kind: 'missing', text: `${n} missing` } : { kind: 'complete', text: 'Complete' };
 }
 
 // ---------- the Dyce template

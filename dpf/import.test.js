@@ -91,11 +91,11 @@ test('items sort actuals first, then plan', () => {
   assert.deepEqual(sortItems(mixed).map((x) => x.code), ['opex_gbp', 'cost_of_sales_gbp', 'plan_gm_gbp']);
 });
 
-test('a month status says signed off, ready or how many are missing', () => {
-  assert.deepEqual(monthStatus({ missing: [], signed_off: null }), { kind: 'ready', text: 'Ready to sign' });
+test('a month status says complete or how many are missing, and nothing of a sign-off', () => {
+  assert.deepEqual(monthStatus({ missing: [], signed_off: null }), { kind: 'complete', text: 'Complete' });
   assert.deepEqual(monthStatus({ missing: ['a', 'b'], signed_off: null }), { kind: 'missing', text: '2 missing' });
   assert.deepEqual(monthStatus({ missing: [], signed_off: { by: 'carl.example@dyce-energy.co.uk', at: '2026-07-05T09:00:00+00:00' } }),
-    { kind: 'signed', text: 'Signed off by carl.example@dyce-energy.co.uk on 05/07/2026' });
+    { kind: 'complete', text: 'Complete' });
 });
 
 // ---------- the Dyce template

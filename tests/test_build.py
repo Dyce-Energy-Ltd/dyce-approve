@@ -922,7 +922,7 @@ class CommittedPagesTests(unittest.TestCase):
         i_ce, i_dpf, i_admin = (page.index('{ id: "%s"' % t) for t in ("commission", "dpf", "dna_admin"))
         self.assertLess(i_ce, i_dpf)
         self.assertLess(i_dpf, i_admin)
-        self.assertIn('const DPF_VIEW = "dpf.view", DPF_ENTER = "dpf.enter", DPF_SIGN = "dpf.sign_off";', page)
+        self.assertIn('const DPF_VIEW = "dpf.view", DPF_ENTER = "dpf.enter";', page)
         self.assertIn('{ id: "dpf", label: "DPF figures", allowed: (t) => t.includes(DPF_VIEW),', page)
         self.assertIn('items: [{ id: "months", label: "Months", need: DPF_VIEW }, { id: "history", label: "History", need: DPF_VIEW }],', page)
         # The module uses SheetJS and the hub's helpers, so it is inlined after both; its styles are in the style element.
@@ -939,8 +939,8 @@ class CommittedPagesTests(unittest.TestCase):
 
     def test_dpf_module_calls_only_the_dpf_actions_and_keeps_nothing(self):
         js = (ROOT / "parts" / "dpf.js").read_text(encoding="utf-8")
-        self.assertEqual(sorted(set(re.findall(r'(?:api|write)\("(dpf_[a-z_]+)"', js))),
-                         ["dpf_history", "dpf_items", "dpf_save", "dpf_sign_off", "dpf_state", "dpf_unsign"])
+        self.assertEqual(sorted(set(re.findall(r'api\("(dpf_[a-z_]+)"', js))),
+                         ["dpf_history", "dpf_items", "dpf_save", "dpf_state"])
         self.assertNotIn("fetch(", js)
         for word in ("localStorage", "sessionStorage", "indexedDB", "putStored", "getStored", "innerHTML", "outerHTML", "insertAdjacentHTML"):
             self.assertNotIn(word, js)
@@ -954,9 +954,9 @@ class CommittedPagesTests(unittest.TestCase):
 
     def test_dpf_preview_in_a_browser(self):
         # The preview hub, signed in through the stub and starting in DPF figures > Months, driven by
-        # tools/dpf-preview-check.js in a headless Chromium: typing into the grid and saving, sign-off
-        # and its clearing, a stale fingerprint, Undo sign-off, the template downloaded and read back
-        # into the grid, History, and what View only, View and Enter, and no tick show.
+        # tools/dpf-preview-check.js in a headless Chromium: typing into the grid and saving, each
+        # month's status with no sign-off, the template downloaded and read back into the grid,
+        # History, and what View only, View and Enter, and no tick show.
         browser = next((b for b in BROWSERS if b and Path(b).is_file()), None)
         if browser is None:
             self.skipTest("no Chromium browser found (set DV_BROWSER to one)")

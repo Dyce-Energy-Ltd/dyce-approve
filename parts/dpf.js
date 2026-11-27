@@ -1,11 +1,12 @@
   // ---------- DPF figures: the monthly figures the DPF score needs that no other source gives
-  // (costs, OPEX, plan targets, Trustpilot, bad debt), entered by hand or uploaded, and signed off
-  // a month at a time (design 2026-11-26-dpf-figures-design.md, Phil Brook). Months shows a
+  // (costs, OPEX, plan targets, Trustpilot, bad debt), typed in or loaded from the Dyce template
+  // (design 2026-11-26-dpf-figures-design.md, Phil Brook). Saving a figure is its approval: there is
+  // no separate sign-off (Phil Brook, 27/11/2026). Months shows a
   // financial year (June to May) as a grid with each month's status, typed into directly by anyone
   // holding dpf.enter, with the Dyce template (laid out as the grid) downloaded and read back into
   // the grid beside Save changes (Phil Brook, 27/11/2026). Nothing is saved before Save changes.
   // History lists one month's changes. It calls the dpf_* actions of comms.web_call, which
-  // check every tick again (dpf.view, dpf.enter, dpf.sign_off), so hiding a control is tidiness.
+  // check every tick again (dpf.view, dpf.enter), so hiding a control is tidiness.
   // The pure logic (template, workbooks, formats, checks) is dpf/import.js, inlined as DPF_IMPORT;
   // SheetJS is the Pricing tab's PR_XLSX. Inlined into hub.html's script by build.py (the DPF_JS
   // include), so it uses the hub's api, me, gen, ticks, el, $, say, explain and when. Nothing is
@@ -19,21 +20,20 @@
     // items: dpf_items, once a session. states: fy_start_year -> the newest dpf_state answer. fy:
     // the year shown. typed: the Months table's boxes as typed, by "YYYY-MM-01|code"; fromFile: the
     // boxes filled from a template, by the same key, holding the file's name (saved with source
-    // template). asking: the month whose Undo sign-off reason box is open. sess is bumped on
-    // sign-out, view on every show, so an answer that arrives after either is not drawn.
-    let items = null, states = {}, fy = null, typed = {}, fromFile = {}, asking = null, busy = false;
+    // template). sess is bumped on sign-out, view on every show, so an answer that arrives after
+    // either is not drawn.
+    let items = null, states = {}, fy = null, typed = {}, fromFile = {}, busy = false;
     let sess = 0, view = 0, hubGen = -1, item = "months", root = null, parts = null, histMonth = null;
     const live = () => hubGen === gen && !!me && !!root && root.isConnected;
     const onView = (n, s0) => n === view && s0 === sess && live();
     const mine = (s) => (s && s.me) || {};
     const canEnter = () => { const s = states[fy]; return s && s.me ? mine(s).can_enter === true : ticks().includes(DPF_ENTER); };
-    const canSign = () => { const s = states[fy]; return s && s.me ? mine(s).can_sign_off === true : ticks().includes(DPF_SIGN); };
     const sorted = () => I.sortItems(items || []);
     const byCode = (code) => (items || []).find((x) => x.code === code) || null;
     const thisMonth = () => I.monthOf(new Date());
     const nowFy = () => Math.min(FY_LAST, Math.max(FY_FIRST, I.fyStartOf(thisMonth())));
     const monthOfState = (iso) => { const s = states[I.fyStartOf(iso)]; return s ? (s.months || []).find((m) => m.month === iso) || null : null; };
-    // A dpf_state answer (dpf_save, dpf_sign_off and dpf_unsign answer one too).
+    // A dpf_state answer (dpf_save answers one too).
     function take(s) {
       if (s && typeof s === "object" && Array.isArray(s.months) && Number.isInteger(s.fy_start_year)) states[s.fy_start_year] = s;
       else if (s && s.state) take(s.state);
@@ -50,11 +50,11 @@
     function show(it, g) {
       hubGen = g; item = it === "history" ? "history" : "months";
       const n = ++view, s0 = sess;
-      typed = {}; fromFile = {}; asking = null; busy = false;
+      typed = {}; fromFile = {}; busy = false;
       const msg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true, style: "margin-top:14px" });
       const body = el("div");
-      const stand = item === "history" ? "Every change to a month's figures and its sign-off, newest first, at most 200. Times are UK time."
-        : "The figures the DPF score needs each month: costs, OPEX, the plan targets, Trustpilot and bad debt. A month counts towards the DPF once it is signed off; changing a signed-off month clears its sign-off.";
+      const stand = item === "history" ? "Every change to a month's figures, newest first, at most 200. Times are UK time."
+        : "The figures the DPF score needs each month: costs, OPEX, the plan targets, Trustpilot and bad debt. Saving a figure approves it: there is no separate sign-off.";
       root = el("div", { id: "dpf" }, el("h1", {}, "DPF ", el("em", { text: "figures" })), el("p", { class: "stand", text: stand }), msg, body);
       parts = { msg, body };
       $("main").append(root);
@@ -73,28 +73,6 @@
         } catch (err) { if (onView(n, s0) && !(err && err.signedOut)) say(msg, explain(err), true); }
       })();
     }
-    // A write: one at a time, its answer taken, the screen drawn again and a line said. A refusal
-    // shows the database's sentence; the year is read again so the screen shows what is held now.
-    async function write(action, args, done) {
-      if (busy) return false;
-      const n = view, s0 = sess;
-      busy = true; say(parts.msg, "Saving…"); redraw();
-      try {
-        const r = await api(action, args);
-        if (s0 !== sess) return false;
-        take(r);
-        busy = false;
-        if (n === view && live()) { say(parts.msg, done(r)); redraw(); }
-        return true;
-      } catch (err) {
-        if (s0 !== sess) return false;
-        busy = false;
-        if (err && err.signedOut) return false;
-        if (n === view && live()) { say(parts.msg, explain(err), true); redraw(); }
-        try { await state(fy); if (n === view && live()) redraw(); } catch { /* the refusal is already shown */ }
-        return false;
-      }
-    }
     function redraw() { if (!live() || !parts) return; if (item === "months") drawMonths(); }
 
     // ---------- Months: the financial year as a grid
@@ -107,7 +85,7 @@
     }
     async function moveYear(y) {
       const n = view, s0 = sess;
-      fy = y; typed = {}; fromFile = {}; asking = null;
+      fy = y; typed = {}; fromFile = {};
       if (!states[y]) {
         say(parts.msg, "Loading…");
         try { await state(y); } catch (err) { if (onView(n, s0) && !(err && err.signedOut)) say(parts.msg, explain(err), true); return; }
@@ -120,7 +98,7 @@
       const s = states[fy], body = parts.body;
       body.textContent = "";
       if (!s) { body.append(el("p", { class: "empty", text: "This year could not be read." })); return; }
-      const its = sorted(), months = Array.isArray(s.months) ? s.months : [], enter = canEnter(), sign = canSign();
+      const its = sorted(), months = Array.isArray(s.months) ? s.months : [], enter = canEnter();
       body.append(yearBar(moveYear));
       if (enter) body.append(saveBar());
       const head = el("tr", {}, el("th", { scope: "col", class: "dpf-item", text: "Item" }));
@@ -147,37 +125,18 @@
       const status = el("tr", { class: "dpf-status" }, el("th", { scope: "row", class: "dpf-item", text: "Status" }));
       for (const m of months) {
         const st = I.monthStatus(m);
-        status.append(el("td", { class: "dpf-st " + st.kind, "data-month": m.month }, st.kind === "signed" ? el("span", { class: "state", text: "Signed off" }) : null,
-          el("div", { text: st.kind === "signed" ? st.text.replace(/^Signed off /, "") : st.text })));
+        status.append(el("td", { class: "dpf-st " + st.kind, "data-month": m.month, text: st.text }));
       }
       const foot = el("tfoot", {}, status);
-      if (sign) {
-        const acts = el("tr", { class: "dpf-acts" }, el("th", { scope: "row", class: "dpf-item", text: "Sign-off" }));
-        for (const m of months) {
-          const st = I.monthStatus(m), td = el("td", { "data-month": m.month });
-          if (st.kind === "ready") {
-            const b = el("button", { type: "button", class: "btn small", "data-dpf": "signoff", text: "Sign off", disabled: busy });
-            b.addEventListener("click", () => signOff(m));
-            td.append(b);
-          } else if (st.kind === "signed") {
-            const b = el("button", { type: "button", class: "btn ghost small", "data-dpf": "unsign", text: "Undo sign-off", disabled: busy });
-            b.addEventListener("click", () => { asking = m.month; drawMonths(); const t = $("dpfReason"); if (t) t.focus(); });
-            td.append(b);
-          }
-          acts.append(td);
-        }
-        foot.append(acts);
-      }
       body.append(el("div", { class: "grid-wrap dpf-wrap" }, el("table", { class: "dpf-grid" }, el("thead", {}, head), tb, foot)),
         el("p", { class: "hint", style: "margin:8px 0 0", text: enter
           ? "Type into the table, or download the template, fill it in and choose it: its figures come into the table. Then press Save changes. Enter moves down, Esc puts a figure back as it was, and clearing a figure deletes it. A blank cell in the template leaves that figure as it is. Point at a figure to see who entered it."
           : "Point at a figure to see who entered it." }));
-      if (asking) body.append(undoBox(asking));
       refreshBar();
     }
 
     // One box per figure. What is typed is kept in typed["YYYY-MM-01|code"] until Save changes or
-    // Discard, so drawing the grid again (a sign-off elsewhere, a refusal) keeps it.
+    // Discard, so drawing the grid again (after a refusal) keeps it.
     function cellBox(it, m, td) {
       const key = m.month + "|" + it.code, held = (m.figures || {})[it.code];
       const input = el("input", { type: "text", inputmode: "decimal", autocomplete: "off", class: "dpf-in", "data-month": m.month, "data-code": it.code,
@@ -226,8 +185,7 @@
 
     // The bar above the table: how many changes are waiting, Save changes and Discard, then the
     // template: Download template (the year shown, with the figures held) and Choose file (a filled-in
-    // template, read into the table). While any change waits, the year cannot be moved and no month
-    // can be signed off.
+    // template, read into the table). While any change waits, the year cannot be moved.
     function saveBar() {
       const count = el("span", { class: "dpf-pending", id: "dpfPending" });
       const save = el("button", { type: "button", class: "btn", "data-dpf": "save", text: "Save changes" });
@@ -251,7 +209,7 @@
         for (const b of bar.querySelectorAll('[data-dpf="save"], [data-dpf="discard"]')) b.disabled = busy || n === 0;
         for (const b of bar.querySelectorAll('[data-dpf="download"], [data-dpf="choose"]')) b.disabled = busy;
       }
-      for (const b of parts.body.querySelectorAll('[data-dpf="prev"], [data-dpf="next"], [data-dpf="signoff"], [data-dpf="unsign"]')) {
+      for (const b of parts.body.querySelectorAll('[data-dpf="prev"], [data-dpf="next"]')) {
         const edge = (b.dataset.dpf === "prev" && fy <= FY_FIRST) || (b.dataset.dpf === "next" && fy >= FY_LAST);
         b.disabled = busy || n > 0 || edge;
         b.title = n > 0 ? "Save or discard your changes first." : "";
@@ -269,12 +227,11 @@
       const months = Object.keys(g.byMonth).sort();
       if (!months.length) { typed = {}; say(parts.msg, "Nothing has changed."); drawMonths(); return; }
       const n = view, s0 = sess, saved = [];
-      let total = 0, cleared = 0, at = null;
+      let total = 0, at = null;
       busy = true; say(parts.msg, "Saving…"); redraw();
       try {
         for (const iso of months) {
           at = iso;
-          const was = !!(monthOfState(iso) || {}).signed_off;
           // One save for each file the month's figures came from, then one for the typed ones.
           const groups = new Map();
           for (const [code, v] of Object.entries(g.byMonth[iso])) {
@@ -289,13 +246,13 @@
             take(r);
             c += Number.isInteger(r && r.changed) ? r.changed : Object.keys(values).length;
           }
-          total += c; if (was && c > 0) cleared++;
+          total += c;
           for (const key of Object.keys(typed)) if (key.startsWith(iso + "|")) { delete typed[key]; delete fromFile[key]; }
           saved.push(I.monthName(iso));
         }
         busy = false;
         if (n === view && live()) {
-          say(parts.msg, `Saved ${total} ${total === 1 ? "figure" : "figures"}: ${saved.join(", ")}.` + (cleared ? ` A change to a signed-off month cleared its sign-off.` : ""));
+          say(parts.msg, `Saved ${total} ${total === 1 ? "figure" : "figures"}: ${saved.join(", ")}.`);
           redraw();
         }
       } catch (err) {
@@ -306,29 +263,6 @@
         try { await state(fy); } catch { /* the refusal is already shown */ }
         if (n === view && live()) redraw();
       }
-    }
-
-    // Sign off sends the fingerprint of the figures as shown; the database refuses it if any has
-    // changed since, or if any is missing.
-    function signOff(m) {
-      write("dpf_sign_off", { month: m.month, fingerprint: m.fingerprint }, () => `${I.monthName(m.month)} signed off.`);
-    }
-    function undoBox(iso) {
-      const reason = el("textarea", { id: "dpfReason", rows: "2", maxlength: "500" });
-      const problems = el("div", { class: "msg refused", role: "alert", hidden: true });
-      const go = el("button", { type: "button", class: "btn small", "data-dpf": "unsign-go", text: "Undo sign-off", disabled: busy });
-      const cancel = el("button", { type: "button", class: "btn ghost small", text: "Cancel", disabled: busy });
-      go.addEventListener("click", async () => {
-        const why = reason.value.trim();
-        if (!why) { say(problems, "Give a reason for undoing the sign-off.", true); reason.focus(); return; }
-        const ok = await write("dpf_unsign", { month: iso, reason: why }, () => `The sign-off of ${I.monthName(iso)} was undone.`);
-        if (ok) { asking = null; redraw(); }
-      });
-      cancel.addEventListener("click", () => { asking = null; drawMonths(); });
-      return el("section", { class: "dpf-ask", "aria-labelledby": "dpfAskTitle" },
-        el("h2", { id: "dpfAskTitle", text: `Undo the sign-off of ${I.monthName(iso)}` }),
-        el("div", { class: "field" }, el("label", { for: "dpfReason", text: "Reason" }), reason),
-        problems, el("div", { class: "actions" }, go, cancel));
     }
 
     // ---------- The Dyce template, on the Months screen
@@ -404,7 +338,7 @@
         for (const c of cs) {
           const it = byCode(c.item_code) || { label: c.label || c.item_code, unit: "" };
           const f = (v) => (v == null ? "" : I.formatValue(it, v));
-          const what = !c.item_code ? (c.note || "Sign-off changed")
+          const what = !c.item_code ? (c.note || "Month changed")
             : c.old_value == null ? `${it.label}: ${f(c.new_value)} entered`
             : c.new_value == null ? `${it.label}: cleared (was ${f(c.old_value)})`
             : `${it.label}: ${f(c.old_value)} to ${f(c.new_value)}`;
@@ -419,6 +353,6 @@
 
     // On sign-out nothing read or typed here stays in the page: showSignIn has emptied #main and the
     // side menu; answers on their way are dropped.
-    function reset() { sess++; view++; items = null; states = {}; fy = null; typed = {}; fromFile = {}; asking = null; busy = false; histMonth = null; root = null; parts = null; }
+    function reset() { sess++; view++; items = null; states = {}; fy = null; typed = {}; fromFile = {}; busy = false; histMonth = null; root = null; parts = null; }
     return { show, reset };
   })();

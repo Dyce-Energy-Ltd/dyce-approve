@@ -6,17 +6,16 @@
 //
 // ?as=dpfsign (Carl Example, all three ticks): the grid (items down, actuals then plan, twelve
 // months across, values in their units, who entered each on hover, each month's status); typing
-// into the grid (a box per figure, the unsaved count, Esc and Enter, year and sign-off held while a
-// change waits) and Save changes (one dpf_save a month, only the changed values, source form); a
-// bad value stopped in the page; sign off with the fingerprint from dpf_state; a change to the
-// signed-off month clearing the sign-off; a sign-off refused when someone else changed a figure
-// meanwhile; Undo sign-off needing a reason; the Dyce template (laid out as the grid) downloaded
+// into the grid (a box per figure, the unsaved count, Esc and Enter, the year held while a change
+// waits) and Save changes (one dpf_save a month, only the changed values, source form); a bad value
+// stopped in the page; a month turning Complete when its last figure is saved, with no sign-off
+// anywhere (Phil Brook, 27/11/2026); the Dyce template (laid out as the grid) downloaded
 // from the Months bar, filled in and chosen again (its figures come into the grid as unsaved
 // changes, nothing sent; Save changes sends them with source template and the file name, and a
 // figure typed over one of them with source form); a bad file and a file for another year listing
 // their problem and loading nothing; History.
-// ?as=dpfenter (View and Enter): typing and the template, no sign-off controls. ?as=dpfview (View
-// only): no boxes, template or sign-off controls. ?as=viewer (no DPF tick): no tab, no dpf_ call.
+// ?as=dpfenter (View and Enter): typing and the template. ?as=dpfview (View only): no boxes or
+// template. ?as=viewer (no DPF tick): no tab, no dpf_ call.
 // ?as=admin: every tick, so every control.
 (() => {
   const q = new URLSearchParams(location.search);
@@ -37,7 +36,6 @@
   const M = (i) => window.__stub.dpfMonth(i);
   const cell = (code, m) => $(`#dpf tr[data-code="${code}"] td[data-month="${m}"]`);
   const status = (m) => text(`#dpf tr.dpf-status td[data-month="${m}"]`);
-  const act = (m) => $(`#dpf tr.dpf-acts td[data-month="${m}"] button`);
   const box = (code, m) => $(`#dpf tr[data-code="${code}"] td[data-month="${m}"] input.dpf-in`);
   // What a cell shows: its box's value when the person can type, its text when they cannot.
   const shows = (code, m) => { const b = box(code, m); return b ? b.value : (cell(code, m) ? cell(code, m).textContent : ""); };
@@ -71,8 +69,7 @@
     check("a missing figure shows a dash", cell("trustpilot_score", M(2)).classList.contains("gap") && (typing ? box("trustpilot_score", M(2)).value === "" && box("trustpilot_score", M(2)).placeholder === "–" : cell("trustpilot_score", M(2)).textContent === "–"));
     const title = cell("opex_gbp", M(0)).getAttribute("title") || "";
     check("who entered it on hover", /^Entered by eli\.example@dyce-energy\.co\.uk, \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}, Dyce template$/.test(title), title);
-    check("June signed off, with who and when", /^Signed offby carl\.example@dyce-energy\.co\.uk on \d{2}\/\d{2}\/\d{4}$/.test(status(M(0))), status(M(0)));
-    check("July ready to sign", status(M(1)) === "Ready to sign", status(M(1)));
+    check("June and July complete, with no sign-off shown", status(M(0)) === "Complete" && status(M(1)) === "Complete" && !/Signed off|Sign off|Ready to sign|Undo sign-off/.test(text("#dpf table.dpf-grid")), status(M(0)) + " | " + status(M(1)));
     check("August 3 missing, September 13", status(M(2)) === "3 missing" && status(M(3)) === "13 missing", status(M(2)) + " | " + status(M(3)));
     return true;
   }
@@ -80,8 +77,7 @@
   async function signer() {
     if (!(await grid())) return;
     check("menu Months and History", menu() === "Months,History", menu());
-    check("Sign off on the ready month only", act(M(1)) && act(M(1)).textContent === "Sign off" && !act(M(2)) && !act(M(3)));
-    check("Undo sign-off on the signed month", act(M(0)) && act(M(0)).textContent === "Undo sign-off");
+    check("no sign-off controls, even with the old sign-off tick", !$("#dpf tr.dpf-acts") && !button("Sign off") && !button("Undo sign-off"));
 
     // Type into July and save one change.
     check("a box for every figure", $$("#dpf input.dpf-in").length === 13 * 12 && pendingText() === "No unsaved changes." && button("Save changes", $("#dpf")).disabled, $$("#dpf input.dpf-in").length + " | " + pendingText());
@@ -89,7 +85,7 @@
     check("the box holds the value held", opex.value === "£119,900", opex.value);
     type(opex, "121,000");
     check("the change is counted and marked", pendingText() === "1 unsaved change." && cell("opex_gbp", M(1)).classList.contains("chg") && !button("Save changes", $("#dpf")).disabled, pendingText());
-    check("year and sign-off wait while a change is unsaved", $('#dpf [data-dpf="next"]').disabled && act(M(1)).disabled && act(M(0)).disabled);
+    check("the year waits while a change is unsaved", $('#dpf [data-dpf="next"]').disabled && $('#dpf [data-dpf="prev"]').disabled);
     button("Save changes", $("#dpf")).click();
     await until(() => /^Saved /.test(msg()));
     const save = last("dpf_save");
@@ -130,42 +126,13 @@
     check("one dpf_save a month, in month order", two.length === 2 && two[0].args.month === M(2) && two[1].args.month === M(3) && JSON.stringify(two[0].args.values) === '{"trustpilot_score":4.2}', JSON.stringify(two.map((c) => c.args)));
     check("the message names both months", /^Saved 2 figures: Aug \d{4}, Sep \d{4}\.$/.test(msg()), msg());
 
-    // Sign off July with the fingerprint from the state.
-    const fp = last("dpf_save").answer.result.months[1].fingerprint;
-    act(M(1)).click();
-    await until(() => /^Signed off/.test(status(M(1))));
-    const so = last("dpf_sign_off");
-    check("Sign off sends the month's fingerprint", so && so.args.month === M(1) && so.args.fingerprint === fp && so.status === 200, JSON.stringify(so && so.args));
-    check("July now signed off by Carl", /carl\.example/.test(status(M(1))), status(M(1)));
-
-    // Changing a figure in a signed-off month clears its sign-off.
-    type(box("overheads_gbp", M(1)), "97200");
+    // Fill August's missing figures: the month turns Complete on Save, with nothing more to do.
+    const missing = last("dpf_save").answer.result.months[2].missing;
+    check("August still has figures missing", missing.length > 0 && status(M(2)) === `${missing.length} missing`, status(M(2)));
+    for (const code of missing) type(box(code, M(2)), "1");
     button("Save changes", $("#dpf")).click();
-    await until(() => status(M(1)) === "Ready to sign");
-    check("a change clears the sign-off", status(M(1)) === "Ready to sign" && /cleared its sign-off/.test(msg()), status(M(1)) + " | " + msg());
-
-    // Someone else changes a figure: the fingerprint the page holds is stale, so Sign off is refused.
-    window.__stub.dpfChange(M(1), "overheads_gbp", 97300);
-    act(M(1)).click();
-    await until(() => /have changed since you opened them/.test(msg()));
-    check("a stale fingerprint is refused with the database's sentence", /have changed since you opened them/.test(msg()) && last("dpf_sign_off").status === 400, msg());
-    await until(() => shows("overheads_gbp", M(1)) === "£97,300");
-    check("the year is read again after the refusal", shows("overheads_gbp", M(1)) === "£97,300", shows("overheads_gbp", M(1)));
-    act(M(1)).click();
-    await until(() => /^Signed off/.test(status(M(1))));
-    check("signing off again with the fresh fingerprint works", /^Signed off/.test(status(M(1))), status(M(1)));
-
-    // Undo sign-off needs a reason.
-    act(M(0)).click();
-    const reason = await until(() => $("#dpfReason"));
-    const unsBefore = calls("dpf_unsign").length;
-    button("Undo sign-off", $("#dpf .dpf-ask")).click();
-    await sleep(100);
-    check("a blank reason is stopped in the page", /Give a reason/.test(text("#dpf .dpf-ask .msg")) && calls("dpf_unsign").length === unsBefore, text("#dpf .dpf-ask"));
-    reason.value = "Invented reason for the preview.";
-    button("Undo sign-off", $("#dpf .dpf-ask")).click();
-    await until(() => status(M(0)) === "Ready to sign");
-    check("Undo sign-off sends the reason", last("dpf_unsign") && last("dpf_unsign").args.reason === "Invented reason for the preview." && status(M(0)) === "Ready to sign", JSON.stringify(last("dpf_unsign")));
+    await until(() => status(M(2)) === "Complete");
+    check("saving the last figure makes the month Complete", status(M(2)) === "Complete" && /^Saved /.test(msg()) && !/sign-off/i.test(msg()), status(M(2)) + " | " + msg());
 
     await template();
     await history();
@@ -236,26 +203,22 @@
     await until(() => last("dpf_history") && last("dpf_history").args.month === M(1) && $("#dpf .list .row"));
     const rows = $$("#dpf .list .row .t").map((t) => t.textContent);
     check("History lists the month's changes, newest first", rows[0] === "OPEX: £119,900 to £121,000" || rows.includes("OPEX: £119,900 to £121,000"), rows.slice(0, 6).join(" | "));
-    check("History shows a cleared sign-off", rows.includes("Sign-off cleared"), rows.join(" | "));
   }
 
   async function enterOnly() {
     if (!(await grid())) return;
     check("menu Months and History", menu() === "Months,History", menu());
     check("every figure is a box, with the template", $$("#dpf input.dpf-in").length === 13 * 12 && !!$("#dpf .dpf-savebar") && !!button("Download template") && !!button("Choose file"));
-    check("no sign-off controls without the tick", !$("#dpf tr.dpf-acts") && !button("Sign off") && !button("Undo sign-off"));
     type(box("trustpilot_score", M(2)), "4.3");
     button("Save changes", $("#dpf")).click();
     await until(() => /^Saved /.test(msg()));
     check("an enterer saves a figure", last("dpf_save") && last("dpf_save").status === 200 && box("trustpilot_score", M(2)).value === "4.3", msg());
-    check("still no sign-off controls", !$("#dpf tr.dpf-acts"));
   }
 
   async function viewOnly() {
     if (!(await grid())) return;
     check("menu Months and History", menu() === "Months,History", menu());
     check("no boxes, no save bar and no template", !$("#dpf input") && !$("#dpf .dpf-savebar") && !button("Download template") && !button("Choose file"));
-    check("no sign-off controls", !$("#dpf tr.dpf-acts") && !button("Sign off"));
     check("nothing was written", !calls("dpf_save").length && !calls("dpf_upload").length);
   }
 
@@ -268,7 +231,7 @@
 
   async function admin() {
     if (!(await grid())) return;
-    check("admin: menu and every control", menu() === "Months,History" && $$("#dpf input.dpf-in").length === 13 * 12 && !!$("#dpf tr.dpf-acts"), menu());
+    check("admin: menu and every control", menu() === "Months,History" && $$("#dpf input.dpf-in").length === 13 * 12 && !$("#dpf tr.dpf-acts"), menu());
     // Sign-out drops the tab's figures from the page.
     $("#signOutBtn").click();
     await sleep(100);
