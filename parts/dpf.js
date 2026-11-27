@@ -1,7 +1,8 @@
   // ---------- DPF figures: the monthly figures the DPF score needs that no other source gives
   // (costs, OPEX, plan targets, Trustpilot, bad debt), entered by hand or uploaded, and signed off
   // a month at a time (design 2026-11-26-dpf-figures-design.md, Phil Brook). Months shows a
-  // financial year (June to May) as a grid with each month's status; Upload reads the Dyce template,
+  // financial year (June to May) as a grid with each month's status, typed into directly by anyone
+  // holding dpf.enter (Phil Brook, 27/11/2026); Upload reads the Dyce template (laid out as the grid),
   // Carl's five-year plan workbook or the DPF workbook into a preview and saves nothing before
   // Save; History lists one month's changes. It calls the dpf_* actions of comms.web_call, which
   // check every tick again (dpf.view, dpf.enter, dpf.sign_off), so hiding a control is tidiness.
@@ -15,10 +16,10 @@
     const FY_FIRST = 2024, FY_LAST = 2030; // months allowed: 06/2024 to 05/2031
     const MAX_BYTES = 25 * 1024 * 1024;
     // items: dpf_items, once a session. states: fy_start_year -> the newest dpf_state answer. fy:
-    // the year shown. editing: the month open for editing, typed: its boxes as typed. asking: the
+    // the year shown. typed: the Months table's boxes as typed, by "YYYY-MM-01|code". asking: the
     // month whose Undo sign-off reason box is open. upl: the Upload screen's preview. sess is bumped
     // on sign-out, view on every show, so an answer that arrives after either is not drawn.
-    let items = null, states = {}, fy = null, editing = null, typed = {}, asking = null, busy = false;
+    let items = null, states = {}, fy = null, typed = {}, asking = null, busy = false;
     let sess = 0, view = 0, hubGen = -1, item = "months", root = null, parts = null, upl = null, histMonth = null;
     const live = () => hubGen === gen && !!me && !!root && root.isConnected;
     const onView = (n, s0) => n === view && s0 === sess && live();
@@ -47,7 +48,7 @@
     function show(it, g) {
       hubGen = g; item = it || "months";
       const n = ++view, s0 = sess;
-      editing = null; typed = {}; asking = null; upl = null; busy = false;
+      typed = {}; asking = null; upl = null; busy = false;
       const msg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true, style: "margin-top:14px" });
       const body = el("div");
       const stand = item === "upload" ? "Load figures from a spreadsheet. Nothing is saved until you have checked the preview and pressed Save."
@@ -105,7 +106,7 @@
     }
     async function moveYear(y) {
       const n = view, s0 = sess;
-      fy = y; editing = null; typed = {}; asking = null;
+      fy = y; typed = {}; asking = null;
       if (!states[y]) {
         say(parts.msg, "Loading…");
         try { await state(y); } catch (err) { if (onView(n, s0) && !(err && err.signedOut)) say(parts.msg, explain(err), true); return; }
@@ -120,16 +121,9 @@
       if (!s) { body.append(el("p", { class: "empty", text: "This year could not be read." })); return; }
       const its = sorted(), months = Array.isArray(s.months) ? s.months : [], enter = canEnter(), sign = canSign();
       body.append(yearBar(moveYear));
+      if (enter) body.append(saveBar());
       const head = el("tr", {}, el("th", { scope: "col", class: "dpf-item", text: "Item" }));
-      for (const m of months) {
-        const on = m.month === editing;
-        const name = I.monthName(m.month);
-        if (enter) {
-          const b = el("button", { type: "button", class: "dpf-mbtn", "data-month": m.month, "aria-pressed": String(on), title: `Edit ${name}`, text: name, disabled: busy });
-          b.addEventListener("click", () => openMonth(m.month));
-          head.append(el("th", { scope: "col", class: on ? "dpf-m sel" : "dpf-m" }, b));
-        } else head.append(el("th", { scope: "col", class: "dpf-m", text: name }));
-      }
+      for (const m of months) head.append(el("th", { scope: "col", class: "dpf-m", text: I.monthName(m.month) }));
       const tb = el("tbody");
       for (const kind of ["actual", "plan"]) {
         const group = its.filter((x) => (x.kind === "plan" ? "plan" : "actual") === kind);
@@ -140,7 +134,11 @@
           for (const m of months) {
             const v = (m.figures || {})[it.code], has = v != null;
             const e = (m.entered || {})[it.code];
-            tr.append(el("td", { class: "dpf-v" + (has ? "" : " gap") + (m.month === editing ? " sel" : ""), "data-month": m.month, title: has ? (who(e) ? "Entered by " + who(e) : null) : "Not entered", text: has ? I.formatValue(it, v) : "–" }));
+            const tip = has ? (who(e) ? "Entered by " + who(e) : null) : "Not entered";
+            const td = el("td", { class: "dpf-v" + (has ? "" : " gap"), "data-month": m.month, title: tip });
+            if (enter) td.append(cellBox(it, m, td));
+            else td.textContent = has ? I.formatValue(it, v) : "–";
+            tr.append(td);
           }
           tb.append(tr);
         }
@@ -157,7 +155,7 @@
         for (const m of months) {
           const st = I.monthStatus(m), td = el("td", { "data-month": m.month });
           if (st.kind === "ready") {
-            const b = el("button", { type: "button", class: "btn small", "data-dpf": "signoff", text: "Sign off", disabled: busy || editing === m.month });
+            const b = el("button", { type: "button", class: "btn small", "data-dpf": "signoff", text: "Sign off", disabled: busy });
             b.addEventListener("click", () => signOff(m));
             td.append(b);
           } else if (st.kind === "signed") {
@@ -170,56 +168,122 @@
         foot.append(acts);
       }
       body.append(el("div", { class: "grid-wrap dpf-wrap" }, el("table", { class: "dpf-grid" }, el("thead", {}, head), tb, foot)),
-        el("p", { class: "hint", style: "margin:8px 0 0", text: enter ? "Point at a figure to see who entered it. Click a month to enter or change its figures." : "Point at a figure to see who entered it." }));
+        el("p", { class: "hint", style: "margin:8px 0 0", text: enter
+          ? "Type into the table, then press Save changes. Enter moves down, Esc puts a figure back as it was, and clearing a figure deletes it. Point at a figure to see who entered it."
+          : "Point at a figure to see who entered it." }));
       if (asking) body.append(undoBox(asking));
-      if (editing && enter) body.append(editBox(editing));
+      refreshBar();
     }
 
-    function openMonth(iso) {
-      if (busy) return;
-      if (editing !== iso) { editing = iso; typed = {}; }
-      asking = null; drawMonths();
-      const first = parts.body.querySelector(".dpf-edit input");
-      if (first) { first.focus({ preventScroll: true }); parts.body.querySelector(".dpf-edit").scrollIntoView({ block: "nearest" }); }
-    }
-
-    // The month's boxes: one per item, the value held in each, saved together by Save month.
-    function editBox(iso) {
-      const m = monthOfState(iso) || { month: iso, figures: {} }, held = m.figures || {};
-      const problems = el("div", { class: "msg refused", role: "alert", hidden: true });
-      const box = el("section", { class: "dpf-edit", "aria-labelledby": "dpfEditTitle" },
-        el("h2", { id: "dpfEditTitle", text: `Edit ${I.monthName(iso)}` }),
-        el("p", { class: "hint", style: "margin:4px 0 0", text: "Only changed figures are saved. Clear a box to delete that figure." + (m.signed_off ? " This month is signed off: saving a change clears its sign-off." : "") }));
-      for (const kind of ["actual", "plan"]) {
-        const group = sorted().filter((x) => (x.kind === "plan" ? "plan" : "actual") === kind);
-        if (!group.length) continue;
-        const fields = el("div", { class: "fields" });
-        for (const it of group) {
-          const id = "dpfIn-" + it.code;
-          const input = el("input", { type: "text", id, inputmode: "decimal", autocomplete: "off", "data-code": it.code, disabled: busy });
-          input.value = Object.prototype.hasOwnProperty.call(typed, it.code) ? typed[it.code] : (held[it.code] == null ? "" : String(held[it.code]));
-          input.addEventListener("input", () => { typed[it.code] = input.value; });
-          fields.append(el("div", { class: "field" }, el("label", { for: id, text: String(it.label) }), input,
-            el("span", { class: "hint", text: `${it.unit}. ${I.ruleText(it)}.` })));
-        }
-        box.append(el("h3", { class: "dpf-sub", text: kind === "plan" ? "Plan" : "Actuals" }), fields);
-      }
-      const save = el("button", { type: "button", class: "btn", "data-dpf": "save", text: "Save month", disabled: busy });
-      const discard = el("button", { type: "button", class: "btn ghost", "data-dpf": "discard", text: "Discard", disabled: busy });
-      save.addEventListener("click", async () => {
-        const r = I.formChanges(items, held, typed);
-        if (r.problems.length) { say(problems, r.problems.join(" "), true); return; }
-        if (!Object.keys(r.values).length) { say(problems, "Nothing has changed.", false); return; }
-        const was = !!m.signed_off, name = I.monthName(iso);
-        const ok = await write("dpf_save", { month: iso, values: r.values, source: "form" }, (a) => {
-          const n = Number.isInteger(a && a.changed) ? a.changed : Object.keys(r.values).length;
-          return `Saved ${name}: ${n} ${n === 1 ? "figure" : "figures"} changed.` + (was && n > 0 ? " Its sign-off was cleared." : "");
-        });
-        if (ok) { editing = null; typed = {}; redraw(); }
+    // One box per figure. What is typed is kept in typed["YYYY-MM-01|code"] until Save changes or
+    // Discard, so drawing the grid again (a sign-off elsewhere, a refusal) keeps it.
+    function cellBox(it, m, td) {
+      const key = m.month + "|" + it.code, held = (m.figures || {})[it.code];
+      const input = el("input", { type: "text", inputmode: "decimal", autocomplete: "off", class: "dpf-in", "data-month": m.month, "data-code": it.code,
+        "aria-label": `${it.label}, ${I.monthName(m.month)}`, placeholder: "–", disabled: busy });
+      input.value = Object.prototype.hasOwnProperty.call(typed, key) ? typed[key] : I.inputValue(it, held);
+      const mark = () => {
+        const has = Object.prototype.hasOwnProperty.call(typed, key);
+        const v = has ? I.parseNumber(typed[key]) : null;
+        const bad = has && (Number.isNaN(v) || (v !== null && !!I.checkValue(it, v)));
+        const changed = has && !bad && (v === null ? held != null : Number(held) !== v || held == null);
+        td.classList.toggle("chg", changed);
+        td.classList.toggle("bad", bad);
+        input.setAttribute("aria-invalid", bad ? "true" : "false");
+      };
+      input.addEventListener("input", () => { typed[key] = input.value; mark(); refreshBar(); });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") { delete typed[key]; input.value = I.inputValue(it, held); mark(); refreshBar(); e.preventDefault(); return; }
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        const boxes = [...parts.body.querySelectorAll(`input.dpf-in[data-month="${m.month}"]`)];
+        const next = boxes[boxes.indexOf(input) + (e.shiftKey ? -1 : 1)];
+        if (next) { next.focus(); next.select(); }
       });
-      discard.addEventListener("click", () => { editing = null; typed = {}; say(parts.msg, ""); drawMonths(); });
-      box.append(problems, el("div", { class: "actions", style: "margin-top:14px" }, save, discard));
-      return box;
+      mark();
+      return input;
+    }
+
+    // What the table would save: each month's changed figures (as the month form sends them) and
+    // the problems, each named with its month, stopped in the page before anything is sent.
+    function gridChanges() {
+      const byMonth = {}, problems = [];
+      const typedBy = {};
+      for (const [key, v] of Object.entries(typed)) {
+        const [iso, code] = key.split("|");
+        (typedBy[iso] = typedBy[iso] || {})[code] = v;
+      }
+      for (const iso of Object.keys(typedBy).sort()) {
+        const m = monthOfState(iso) || { figures: {} };
+        const r = I.formChanges(items, m.figures || {}, typedBy[iso]);
+        for (const p of r.problems) problems.push(`${I.monthName(iso)}, ${p}`);
+        if (Object.keys(r.values).length) byMonth[iso] = r.values;
+      }
+      return { byMonth, problems };
+    }
+    const pending = () => { const g = gridChanges(); return Object.values(g.byMonth).reduce((n, v) => n + Object.keys(v).length, 0) + g.problems.length; };
+
+    // The bar above the table: how many changes are waiting, Save changes and Discard. While any
+    // change waits, the year cannot be moved and no month can be signed off.
+    function saveBar() {
+      const count = el("span", { class: "dpf-pending", id: "dpfPending" });
+      const save = el("button", { type: "button", class: "btn", "data-dpf": "save", text: "Save changes" });
+      const discard = el("button", { type: "button", class: "btn ghost", "data-dpf": "discard", text: "Discard" });
+      save.addEventListener("click", saveGrid);
+      discard.addEventListener("click", () => { typed = {}; say(parts.msg, ""); drawMonths(); });
+      return el("div", { class: "dpf-savebar" }, count, save, discard);
+    }
+    function refreshBar() {
+      if (!parts) return;
+      const n = pending(), bar = parts.body.querySelector(".dpf-savebar");
+      if (bar) {
+        bar.querySelector(".dpf-pending").textContent = n === 0 ? "No unsaved changes." : n === 1 ? "1 unsaved change." : `${n} unsaved changes.`;
+        for (const b of bar.querySelectorAll("button")) b.disabled = busy || n === 0;
+      }
+      for (const b of parts.body.querySelectorAll('[data-dpf="prev"], [data-dpf="next"], [data-dpf="signoff"], [data-dpf="unsign"]')) {
+        const edge = (b.dataset.dpf === "prev" && fy <= FY_FIRST) || (b.dataset.dpf === "next" && fy >= FY_LAST);
+        b.disabled = busy || n > 0 || edge;
+        b.title = n > 0 ? "Save or discard your changes first." : "";
+      }
+    }
+
+    // Save changes: one dpf_save a month, in month order, each with only its changed figures and
+    // source form, as History shows them ("typed in"). A refusal stops it there: the months before
+    // are saved, that month and those after keep what was typed, and the database's sentence shows.
+    async function saveGrid() {
+      if (busy) return;
+      const g = gridChanges();
+      if (g.problems.length) { say(parts.msg, g.problems.join(" "), true); return; }
+      const months = Object.keys(g.byMonth).sort();
+      if (!months.length) { typed = {}; say(parts.msg, "Nothing has changed."); drawMonths(); return; }
+      const n = view, s0 = sess, saved = [];
+      let total = 0, cleared = 0, at = null;
+      busy = true; say(parts.msg, "Saving…"); redraw();
+      try {
+        for (const iso of months) {
+          at = iso;
+          const was = !!(monthOfState(iso) || {}).signed_off;
+          const r = await api("dpf_save", { month: iso, values: g.byMonth[iso], source: "form" });
+          if (s0 !== sess) return;
+          take(r);
+          const c = Number.isInteger(r && r.changed) ? r.changed : Object.keys(g.byMonth[iso]).length;
+          total += c; if (was && c > 0) cleared++;
+          for (const key of Object.keys(typed)) if (key.startsWith(iso + "|")) delete typed[key];
+          saved.push(I.monthName(iso));
+        }
+        busy = false;
+        if (n === view && live()) {
+          say(parts.msg, `Saved ${total} ${total === 1 ? "figure" : "figures"}: ${saved.join(", ")}.` + (cleared ? ` A change to a signed-off month cleared its sign-off.` : ""));
+          redraw();
+        }
+      } catch (err) {
+        if (s0 !== sess) return;
+        busy = false;
+        if (err && err.signedOut) return;
+        if (n === view && live()) say(parts.msg, (saved.length ? `Saved ${saved.join(", ")}. ` : "") + `${I.monthName(at)} was not saved: ${explain(err)}`, true);
+        try { await state(fy); } catch { /* the refusal is already shown */ }
+        if (n === view && live()) redraw();
+      }
     }
 
     // Sign off sends the fingerprint of the figures as shown; the database refuses it if any has
@@ -291,7 +355,7 @@
       });
       const cardA = el("section", { class: "dpf-card", "aria-labelledby": "dpfTplTitle" },
         el("h2", { id: "dpfTplTitle", text: "Dyce template" }),
-        el("p", { text: "One sheet, DPF figures, with a row for every month and item of the year: Month (MM/YYYY), Item code, Item and Value, filled with the figures held now. Change or fill in the Value column and upload it here. A blank Value leaves that figure as it is; clear a figure on the Months screen." }),
+        el("p", { text: "One sheet, DPF figures, laid out as the Months table: the items down, the year's months across (MM/YYYY), filled with the figures held now. Change or fill in any figure and upload it here. A blank cell leaves that figure as it is; clear a figure on the Months screen." }),
         el("div", { class: "actions" }, dl),
         el("div", { class: "field" }, el("label", { for: "dpfTemplate", text: "Upload template (.xlsx or .csv)" }), tIn));
 
@@ -463,6 +527,6 @@
 
     // On sign-out nothing read or typed here stays in the page: showSignIn has emptied #main and the
     // side menu; answers on their way are dropped.
-    function reset() { sess++; view++; items = null; states = {}; fy = null; editing = null; typed = {}; asking = null; busy = false; upl = null; histMonth = null; root = null; parts = null; }
+    function reset() { sess++; view++; items = null; states = {}; fy = null; typed = {}; asking = null; busy = false; upl = null; histMonth = null; root = null; parts = null; }
     return { show, reset };
   })();
