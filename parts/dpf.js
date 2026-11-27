@@ -100,9 +100,6 @@
       if (!s) { body.append(el("p", { class: "empty", text: "This year could not be read." })); return; }
       const its = sorted(), months = Array.isArray(s.months) ? s.months : [], enter = canEnter();
       body.append(el("div", { class: "dpf-toolbar" }, yearBar(moveYear), enter ? saveBar() : null));
-      body.append(el("p", { class: "dpf-hint", text: enter
-        ? "Type into the table, or fill in the template and choose it, then Save changes. Enter moves down, Esc puts a figure back, and clearing a figure deletes it. Point at a figure to see who entered it."
-        : "Point at a figure to see who entered it." }));
       // Each month's heading carries its status: complete, or how many figures are missing, with a
       // thin line filling as figures arrive. The current month is marked.
       const now = thisMonth(), total = its.length || 1;
@@ -122,7 +119,7 @@
         tb.append(el("tr", { class: "dpf-group" }, el("th", { scope: "colgroup", colspan: String(months.length + 1) },
           el("span", { text: kind === "plan" ? "Plan" : "Actuals" }))));
         for (const it of group) {
-          const tr = el("tr", { "data-code": it.code }, el("th", { scope: "row", class: "dpf-item" }, el("span", { text: String(it.label) }), el("span", { class: "dpf-unit", text: String(it.unit ?? "") })));
+          const tr = el("tr", { "data-code": it.code }, el("th", { scope: "row", class: "dpf-item" }, el("span", { text: String(it.label) }), " ", el("span", { class: "dpf-unit", text: String(it.unit ?? "") })));
           for (const m of months) {
             const v = (m.figures || {})[it.code], has = v != null;
             const e = (m.entered || {})[it.code];
@@ -135,7 +132,8 @@
           tb.append(tr);
         }
       }
-      body.append(el("div", { class: "grid-wrap dpf-wrap" }, el("table", { class: "dpf-grid" }, el("thead", {}, head), tb)));
+      const cols = el("colgroup", {}, el("col", { class: "dpf-col-item" }), ...months.map(() => el("col")));
+      body.append(el("div", { class: "grid-wrap dpf-wrap" }, el("table", { class: "dpf-grid" }, cols, el("thead", {}, head), tb)));
       refreshBar();
     }
 
@@ -146,9 +144,6 @@
       const input = el("input", { type: "text", inputmode: "decimal", autocomplete: "off", class: "dpf-in", "data-month": m.month, "data-code": it.code,
         "aria-label": `${it.label}, ${I.monthName(m.month)}`, placeholder: "–", disabled: busy });
       input.value = Object.prototype.hasOwnProperty.call(typed, key) ? typed[key] : I.inputValue(it, held);
-      // Each box is as wide as its figure, so a long one is never cut off and an empty one takes little room.
-      const fit = () => { input.style.width = `calc(${Math.max(5, input.value.length + 1)}ch + 14px)`; };
-      fit();
       const mark = () => {
         const has = Object.prototype.hasOwnProperty.call(typed, key);
         const v = has ? I.parseNumber(typed[key]) : null;
@@ -158,9 +153,9 @@
         td.classList.toggle("bad", bad);
         input.setAttribute("aria-invalid", bad ? "true" : "false");
       };
-      input.addEventListener("input", () => { typed[key] = input.value; delete fromFile[key]; fit(); mark(); refreshBar(); });
+      input.addEventListener("input", () => { typed[key] = input.value; delete fromFile[key]; mark(); refreshBar(); });
       input.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") { delete typed[key]; delete fromFile[key]; input.value = I.inputValue(it, held); fit(); mark(); refreshBar(); e.preventDefault(); return; }
+        if (e.key === "Escape") { delete typed[key]; delete fromFile[key]; input.value = I.inputValue(it, held); mark(); refreshBar(); e.preventDefault(); return; }
         if (e.key !== "Enter") return;
         e.preventDefault();
         const boxes = [...parts.body.querySelectorAll(`input.dpf-in[data-month="${m.month}"]`)];
