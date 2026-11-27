@@ -77,8 +77,8 @@
 
     // ---------- Months: the financial year as a grid
     function yearBar(onMove) {
-      const prev = el("button", { type: "button", class: "btn ghost small", "data-dpf": "prev", text: "Previous year", disabled: fy <= FY_FIRST || busy });
-      const next = el("button", { type: "button", class: "btn ghost small", "data-dpf": "next", text: "Next year", disabled: fy >= FY_LAST || busy });
+      const prev = el("button", { type: "button", class: "btn ghost small dpf-step", "data-dpf": "prev", "aria-label": "Previous year", title: "Previous year", text: "\u2039", disabled: fy <= FY_FIRST || busy });
+      const next = el("button", { type: "button", class: "btn ghost small dpf-step", "data-dpf": "next", "aria-label": "Next year", title: "Next year", text: "\u203a", disabled: fy >= FY_LAST || busy });
       prev.addEventListener("click", () => onMove(fy - 1));
       next.addEventListener("click", () => onMove(fy + 1));
       return el("div", { class: "dpf-year" }, prev, el("h2", { id: "dpfYear", text: I.fyLabel(fy) }), next);
@@ -99,22 +99,35 @@
       body.textContent = "";
       if (!s) { body.append(el("p", { class: "empty", text: "This year could not be read." })); return; }
       const its = sorted(), months = Array.isArray(s.months) ? s.months : [], enter = canEnter();
-      body.append(yearBar(moveYear));
-      if (enter) body.append(saveBar());
-      const head = el("tr", {}, el("th", { scope: "col", class: "dpf-item", text: "Item" }));
-      for (const m of months) head.append(el("th", { scope: "col", class: "dpf-m", text: I.monthName(m.month) }));
+      body.append(el("div", { class: "dpf-toolbar" }, yearBar(moveYear), enter ? saveBar() : null));
+      body.append(el("p", { class: "dpf-hint", text: enter
+        ? "Type into the table, or fill in the template and choose it, then Save changes. Enter moves down, Esc puts a figure back, and clearing a figure deletes it. Point at a figure to see who entered it."
+        : "Point at a figure to see who entered it." }));
+      // Each month's heading carries its status: complete, or how many figures are missing, with a
+      // thin line filling as figures arrive. The current month is marked.
+      const now = thisMonth(), total = its.length || 1;
+      const head = el("tr", {}, el("th", { scope: "col", class: "dpf-item dpf-corner", text: "Item" }));
+      for (const m of months) {
+        const st = I.monthStatus(m), missing = Array.isArray(m.missing) ? m.missing.length : 0;
+        const share = Math.max(0, Math.min(100, Math.round((1 - missing / total) * 100)));
+        head.append(el("th", { scope: "col", class: "dpf-m " + st.kind + (m.month === now ? " now" : ""), "data-month": m.month },
+          el("span", { class: "dpf-mname", text: I.monthName(m.month) }),
+          el("span", { class: "dpf-mstate", text: st.text, title: m.month === now ? "This month" : null }),
+          el("span", { class: "dpf-meter", "aria-hidden": "true" }, el("span", { style: `width:${share}%` }))));
+      }
       const tb = el("tbody");
       for (const kind of ["actual", "plan"]) {
         const group = its.filter((x) => (x.kind === "plan" ? "plan" : "actual") === kind);
         if (!group.length) continue;
-        tb.append(el("tr", { class: "dpf-group" }, el("th", { scope: "colgroup", colspan: String(months.length + 1), text: kind === "plan" ? "Plan" : "Actuals" })));
+        tb.append(el("tr", { class: "dpf-group" }, el("th", { scope: "colgroup", colspan: String(months.length + 1) },
+          el("span", { text: kind === "plan" ? "Plan" : "Actuals" }))));
         for (const it of group) {
           const tr = el("tr", { "data-code": it.code }, el("th", { scope: "row", class: "dpf-item" }, el("span", { text: String(it.label) }), el("span", { class: "dpf-unit", text: String(it.unit ?? "") })));
           for (const m of months) {
             const v = (m.figures || {})[it.code], has = v != null;
             const e = (m.entered || {})[it.code];
             const tip = has ? (who(e) ? "Entered by " + who(e) : null) : "Not entered";
-            const td = el("td", { class: "dpf-v" + (has ? "" : " gap"), "data-month": m.month, title: tip });
+            const td = el("td", { class: "dpf-v" + (has ? "" : " gap") + (m.month === now ? " now" : ""), "data-month": m.month, title: tip });
             if (enter) td.append(cellBox(it, m, td));
             else td.textContent = has ? I.formatValue(it, v) : "–";
             tr.append(td);
@@ -122,16 +135,7 @@
           tb.append(tr);
         }
       }
-      const status = el("tr", { class: "dpf-status" }, el("th", { scope: "row", class: "dpf-item", text: "Status" }));
-      for (const m of months) {
-        const st = I.monthStatus(m);
-        status.append(el("td", { class: "dpf-st " + st.kind, "data-month": m.month, text: st.text }));
-      }
-      const foot = el("tfoot", {}, status);
-      body.append(el("div", { class: "grid-wrap dpf-wrap" }, el("table", { class: "dpf-grid" }, el("thead", {}, head), tb, foot)),
-        el("p", { class: "hint", style: "margin:8px 0 0", text: enter
-          ? "Type into the table, or download the template, fill it in and choose it: its figures come into the table. Then press Save changes. Enter moves down, Esc puts a figure back as it was, and clearing a figure deletes it. A blank cell in the template leaves that figure as it is. Point at a figure to see who entered it."
-          : "Point at a figure to see who entered it." }));
+      body.append(el("div", { class: "grid-wrap dpf-wrap" }, el("table", { class: "dpf-grid" }, el("thead", {}, head), tb)));
       refreshBar();
     }
 
@@ -142,6 +146,9 @@
       const input = el("input", { type: "text", inputmode: "decimal", autocomplete: "off", class: "dpf-in", "data-month": m.month, "data-code": it.code,
         "aria-label": `${it.label}, ${I.monthName(m.month)}`, placeholder: "–", disabled: busy });
       input.value = Object.prototype.hasOwnProperty.call(typed, key) ? typed[key] : I.inputValue(it, held);
+      // Each box is as wide as its figure, so a long one is never cut off and an empty one takes little room.
+      const fit = () => { input.style.width = `calc(${Math.max(5, input.value.length + 1)}ch + 14px)`; };
+      fit();
       const mark = () => {
         const has = Object.prototype.hasOwnProperty.call(typed, key);
         const v = has ? I.parseNumber(typed[key]) : null;
@@ -151,9 +158,9 @@
         td.classList.toggle("bad", bad);
         input.setAttribute("aria-invalid", bad ? "true" : "false");
       };
-      input.addEventListener("input", () => { typed[key] = input.value; delete fromFile[key]; mark(); refreshBar(); });
+      input.addEventListener("input", () => { typed[key] = input.value; delete fromFile[key]; fit(); mark(); refreshBar(); });
       input.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") { delete typed[key]; delete fromFile[key]; input.value = I.inputValue(it, held); mark(); refreshBar(); e.preventDefault(); return; }
+        if (e.key === "Escape") { delete typed[key]; delete fromFile[key]; input.value = I.inputValue(it, held); fit(); mark(); refreshBar(); e.preventDefault(); return; }
         if (e.key !== "Enter") return;
         e.preventDefault();
         const boxes = [...parts.body.querySelectorAll(`input.dpf-in[data-month="${m.month}"]`)];
@@ -188,24 +195,27 @@
     // template, read into the table). While any change waits, the year cannot be moved.
     function saveBar() {
       const count = el("span", { class: "dpf-pending", id: "dpfPending" });
-      const save = el("button", { type: "button", class: "btn", "data-dpf": "save", text: "Save changes" });
-      const discard = el("button", { type: "button", class: "btn ghost", "data-dpf": "discard", text: "Discard" });
-      const dl = el("button", { type: "button", class: "btn ghost", "data-dpf": "download", text: "Download template" });
+      const save = el("button", { type: "button", class: "btn small", "data-dpf": "save", text: "Save changes" });
+      const discard = el("button", { type: "button", class: "btn ghost small", "data-dpf": "discard", text: "Discard" });
+      const dl = el("button", { type: "button", class: "btn ghost small", "data-dpf": "download", text: "Download template" });
       const file = el("input", { type: "file", id: "dpfTemplate", accept: ".xlsx,.csv", hidden: true });
-      const choose = el("button", { type: "button", class: "btn ghost", "data-dpf": "choose", text: "Choose file" });
+      const choose = el("button", { type: "button", class: "btn ghost small", "data-dpf": "choose", text: "Choose file" });
       save.addEventListener("click", saveGrid);
       discard.addEventListener("click", () => { typed = {}; fromFile = {}; say(parts.msg, ""); drawMonths(); });
       dl.addEventListener("click", () => downloadTemplate(dl));
       choose.addEventListener("click", () => file.click());
       file.addEventListener("change", () => loadTemplate(file));
-      return el("div", { class: "dpf-savebar" }, count, save, discard,
-        el("span", { class: "dpf-tpl" }, dl, choose, file));
+      return el("div", { class: "dpf-savebar" },
+        el("span", { class: "dpf-tpl" }, dl, choose, file),
+        el("span", { class: "dpf-commit" }, count, discard, save));
     }
     function refreshBar() {
       if (!parts) return;
       const n = pending(), bar = parts.body.querySelector(".dpf-savebar");
       if (bar) {
-        bar.querySelector(".dpf-pending").textContent = n === 0 ? "No unsaved changes." : n === 1 ? "1 unsaved change." : `${n} unsaved changes.`;
+        const p = bar.querySelector(".dpf-pending");
+        p.textContent = n === 0 ? "No unsaved changes." : n === 1 ? "1 unsaved change." : `${n} unsaved changes.`;
+        p.classList.toggle("has", n > 0);
         for (const b of bar.querySelectorAll('[data-dpf="save"], [data-dpf="discard"]')) b.disabled = busy || n === 0;
         for (const b of bar.querySelectorAll('[data-dpf="download"], [data-dpf="choose"]')) b.disabled = busy;
       }

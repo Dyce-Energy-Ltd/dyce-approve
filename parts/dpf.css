@@ -1,32 +1,48 @@
-/* DPF figures: the Months grid (typed into directly, with the template beside Save changes), and
-   History's month choice, on the hub's tokens and scoped to #dpf. No status colours: a month's state is carried by
-   its words (Complete, N missing). Magenta is a rule only: under a changed figure.
-   A figure that fails its check has a dashed navy outline, and the message line says why. */
-#dpf .dpf-year { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-top: 22px; }
-#dpf .dpf-year h2 { font-size: 23px; line-height: 30px; min-width: 260px; }
-#dpf .dpf-wrap { margin-top: 14px; }
+/* DPF figures: the Months grid (typed into directly, with the template in the toolbar) and
+   History's month choice, on the hub's tokens and scoped to #dpf. No status colours: a month's state
+   is carried by its words (Complete, N missing) and a thin navy line filling as figures arrive.
+   Magenta is a rule only: the current month's heading, the group dots, under a changed figure, and
+   the line of a complete month. A figure that fails its check has a dashed navy outline, and the
+   message line says why. */
+#dpf .dpf-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; margin-top: 22px; padding: 10px 12px 10px 8px; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); box-shadow: var(--shadow-card); }
+#dpf .dpf-year { display: flex; align-items: center; gap: 4px; min-width: 0; }
+#dpf .dpf-year h2 { font-size: 19px; line-height: 26px; padding: 0 10px; white-space: nowrap; }
+#dpf .dpf-step { min-width: 36px; padding-left: 0; padding-right: 0; font-size: 20px; line-height: 1; }
+#dpf .dpf-savebar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+#dpf .dpf-tpl, #dpf .dpf-commit { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+#dpf .dpf-tpl { padding-right: 16px; border-right: 1px solid var(--hairline); }
+#dpf .dpf-pending { font-size: 13px; line-height: 18px; color: var(--muted); margin-right: 4px; }
+#dpf .dpf-pending.has { color: var(--ink); font-weight: 800; }
+#dpf .dpf-hint { margin: 10px 2px 0; font-size: 13px; line-height: 20px; color: var(--muted); max-width: 900px; }
+#dpf .dpf-wrap { margin-top: 12px; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); }
 #dpf table.dpf-grid { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; line-height: 18px; font-variant-numeric: tabular-nums; }
-#dpf .dpf-grid th, #dpf .dpf-grid td { padding: 8px 7px; border-bottom: 1px solid var(--hairline); text-align: right; vertical-align: top; background: var(--surface); white-space: nowrap; }
-#dpf .dpf-grid thead th { font-size: 11px; line-height: 16px; font-weight: 800; color: var(--ink); vertical-align: bottom; }
-#dpf .dpf-grid .dpf-item { text-align: left; position: sticky; left: 0; z-index: 1; min-width: 190px; white-space: normal; font-weight: 400; border-right: 1px solid var(--hairline); }
-#dpf .dpf-grid thead .dpf-item { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
-#dpf .dpf-grid .dpf-unit { display: block; font-size: 11px; line-height: 16px; color: var(--muted); }
-#dpf .dpf-grid tr.dpf-group th { text-align: left; font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); background: var(--surface-raised); padding-top: 10px; }
+#dpf .dpf-grid th, #dpf .dpf-grid td { padding: 5px 6px; border-bottom: 1px solid var(--hairline); text-align: right; vertical-align: middle; background: var(--surface); white-space: nowrap; }
+#dpf .dpf-grid tbody tr:last-child > * { border-bottom: 0; }
+#dpf .dpf-grid .dpf-item { text-align: left; position: sticky; left: 0; z-index: 1; min-width: 210px; max-width: 250px; white-space: normal; font-weight: 400; padding-left: 14px; border-right: 1px solid var(--hairline); }
+#dpf .dpf-grid .dpf-unit { display: block; font-size: 11px; line-height: 15px; color: var(--muted); }
+#dpf .dpf-grid thead th { vertical-align: bottom; padding-top: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--ink); }
+#dpf .dpf-grid thead .dpf-corner { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); font-weight: 400; }
+#dpf .dpf-grid th.dpf-m { min-width: 74px; font-weight: 400; }
+#dpf .dpf-mname { display: block; font-size: 12px; line-height: 16px; font-weight: 800; color: var(--ink); }
+#dpf .dpf-mstate { display: block; font-size: 11px; line-height: 15px; color: var(--muted); }
+#dpf th.dpf-m.complete .dpf-mstate { color: var(--ink); }
+#dpf .dpf-meter { display: block; height: 3px; margin: 6px 0 0 auto; width: 56px; border-radius: 2px; background: var(--hairline); overflow: hidden; }
+#dpf .dpf-meter > span { display: block; height: 100%; background: var(--ink); }
+#dpf th.dpf-m.complete .dpf-meter > span { background: var(--brand-magenta); }
+#dpf .dpf-grid th.dpf-m.now { box-shadow: inset 0 3px 0 var(--brand-magenta); }
+#dpf .dpf-grid th.now, #dpf .dpf-grid td.now { background: var(--surface-raised); }
+#dpf .dpf-grid tr.dpf-group th { text-align: left; font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--ink); background: var(--surface); padding: 14px 6px 6px 14px; border-bottom: 1px solid var(--hairline); }
+#dpf .dpf-grid tr.dpf-group th > span { position: sticky; left: 14px; display: inline-flex; align-items: center; gap: 8px; }
+#dpf .dpf-grid tr.dpf-group th > span::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--brand-magenta); }
 #dpf .dpf-grid td.gap { color: var(--muted); }
-#dpf .dpf-grid td:has(> input.dpf-in) { padding: 3px 3px; }
-#dpf input.dpf-in { font: inherit; font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; width: 100%; min-width: 96px; box-sizing: border-box; padding: 5px 6px; border: 1px solid transparent; border-radius: 6px; background: transparent; }
-#dpf input.dpf-in::placeholder { color: var(--muted); opacity: 1; }
+#dpf .dpf-grid td:has(> input.dpf-in) { padding: 3px 4px; }
+#dpf input.dpf-in { font: inherit; font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; max-width: none; box-sizing: border-box; padding: 5px 6px; border: 1px solid transparent; border-radius: 6px; background: transparent; }
+#dpf input.dpf-in::placeholder { color: var(--muted); opacity: 0.6; }
 #dpf input.dpf-in:hover { border-color: var(--hairline); background: var(--field); }
 #dpf input.dpf-in:focus { outline: none; border-color: var(--ink); background: var(--field); }
 #dpf input.dpf-in[disabled] { cursor: progress; }
 #dpf .dpf-grid td.chg input.dpf-in { font-weight: 800; box-shadow: inset 0 -2px 0 var(--brand-magenta); }
 #dpf .dpf-grid td.bad input.dpf-in { outline: 2px dashed var(--ink); outline-offset: -2px; }
-#dpf .dpf-savebar { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin-top: 14px; }
-#dpf .dpf-pending { font-size: 14px; line-height: 20px; font-weight: 800; min-width: 170px; }
-#dpf .dpf-tpl { display: inline-flex; flex-wrap: wrap; gap: 10px; padding-left: 14px; border-left: 1px solid var(--hairline); }
-#dpf .dpf-grid tfoot th, #dpf .dpf-grid tfoot td { white-space: normal; min-width: 80px; overflow-wrap: anywhere; font-size: 12px; line-height: 17px; vertical-align: top; }
-#dpf .dpf-grid tfoot .dpf-item { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); }
-#dpf .dpf-st.missing { font-weight: 800; }
 #dpf .dpf-grid tbody tr:not(.dpf-group):hover > * { background: var(--magenta-tint); }
 #dpf .dpf-grid tbody tr:not(.dpf-group):hover > :first-child { box-shadow: inset 4px 0 0 var(--brand-magenta); }
 #dpf .dpf-upyear { max-width: 320px; margin-top: 22px; }

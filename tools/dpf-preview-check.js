@@ -35,7 +35,8 @@
   const last = (action) => { const c = calls(action); return c.length ? c[c.length - 1] : null; };
   const M = (i) => window.__stub.dpfMonth(i);
   const cell = (code, m) => $(`#dpf tr[data-code="${code}"] td[data-month="${m}"]`);
-  const status = (m) => text(`#dpf tr.dpf-status td[data-month="${m}"]`);
+  // A month's status is in its heading, after its name.
+  const status = (m) => text(`#dpf th.dpf-m[data-month="${m}"] .dpf-mstate`).replace(/, this month$/, "");
   const box = (code, m) => $(`#dpf tr[data-code="${code}"] td[data-month="${m}"] input.dpf-in`);
   // What a cell shows: its box's value when the person can type, its text when they cannot.
   const shows = (code, m) => { const b = box(code, m); return b ? b.value : (cell(code, m) ? cell(code, m).textContent : ""); };
@@ -57,7 +58,7 @@
     const rows = $$("#dpf table.dpf-grid tbody tr[data-code]").map((r) => r.dataset.code);
     check("13 items, actuals then plan", rows.length === 13 && rows[0] === "cost_of_sales_gbp" && rows[6] === "plan_gm_gbp", rows.join(","));
     check("group rows Actuals and Plan", $$("#dpf tr.dpf-group th").map((t) => t.textContent).join(",") === "Actuals,Plan");
-    const heads = $$("#dpf table.dpf-grid thead th").map((t) => t.textContent);
+    const heads = ["Item", ...$$("#dpf table.dpf-grid thead th.dpf-m .dpf-mname").map((t) => t.textContent)];
     check("twelve months, June first", heads.length === 13 && /^Jun \d{4}$/.test(heads[1]) && /^May \d{4}$/.test(heads[12]), heads.join(","));
     check("the year line", /^June \d{4} to May \d{4}$/.test(text("#dpfYear")), text("#dpfYear"));
     const typing = !!box("opex_gbp", M(0));
