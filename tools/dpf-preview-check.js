@@ -97,12 +97,16 @@
     opex.dispatchEvent(new Event("blur"));
     check("leaving a GBP box writes the pound sign and thousands", opex.value === "£121,000", opex.value);
     check("the change is counted and marked", pendingText() === "1 unsaved change." && cell("opex_gbp", M(1)).classList.contains("chg") && !button("Save changes", $("#dpf")).disabled, pendingText());
+    const wasLine = $(`#dpf tr[data-code="opex_gbp"] td[data-month="${M(1)}"] .dpf-was`);
+    check("the figure held shows under the changed box until saved", wasLine && !wasLine.hidden && wasLine.textContent === "was \u00a3119,900", wasLine && wasLine.textContent);
+    check("the changed box glows blue", getComputedStyle(box("opex_gbp", M(1))).borderTopColor === "rgb(31, 95, 174)", getComputedStyle(box("opex_gbp", M(1))).borderTopColor);
     check("the year waits while a change is unsaved", $('#dpf [data-dpf="next"]').disabled && $('#dpf [data-dpf="prev"]').disabled);
     button("Save changes", $("#dpf")).click();
     await until(() => /^Saved /.test(msg()));
     const save = last("dpf_save");
     check("Save changes sends only the changed value, source form", save && save.args.month === M(1) && JSON.stringify(save.args.values) === '{"opex_gbp":121000}' && save.args.source === "form" && save.status === 200, JSON.stringify(save && save.args));
     check("the new value shows and nothing waits", box("opex_gbp", M(1)).value === "£121,000" && pendingText() === "No unsaved changes." && !cell("opex_gbp", M(1)).classList.contains("chg"), msg() + " | " + pendingText());
+    check("after saving, no old figure shows", !$$("#dpf .dpf-was").some((w) => !w.hidden), $$("#dpf .dpf-was").filter((w) => !w.hidden).length);
 
     // Enter moves down the month; Esc puts a figure back.
     const os = box("overheads_gbp", M(1));
