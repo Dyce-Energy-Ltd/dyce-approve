@@ -861,50 +861,52 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
    Magenta is a rule only: the current month's heading, the group dots, under a changed figure, and
    the line of a complete month. A figure that fails its check has a dashed navy outline, and the
    message line says why. */
-#dpf .dpf-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; margin-top: 22px; padding: 10px 12px 10px 8px; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); box-shadow: var(--shadow-card); }
+#dpf .dpf-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 24px; margin-top: 16px; padding: 6px 8px 6px 6px; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); box-shadow: var(--shadow-card); }
 #dpf .dpf-year { display: flex; align-items: center; gap: 4px; min-width: 0; }
-#dpf .dpf-year h2 { font-size: 19px; line-height: 26px; padding: 0 10px; white-space: nowrap; }
+#dpf .dpf-year h2 { font-size: 18px; line-height: 24px; padding: 0 8px; white-space: nowrap; }
 #dpf .dpf-step { min-width: 36px; padding-left: 0; padding-right: 0; font-size: 20px; line-height: 1; }
 #dpf .dpf-savebar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
 #dpf .dpf-tpl, #dpf .dpf-commit { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 #dpf .dpf-tpl { padding-right: 16px; border-right: 1px solid var(--hairline); }
 #dpf .dpf-pending { font-size: 13px; line-height: 18px; color: var(--muted); margin-right: 4px; }
 #dpf .dpf-pending.has { color: var(--ink); font-weight: 800; }
-#dpf .dpf-hint { margin: 10px 2px 0; font-size: 13px; line-height: 20px; color: var(--muted); max-width: 900px; }
-#dpf .dpf-wrap { margin-top: 12px; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); }
-#dpf table.dpf-grid { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; line-height: 18px; font-variant-numeric: tabular-nums; }
-#dpf .dpf-grid th, #dpf .dpf-grid td { padding: 5px 6px; border-bottom: 1px solid var(--hairline); text-align: right; vertical-align: middle; background: var(--surface); white-space: nowrap; }
+#dpf .dpf-wrap { margin-top: 10px; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); }
+/* Fixed columns, so the year fits the page: the item column is set and the twelve months share the
+   rest. Below 1000px the table scrolls rather than squeezing figures out of their boxes. */
+#dpf table.dpf-grid { table-layout: fixed; border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1000px; font-size: 11.5px; line-height: 15px; font-variant-numeric: tabular-nums; }
+#dpf .dpf-grid col.dpf-col-item { width: 148px; }
+#dpf .dpf-grid th, #dpf .dpf-grid td { padding: 3px 3px; border-bottom: 1px solid var(--hairline); text-align: right; vertical-align: middle; background: var(--surface); white-space: nowrap; }
 #dpf .dpf-grid tbody tr:last-child > * { border-bottom: 0; }
-#dpf .dpf-grid .dpf-item { text-align: left; position: sticky; left: 0; z-index: 1; min-width: 210px; max-width: 250px; white-space: normal; font-weight: 400; padding-left: 14px; border-right: 1px solid var(--hairline); }
-#dpf .dpf-grid .dpf-unit { display: block; font-size: 11px; line-height: 15px; color: var(--muted); }
-#dpf .dpf-grid thead th { vertical-align: bottom; padding-top: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--ink); }
+#dpf .dpf-grid .dpf-item { text-align: left; position: sticky; left: 0; z-index: 1; white-space: normal; font-weight: 400; padding-left: 10px; padding-right: 6px; border-right: 1px solid var(--hairline); }
+#dpf .dpf-grid .dpf-unit { font-size: 10px; line-height: 14px; color: var(--muted); white-space: nowrap; }
+#dpf .dpf-grid thead th { vertical-align: bottom; padding-top: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--ink); }
 #dpf .dpf-grid thead .dpf-corner { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); font-weight: 400; }
-#dpf .dpf-grid th.dpf-m { min-width: 74px; font-weight: 400; }
-#dpf .dpf-mname { display: block; font-size: 12px; line-height: 16px; font-weight: 800; color: var(--ink); }
-#dpf .dpf-mstate { display: block; font-size: 11px; line-height: 15px; color: var(--muted); }
+#dpf .dpf-grid th.dpf-m { font-weight: 400; padding-left: 2px; padding-right: 7px; }
+#dpf .dpf-mname { display: block; font-size: 11px; line-height: 15px; white-space: nowrap; font-weight: 800; color: var(--ink); }
+#dpf .dpf-mstate { display: block; font-size: 10px; line-height: 14px; color: var(--muted); white-space: nowrap; }
 #dpf th.dpf-m.complete .dpf-mstate { color: var(--ink); }
-#dpf .dpf-meter { display: block; height: 3px; margin: 6px 0 0 auto; width: 56px; border-radius: 2px; background: var(--hairline); overflow: hidden; }
+#dpf .dpf-meter { display: block; height: 3px; margin: 4px 0 0 auto; width: 40px; border-radius: 2px; background: var(--hairline); overflow: hidden; }
 #dpf .dpf-meter > span { display: block; height: 100%; background: var(--ink); }
 #dpf th.dpf-m.complete .dpf-meter > span { background: var(--brand-magenta); }
 #dpf .dpf-grid th.dpf-m.now { box-shadow: inset 0 3px 0 var(--brand-magenta); }
 #dpf .dpf-grid th.now, #dpf .dpf-grid td.now { background: var(--surface-raised); }
-#dpf .dpf-grid tr.dpf-group th { text-align: left; font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--ink); background: var(--surface); padding: 14px 6px 6px 14px; border-bottom: 1px solid var(--hairline); }
-#dpf .dpf-grid tr.dpf-group th > span { position: sticky; left: 14px; display: inline-flex; align-items: center; gap: 8px; }
+#dpf .dpf-grid tr.dpf-group th { text-align: left; font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--ink); background: var(--surface); padding: 8px 6px 3px 10px; border-bottom: 1px solid var(--hairline); }
+#dpf .dpf-grid tr.dpf-group th > span { position: sticky; left: 10px; display: inline-flex; align-items: center; gap: 8px; }
 #dpf .dpf-grid tr.dpf-group th > span::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--brand-magenta); }
 #dpf .dpf-grid td.gap { color: var(--muted); }
-#dpf .dpf-grid td:has(> input.dpf-in) { padding: 3px 4px; }
-#dpf input.dpf-in { font: inherit; font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; max-width: none; box-sizing: border-box; padding: 5px 6px; border: 1px solid transparent; border-radius: 6px; background: transparent; }
+#dpf .dpf-grid td:has(> input.dpf-in) { padding: 2px 1px; }
+#dpf input.dpf-in { font: inherit; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; width: 100%; box-sizing: border-box; padding: 3px 1px; letter-spacing: -0.01em; border: 1px solid transparent; border-radius: 6px; background: transparent; }
 #dpf input.dpf-in::placeholder { color: var(--muted); opacity: 0.6; }
 #dpf input.dpf-in:hover { border-color: var(--hairline); background: var(--field); }
 #dpf input.dpf-in:focus { outline: none; border-color: var(--ink); background: var(--field); }
 #dpf input.dpf-in[disabled] { cursor: progress; }
-#dpf .dpf-grid td.chg input.dpf-in { font-weight: 800; box-shadow: inset 0 -2px 0 var(--brand-magenta); }
+#dpf .dpf-grid td.chg input.dpf-in { box-shadow: inset 0 -2px 0 var(--brand-magenta); }
 #dpf .dpf-grid td.bad input.dpf-in { outline: 2px dashed var(--ink); outline-offset: -2px; }
 #dpf .dpf-grid tbody tr:not(.dpf-group):hover > * { background: var(--magenta-tint); }
 #dpf .dpf-grid tbody tr:not(.dpf-group):hover > :first-child { box-shadow: inset 4px 0 0 var(--brand-magenta); }
 #dpf .dpf-upyear { max-width: 320px; margin-top: 22px; }
 #dpf select { font: inherit; font-size: 15px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; padding: 9px 12px; width: 100%; }
-@media (max-width: 760px) { #dpf .dpf-grid .dpf-item { min-width: 160px; }  }
+
 
 
 @media (max-width: 760px) {
@@ -7515,9 +7517,6 @@ function formChanges(items, held, typed) {
       if (!s) { body.append(el("p", { class: "empty", text: "This year could not be read." })); return; }
       const its = sorted(), months = Array.isArray(s.months) ? s.months : [], enter = canEnter();
       body.append(el("div", { class: "dpf-toolbar" }, yearBar(moveYear), enter ? saveBar() : null));
-      body.append(el("p", { class: "dpf-hint", text: enter
-        ? "Type into the table, or fill in the template and choose it, then Save changes. Enter moves down, Esc puts a figure back, and clearing a figure deletes it. Point at a figure to see who entered it."
-        : "Point at a figure to see who entered it." }));
       // Each month's heading carries its status: complete, or how many figures are missing, with a
       // thin line filling as figures arrive. The current month is marked.
       const now = thisMonth(), total = its.length || 1;
@@ -7537,7 +7536,7 @@ function formChanges(items, held, typed) {
         tb.append(el("tr", { class: "dpf-group" }, el("th", { scope: "colgroup", colspan: String(months.length + 1) },
           el("span", { text: kind === "plan" ? "Plan" : "Actuals" }))));
         for (const it of group) {
-          const tr = el("tr", { "data-code": it.code }, el("th", { scope: "row", class: "dpf-item" }, el("span", { text: String(it.label) }), el("span", { class: "dpf-unit", text: String(it.unit ?? "") })));
+          const tr = el("tr", { "data-code": it.code }, el("th", { scope: "row", class: "dpf-item" }, el("span", { text: String(it.label) }), " ", el("span", { class: "dpf-unit", text: String(it.unit ?? "") })));
           for (const m of months) {
             const v = (m.figures || {})[it.code], has = v != null;
             const e = (m.entered || {})[it.code];
@@ -7550,7 +7549,8 @@ function formChanges(items, held, typed) {
           tb.append(tr);
         }
       }
-      body.append(el("div", { class: "grid-wrap dpf-wrap" }, el("table", { class: "dpf-grid" }, el("thead", {}, head), tb)));
+      const cols = el("colgroup", {}, el("col", { class: "dpf-col-item" }), ...months.map(() => el("col")));
+      body.append(el("div", { class: "grid-wrap dpf-wrap" }, el("table", { class: "dpf-grid" }, cols, el("thead", {}, head), tb)));
       refreshBar();
     }
 
@@ -7561,9 +7561,6 @@ function formChanges(items, held, typed) {
       const input = el("input", { type: "text", inputmode: "decimal", autocomplete: "off", class: "dpf-in", "data-month": m.month, "data-code": it.code,
         "aria-label": `${it.label}, ${I.monthName(m.month)}`, placeholder: "–", disabled: busy });
       input.value = Object.prototype.hasOwnProperty.call(typed, key) ? typed[key] : I.inputValue(it, held);
-      // Each box is as wide as its figure, so a long one is never cut off and an empty one takes little room.
-      const fit = () => { input.style.width = `calc(${Math.max(5, input.value.length + 1)}ch + 14px)`; };
-      fit();
       const mark = () => {
         const has = Object.prototype.hasOwnProperty.call(typed, key);
         const v = has ? I.parseNumber(typed[key]) : null;
@@ -7573,9 +7570,9 @@ function formChanges(items, held, typed) {
         td.classList.toggle("bad", bad);
         input.setAttribute("aria-invalid", bad ? "true" : "false");
       };
-      input.addEventListener("input", () => { typed[key] = input.value; delete fromFile[key]; fit(); mark(); refreshBar(); });
+      input.addEventListener("input", () => { typed[key] = input.value; delete fromFile[key]; mark(); refreshBar(); });
       input.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") { delete typed[key]; delete fromFile[key]; input.value = I.inputValue(it, held); fit(); mark(); refreshBar(); e.preventDefault(); return; }
+        if (e.key === "Escape") { delete typed[key]; delete fromFile[key]; input.value = I.inputValue(it, held); mark(); refreshBar(); e.preventDefault(); return; }
         if (e.key !== "Enter") return;
         e.preventDefault();
         const boxes = [...parts.body.querySelectorAll(`input.dpf-in[data-month="${m.month}"]`)];
