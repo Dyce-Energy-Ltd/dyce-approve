@@ -23,6 +23,9 @@ BROWSERS = [
     r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
     shutil.which("google-chrome") or "", shutil.which("chromium") or "", shutil.which("chrome") or "",
 ]
+# The DPF figures tab's own files.
+DPF_FILES = (ROOT / "dpf" / "import.js", ROOT / "dpf" / "import.test.js", ROOT / "parts" / "dpf.js",
+             ROOT / "parts" / "dpf.css", ROOT / "tools" / "dpf-preview-check.js")
 # The Commission Engine tab's own files.
 COMMISSION_FILES = (ROOT / "parts" / "commission.js", ROOT / "parts" / "commission.css",
                     ROOT / "tools" / "ce-preview-pages.mjs", ROOT / "tools" / "ce-preview-check.js")
@@ -39,6 +42,9 @@ def copy_pricing_code(folder):
     shutil.copy(ROOT / "vendor" / "xlsx.full.min.js", folder / "vendor" / "xlsx.full.min.js")
     for name in ("adapters.js", "exports.js", "grid.js", "health.js"):
         shutil.copy(ROOT / "pricing" / name, folder / "pricing" / name)
+    # {{DPF_IMPORT}}: the DPF figures tab's module.
+    (folder / "dpf").mkdir(exist_ok=True)
+    shutil.copy(ROOT / "dpf" / "import.js", folder / "dpf" / "import.js")
 
 
 def run_build(folder, *args):
@@ -233,6 +239,7 @@ class CommittedPagesTests(unittest.TestCase):
         shutil.copytree(ROOT / "parts", tmp / "parts")
         shutil.copytree(ROOT / "vendor", tmp / "vendor")
         shutil.copytree(ROOT / "pricing", tmp / "pricing")
+        shutil.copytree(ROOT / "dpf", tmp / "dpf")
         shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
         copy_pricing_code(tmp)
         r = run_build(tmp)
@@ -251,6 +258,7 @@ class CommittedPagesTests(unittest.TestCase):
         shutil.copytree(ROOT / "parts", tmp / "parts")
         shutil.copytree(ROOT / "vendor", tmp / "vendor")
         shutil.copytree(ROOT / "pricing", tmp / "pricing")
+        shutil.copytree(ROOT / "dpf", tmp / "dpf")
         shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
         copy_pricing_code(tmp)
         (tmp / "tools").mkdir()
@@ -266,7 +274,7 @@ class CommittedPagesTests(unittest.TestCase):
 
     def test_no_personal_address_in_the_hub_or_its_stub(self):
         # Made-up people only: the preview stub and the built page name nobody by address.
-        for path in (ROOT / "hub.html", ROOT / "hub.src.html", ROOT / "tools" / "preview-stub.js", *COMMISSION_FILES):
+        for path in (ROOT / "hub.html", ROOT / "hub.src.html", ROOT / "tools" / "preview-stub.js", *COMMISSION_FILES, *DPF_FILES):
             self.assertNotIn("philip.brook", path.read_text(encoding="utf-8").lower(), path.name)
 
     def test_hub_csp_is_unchanged(self):
@@ -356,7 +364,7 @@ class CommittedPagesTests(unittest.TestCase):
 
     def test_no_em_dash_in_the_hub_or_its_stub(self):
         for path in (ROOT / "hub.src.html", ROOT / "tools" / "preview-stub.js", ROOT / "tools" / "pool-preview-check.js",
-                     *COMMISSION_FILES):
+                     *COMMISSION_FILES, *DPF_FILES):
             self.assertEqual(path.read_text(encoding="utf-8").count(chr(0x2014)), 0, path.name)
 
     def test_pool_preview_in_a_browser(self):
@@ -372,6 +380,7 @@ class CommittedPagesTests(unittest.TestCase):
         shutil.copytree(ROOT / "parts", tmp / "parts")
         shutil.copytree(ROOT / "vendor", tmp / "vendor")
         shutil.copytree(ROOT / "pricing", tmp / "pricing")
+        shutil.copytree(ROOT / "dpf", tmp / "dpf")
         shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
         (tmp / "tools").mkdir()
         shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
@@ -416,6 +425,7 @@ class CommittedPagesTests(unittest.TestCase):
         shutil.copytree(ROOT / "parts", tmp / "parts")
         shutil.copytree(ROOT / "vendor", tmp / "vendor")
         shutil.copytree(ROOT / "pricing", tmp / "pricing")
+        shutil.copytree(ROOT / "dpf", tmp / "dpf")
         shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
         (tmp / "tools").mkdir()
         shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
@@ -461,6 +471,7 @@ class CommittedPagesTests(unittest.TestCase):
         shutil.copytree(ROOT / "parts", tmp / "parts")
         shutil.copytree(ROOT / "vendor", tmp / "vendor")
         shutil.copytree(ROOT / "pricing", tmp / "pricing")
+        shutil.copytree(ROOT / "dpf", tmp / "dpf")
         shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
         (tmp / "tools").mkdir()
         shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
@@ -506,6 +517,7 @@ class CommittedPagesTests(unittest.TestCase):
         shutil.copytree(ROOT / "parts", tmp / "parts")
         shutil.copytree(ROOT / "vendor", tmp / "vendor")
         shutil.copytree(ROOT / "pricing", tmp / "pricing")
+        shutil.copytree(ROOT / "dpf", tmp / "dpf")
         shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
         (tmp / "tools").mkdir()
         shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
@@ -871,6 +883,7 @@ class CommittedPagesTests(unittest.TestCase):
         shutil.copytree(ROOT / "parts", tmp / "parts")
         shutil.copytree(ROOT / "vendor", tmp / "vendor")
         shutil.copytree(ROOT / "pricing", tmp / "pricing")
+        shutil.copytree(ROOT / "dpf", tmp / "dpf")
         shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
         (tmp / "tools").mkdir()
         shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
@@ -898,6 +911,88 @@ class CommittedPagesTests(unittest.TestCase):
                 self.assertTrue(found and found[-1], "the check wrote no result: %s" % r.stderr[-500:])
                 result = json.loads(html.unescape(found[-1]))
                 if os.environ.get("CE_CHECK_REPORT"):
+                    print(json.dumps(result, indent=1, ensure_ascii=False))
+                self.assertTrue(result["results"], "no checks ran")
+                failed = [c for c in result["results"] if not c["ok"]]
+                self.assertEqual(failed, [], json.dumps(failed, indent=1, ensure_ascii=False))
+
+    def test_dpf_tab_and_its_parts(self):
+        page = (ROOT / "hub.src.html").read_text(encoding="utf-8")
+        # The tab sits after the Commission Engine and before DNA Admin, for the View tick.
+        i_ce, i_dpf, i_admin = (page.index('{ id: "%s"' % t) for t in ("commission", "dpf", "dna_admin"))
+        self.assertLess(i_ce, i_dpf)
+        self.assertLess(i_dpf, i_admin)
+        self.assertIn('const DPF_VIEW = "dpf.view", DPF_ENTER = "dpf.enter", DPF_SIGN = "dpf.sign_off";', page)
+        self.assertIn('{ id: "dpf", label: "DPF figures", allowed: (t) => t.includes(DPF_VIEW),', page)
+        self.assertIn('items: [{ id: "months", label: "Months", need: DPF_VIEW }, { id: "upload", label: "Upload", need: DPF_ENTER },', page)
+        self.assertIn('{ id: "history", label: "History", need: DPF_VIEW }],', page)
+        # The module uses SheetJS and the hub's helpers, so it is inlined after both; its styles are in the style element.
+        self.assertLess(page.index("const PR_XLSX = {{XLSX_LIB}};"), page.index("const DPF_IMPORT = {{DPF_IMPORT}};"))
+        self.assertLess(page.index("{{COMMISSION_JS}}"), page.index("{{DPF_JS}}"))
+        self.assertLess(page.index("{{DPF_JS}}"), page.index("  // ---------- Dashboard Pool"))
+        self.assertLess(page.index("{{DPF_CSS}}"), page.index("</style>"))
+        self.assertIn("CE.reset(); DPF.reset();", page)
+        built = (ROOT / "hub.html").read_text(encoding="utf-8")
+        self.assertIn("function readPlanWorkbook(", built)
+        self.assertIn("function readDpfWorkbook(", built)
+        self.assertNotRegex(built, r"(?m)^export\b")
+
+    def test_dpf_module_calls_only_the_dpf_actions_and_keeps_nothing(self):
+        js = (ROOT / "parts" / "dpf.js").read_text(encoding="utf-8")
+        self.assertEqual(sorted(set(re.findall(r'(?:api|write)\("(dpf_[a-z_]+)"', js))),
+                         ["dpf_history", "dpf_items", "dpf_save", "dpf_sign_off", "dpf_state", "dpf_unsign", "dpf_upload"])
+        self.assertNotIn("fetch(", js)
+        for word in ("localStorage", "sessionStorage", "indexedDB", "putStored", "getStored", "innerHTML", "outerHTML", "insertAdjacentHTML"):
+            self.assertNotIn(word, js)
+        # Every source the page sends is one the design allows.
+        self.assertEqual(sorted(set(re.findall(r'source: "([a-z_]+)"', js)) | set(re.findall(r'showPreview\(preview, "([a-z_]+)"', js))),
+                         ["form", "plan_workbook", "template"])
+        stub = (ROOT / "tools" / "preview-stub.js").read_text(encoding="utf-8")
+        for action in ("dpf_items", "dpf_state", "dpf_save", "dpf_upload", "dpf_sign_off", "dpf_unsign", "dpf_history"):
+            self.assertIn('"%s"' % action, stub, action)
+        for persona in ('dpfview: "vera.example@dyce-energy.co.uk"', 'dpfenter: "eli.example@dyce-energy.co.uk"', 'dpfsign: "carl.example@dyce-energy.co.uk"'):
+            self.assertIn(persona, stub)
+
+    def test_dpf_preview_in_a_browser(self):
+        # The preview hub, signed in through the stub and starting in DPF figures > Months, driven by
+        # tools/dpf-preview-check.js in a headless Chromium: editing and saving a month, sign-off and
+        # its clearing, a stale fingerprint, Undo sign-off, the template round trip, the two workbooks,
+        # History, and what View only, View and Enter, and no tick show.
+        browser = next((b for b in BROWSERS if b and Path(b).is_file()), None)
+        if browser is None:
+            self.skipTest("no Chromium browser found (set DV_BROWSER to one)")
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        shutil.copytree(ASSETS, tmp / "assets")
+        shutil.copytree(ROOT / "parts", tmp / "parts")
+        shutil.copytree(ROOT / "vendor", tmp / "vendor")
+        shutil.copytree(ROOT / "pricing", tmp / "pricing")
+        shutil.copytree(ROOT / "dpf", tmp / "dpf")
+        shutil.copy(ROOT / "hub.src.html", tmp / "hub.src.html")
+        (tmp / "tools").mkdir()
+        shutil.copy(ROOT / "tools" / "preview-stub.js", tmp / "tools" / "preview-stub.js")
+        r = run_build(tmp, "--preview")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        preview = (tmp / "preview" / "hub.html").read_text(encoding="utf-8")
+        signed_in = ("<script>localStorage.clear(); localStorage.setItem('dyce.hub.token', 'stubcheck');"
+                     " localStorage.setItem('dyce.hub.where', JSON.stringify({tool: 'dpf', item: 'months'}));</script>")
+        check = (ROOT / "tools" / "dpf-preview-check.js").read_text(encoding="utf-8").replace("</", "<\\/")
+        i = preview.index("<script")
+        page = preview[:i] + signed_in + preview[i:]
+        j = page.rindex("</body>")
+        page = page[:j] + "<script>" + check + "</script>" + page[j:]
+        (tmp / "check.html").write_text(page, encoding="utf-8")
+        for query in ("as=dpfsign", "as=dpfenter", "as=dpfview", "as=viewer", "as=admin"):
+            with self.subTest(query=query):
+                r = subprocess.run(
+                    [browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+                     "--user-data-dir=" + str(tmp / ("profile-" + re.sub(r"\W", "-", query))),
+                     "--virtual-time-budget=60000", "--dump-dom", (tmp / "check.html").as_uri() + "?" + query],
+                    capture_output=True, text=True, encoding="utf-8", timeout=180)
+                found = re.findall(r'<pre id="result">(.*?)</pre>', r.stdout, re.S)
+                self.assertTrue(found and found[-1], "the check wrote no result: %s" % r.stderr[-500:])
+                result = json.loads(html.unescape(found[-1]))
+                if os.environ.get("DPF_CHECK_REPORT"):
                     print(json.dumps(result, indent=1, ensure_ascii=False))
                 self.assertTrue(result["results"], "no checks ran")
                 failed = [c for c in result["results"] if not c["ok"]]
