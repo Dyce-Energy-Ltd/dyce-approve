@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import {
   fyMonths, fyStartOf, fyLabel, monthText, monthName, inRange, parseMonth, parseNumber, serialToIso,
   formatValue, checkValue, sortItems, monthStatus, templateAoa, buildTemplate, readTemplate,
-  readPlanWorkbook, readDpfWorkbook, formChanges, previewRows, TEMPLATE_SHEET, TEMPLATE_HEADER,
+  readPlanWorkbook, readDpfWorkbook, formChanges, previewRows, TEMPLATE_SHEET, TEMPLATE_HEADER, inputValue,
 } from './import.js';
 
 const XLSX = createRequire(import.meta.url)('../vendor/xlsx.full.min.js');
@@ -101,14 +101,17 @@ test('a month status says signed off, ready or how many are missing', () => {
 // ---------- the Dyce template
 
 const STATE_MONTHS = fyMonths(2026).map((month, i) => ({ month, figures: i === 0 ? { opex_gbp: 41000, trustpilot_score: 4.5 } : {} }));
+const csvOf = (lines) => new TextEncoder().encode(lines.join('\n'));
 
-test('the template holds every month and item, with the values held', () => {
+test('the template is laid out as the Months table, with the values held', () => {
   const aoa = templateAoa(ITEMS, STATE_MONTHS);
-  assert.deepEqual(aoa[0], TEMPLATE_HEADER);
-  assert.equal(aoa.length, 1 + 12 * 13);
-  assert.deepEqual(aoa[1], ['06/2026', 'cost_of_sales_gbp', 'Cost of sales', null]);
-  assert.deepEqual(aoa[3], ['06/2026', 'opex_gbp', 'OPEX', 41000]);
-  assert.deepEqual(aoa[14], ['07/2026', 'cost_of_sales_gbp', 'Cost of sales', null]);
+  assert.deepEqual(aoa[0], [...TEMPLATE_HEADER, '06/2026', '07/2026', '08/2026', '09/2026', '10/2026', '11/2026', '12/2026', '01/2027', '02/2027', '03/2027', '04/2027', '05/2027']);
+  assert.equal(aoa.length, 1 + 2 + 13, 'a header, the two group rows and every item');
+  assert.deepEqual(aoa[1], [null, 'Actuals', null, ...Array(12).fill(null)]);
+  assert.deepEqual(aoa[2], ['cost_of_sales_gbp', 'Cost of sales', 'GBP', ...Array(12).fill(null)]);
+  assert.deepEqual(aoa[4], ['opex_gbp', 'OPEX', 'GBP', 41000, ...Array(11).fill(null)]);
+  assert.deepEqual(aoa[8].slice(0, 3), [null, 'Plan', null]);
+  assert.equal(aoa[9][0], 'plan_gm_gbp');
 });
 
 test('template round trip: download, change a value, read it back', () => {
@@ -116,54 +119,75 @@ test('template round trip: download, change a value, read it back', () => {
   const wb = XLSX.read(bytes, { type: 'array' });
   assert.deepEqual(wb.SheetNames, [TEMPLATE_SHEET]);
   const ws = wb.Sheets[TEMPLATE_SHEET];
-  assert.equal(ws.A2.t, 's', 'the month is text, MM/YYYY');
-  // Row 4 is June's OPEX; row 15 is July's cost of sales.
-  ws.D4 = { t: 'n', v: 42500 };
-  ws.D15 = { t: 'n', v: 120000 };
+  assert.equal(ws.D1.t, 's', 'the month heading is text, MM/YYYY');
+  // Row 3 is cost of sales, row 5 OPEX; column D is June, E July.
+  ws.E3 = { t: 'n', v: 120000 };
+  ws.D5 = { t: 'n', v: 42500 };
   const back = readTemplate(XLSX, bytesOf(wb), 'dpf-template.xlsx', ITEMS);
   assert.deepEqual(back.problems, []);
   assert.deepEqual(back.rows, [
+    { month: '2026-07-01', code: 'cost_of_sales_gbp', value: 120000 },
     { month: '2026-06-01', code: 'opex_gbp', value: 42500 },
     { month: '2026-06-01', code: 'trustpilot_score', value: 4.5 },
-    { month: '2026-07-01', code: 'cost_of_sales_gbp', value: 120000 },
   ]);
-  assert.equal(back.blank, 12 * 13 - 3, 'blank values are left as they are');
+  assert.equal(back.blank, 12 * 13 - 3, 'blank cells are left as they are');
 });
 
-test('a CSV template is read by its headers, wherever the columns are', () => {
-  const csv = '\ufeffValue,Item,Item code,Month\n"1,250",,opex_gbp,07/2026\n4.2,Trustpilot score at month end,,2026-08\n,,overheads_gbp,07/2026\n';
-  const r = readTemplate(XLSX, new TextEncoder().encode(csv), 'figures.csv', ITEMS);
+test('a CSV template is read by its headings, wherever the columns are', () => {
+  const r = readTemplate(XLSX, csvOf(['﻿Item,08/2026,Item code,07/2026', 'Trustpilot score at month end,4.2,,',
+    'OPEX,,opex_gbp,"1,250"', ',,overheads_gbp,']), 'figures.csv', ITEMS);
   assert.deepEqual(r.problems, []);
   assert.deepEqual(r.rows, [
-    { month: '2026-07-01', code: 'opex_gbp', value: 1250 },
     { month: '2026-08-01', code: 'trustpilot_score', value: 4.2 },
+    { month: '2026-07-01', code: 'opex_gbp', value: 1250 },
   ]);
 });
 
-test('a month Excel turned into a date is still read', () => {
-  const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADER, [toSerial('2026-09-01'), 'opex_gbp', 'OPEX', 5]]);
+test('a month heading Excel turned into a date is still read', () => {
+  const ws = XLSX.utils.aoa_to_sheet([['Item code', 'Item', toSerial('2026-09-01')], ['opex_gbp', 'OPEX', 5]]);
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, TEMPLATE_SHEET);
   assert.deepEqual(readTemplate(XLSX, bytesOf(wb), 't.xlsx', ITEMS).rows, [{ month: '2026-09-01', code: 'opex_gbp', value: 5 }]);
 });
 
-test('negative control: every bad template row is a problem, and nothing passes with it', () => {
-  const csv = ['Month,Item code,Item,Value', '15/06/2026,opex_gbp,,1', '06/2023,opex_gbp,,1', '06/2026,nope,,1',
-    '06/2026,opex_gbp,,lots', '06/2026,trustpilot_score,,6', '06/2026,trustpilot_new_reviews,,2.5',
-    '07/2026,opex_gbp,,1', '07/2026,opex_gbp,,2'].join('\n');
-  const r = readTemplate(XLSX, new TextEncoder().encode(csv), 'bad.csv', ITEMS);
-  assert.deepEqual(r.problems, [
-    'Row 2: "15/06/2026" is not a month. Write it as MM/YYYY.',
-    'Row 3: 06/2023 is outside 06/2024 to 05/2031.',
-    'Row 4: "nope" is not a DPF item.',
-    'Row 5: OPEX for 06/2026: "lots" is not a number.',
-    'Row 6: 06/2026, Trustpilot score at month end: must be from 0 to 5.',
-    'Row 7: 06/2026, Trustpilot new reviews in the month: must be a whole number.',
-    'Row 9: OPEX for 07/2026 is also on row 8.',
+test('a percentage typed as 0.5% in Excel is read as 0.5, a plain 0.5 too', () => {
+  const ws = XLSX.utils.aoa_to_sheet([['Item code', 'Item', '06/2026', '07/2026'], ['plan_bad_debt_pct', null, 0.005, 0.5]]);
+  ws.C2.z = '0.00%';
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, TEMPLATE_SHEET);
+  assert.deepEqual(readTemplate(XLSX, bytesOf(wb), 't.xlsx', ITEMS).rows, [
+    { month: '2026-06-01', code: 'plan_bad_debt_pct', value: 0.5 },
+    { month: '2026-07-01', code: 'plan_bad_debt_pct', value: 0.5 },
   ]);
-  assert.deepEqual(readTemplate(XLSX, new TextEncoder().encode('a,b\n1,2'), 'x.csv', ITEMS).problems,
-    ['The file has no header row with Month, Item code, Item and Value.']);
-  assert.deepEqual(readTemplate(XLSX, new TextEncoder().encode('Month,Item code,Item,Value\n06/2026,opex_gbp,,\n'), 'x.csv', ITEMS).problems,
+});
+
+test('negative control: every bad heading and cell is a problem, and nothing passes with it', () => {
+  const r = readTemplate(XLSX, csvOf(['Item code,Item,06/2026,15/06/2026,06/2023,07/2026,07/2026',
+    'nope,,1,,,,', 'opex_gbp,,lots,,,,', 'trustpilot_score,,6,,,,', 'trustpilot_new_reviews,,2.5,,,,',
+    'opex_gbp,,,,,1,', 'Plan,,,,,,']), 'bad.csv', ITEMS);
+  assert.deepEqual(r.problems, [
+    'Cell D1: "15/06/2026" is not a month. Write it as MM/YYYY.',
+    'Cell E1: 06/2023 is outside 06/2024 to 05/2031.',
+    'Cell G1: 07/2026 is also in cell F1.',
+    'Row 2: "nope" is not a DPF item.',
+    'Cell C3: OPEX for 06/2026: "lots" is not a number.',
+    'Cell C4: 06/2026, Trustpilot score at month end: must be from 0 to 5.',
+    'Cell C5: 06/2026, Trustpilot new reviews in the month: must be a whole number.',
+    'Row 6: OPEX is also on row 3.',
+  ]);
+  assert.deepEqual(r.rows, []);
+  assert.deepEqual(readTemplate(XLSX, csvOf(['a,b', '1,2']), 'x.csv', ITEMS).problems,
+    ['The file has no header row with Item code and the months (MM/YYYY).']);
+  assert.deepEqual(readTemplate(XLSX, csvOf(['Item code,Item,06/2026', 'opex_gbp,,']), 'x.csv', ITEMS).problems,
     ['The file holds no values to save.']);
+});
+
+test('a box on the Months screen holds the value at full precision and reads back as it', () => {
+  const cases = [['opex_gbp', 118250.5, '£118,250.50'], ['opex_gbp', -250, '-£250'], ['plan_volume_mwh', 158400.25, '158,400.25'],
+    ['trustpilot_score', 4.65, '4.65'], ['trustpilot_score', 4, '4.0'], ['plan_bad_debt_pct', 0.5, '0.5%'], ['trustpilot_new_reviews', 18, '18']];
+  for (const [code, v, want] of cases) {
+    assert.equal(inputValue(item(code), v), want);
+    assert.equal(parseNumber(inputValue(item(code), v)), v, `${code} ${v} reads back`);
+  }
+  assert.equal(inputValue(item('opex_gbp'), null), '');
 });
 
 // ---------- Carl's plan workbook. Two sheets, laid out as the plan is (labels in column B, a row of

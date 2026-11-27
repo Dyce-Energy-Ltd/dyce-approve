@@ -23,7 +23,7 @@ export const FY_START_MONTH = 6;
 export const MONTH_MIN = '2024-06-01';
 export const MONTH_MAX = '2031-05-01';
 export const TEMPLATE_SHEET = 'DPF figures';
-export const TEMPLATE_HEADER = ['Month', 'Item code', 'Item', 'Value'];
+export const TEMPLATE_HEADER = ['Item code', 'Item', 'Unit'];
 const NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const pad = (n) => String(n).padStart(2, '0');
 const isoOf = (y, m) => `${y}-${pad(m)}-01`;
@@ -115,6 +115,21 @@ export function formatValue(item, value) {
   return fmt(v, 0, 6);
 }
 
+// A value as a box on the Months screen holds it: as formatValue but at full precision and without
+// the MWh unit (the row says it), so it reads back through parseNumber as the value held.
+export function inputValue(item, value) {
+  const v = num(value);
+  if (v == null || !Number.isFinite(v)) return '';
+  const unit = String(item && item.unit || '');
+  if (unit === 'GBP') {
+    const pence = Math.round(Math.abs(v) * 100) % 100 !== 0;
+    return (v < 0 ? '-' : '') + '£' + fmt(Math.abs(v), pence ? 2 : 0, 6);
+  }
+  if (unit === 'score') return fmt(v, 1, 6);
+  if (isPct(item)) return fmt(v, 0, 6) + '%';
+  return fmt(v, 0, 6);
+}
+
 // What the item allows, in words (the checks dpf.figure_item holds).
 export function ruleText(item) {
   const min = num(item.min_value), max = num(item.max_value), whole = item.whole_number === true;
@@ -154,24 +169,26 @@ export function monthStatus(m) {
 
 // ---------- the Dyce template
 
-// The sheet as rows: a header, then every month and item, with the value held where there is one.
-// months is dpf_state's months (or plain 'YYYY-MM-01' strings, for a blank template).
+// Laid out as the Months screen: items down (actuals, then plan, each under its group row), the
+// year's months across as MM/YYYY, each cell the value held or blank. months is dpf_state's months
+// (or plain 'YYYY-MM-01' strings, for a blank template).
+const GROUP_WORDS = { actual: 'Actuals', plan: 'Plan' };
 export function templateAoa(items, months) {
-  const aoa = [TEMPLATE_HEADER.slice()];
-  for (const m of months) {
-    const iso = typeof m === 'string' ? m : m.month;
-    const figures = (m && typeof m === 'object' && m.figures) || {};
-    for (const it of sortItems(items)) {
-      const v = num(figures[it.code]);
-      aoa.push([monthText(iso), it.code, it.label, v == null ? null : v]);
-    }
+  const list = months.map((m) => (typeof m === 'string' ? { month: m, figures: {} } : m));
+  const aoa = [[...TEMPLATE_HEADER, ...list.map((m) => monthText(m.month))]];
+  for (const kind of ['actual', 'plan']) {
+    const group = sortItems(items).filter((it) => (it.kind === 'plan' ? 'plan' : 'actual') === kind);
+    if (!group.length) continue;
+    aoa.push([null, GROUP_WORDS[kind], null, ...list.map(() => null)]);
+    for (const it of group) aoa.push([it.code, it.label, it.unit ?? null, ...list.map((m) => num((m.figures || {})[it.code]))]);
   }
   return aoa;
 }
 
 export function buildTemplate(XLSX, items, months) {
-  const ws = XLSX.utils.aoa_to_sheet(templateAoa(items, months));
-  ws['!cols'] = [{ wch: 10 }, { wch: 30 }, { wch: 40 }, { wch: 16 }];
+  const aoa = templateAoa(items, months);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 28 }, { wch: 36 }, { wch: 20 }, ...aoa[0].slice(TEMPLATE_HEADER.length).map(() => ({ wch: 13 }))];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, TEMPLATE_SHEET);
   return new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx', compression: true }));
@@ -180,7 +197,7 @@ export function buildTemplate(XLSX, items, months) {
 function readBook(XLSX, bytes, fileName, opts) {
   if (/\.csv$/i.test(String(fileName || ''))) {
     // raw keeps every CSV cell as its text, so 06/2026 stays a month and is not made a date.
-    const text = new TextDecoder('utf-8').decode(bytes).replace(/^\ufeff/, '');
+    const text = new TextDecoder('utf-8').decode(bytes).replace(/^﻿/, '');
     return XLSX.read(text, { type: 'string', raw: true });
   }
   return XLSX.read(bytes, { type: 'array', ...(opts || {}) });
@@ -189,50 +206,61 @@ function readBook(XLSX, bytes, fileName, opts) {
 const cellText = (v) => (v == null ? '' : String(v).trim());
 const shown = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : cellText(v));
 
-// The template back: {rows: [{month, code, value}], problems: [sentence], blank: n}. Columns are
-// found by their header (Month, Item code, Item, Value), not their place. A blank Value leaves
-// the figure as it is (clear a figure on the Months screen). The item is its code, or its label
-// when the code is blank.
+// The template back: {rows: [{month, code, value}], problems: [sentence], blank: n}. The header row
+// is the one holding Item code (or Item) and the months; every other heading but Unit must be a
+// month (MM/YYYY, or a date Excel made of one). Each row is an item, found by its code, or its
+// label when the code is blank. A blank cell leaves the figure as it is (clear a figure on the
+// Months screen); a row naming no item (the Actuals and Plan rows) is passed over when it is blank.
+// Excel stores a cell typed as 0.5% as 0.005, so a percentage-formatted cell on a percentage item
+// is read back as the percentage it shows.
 export function readTemplate(XLSX, bytes, fileName, items) {
   const problems = [], rows = [];
   let wb;
-  try { wb = readBook(XLSX, bytes, fileName); } catch { return { rows, problems: ['The file could not be read as a spreadsheet.'], blank: 0 }; }
+  try { wb = readBook(XLSX, bytes, fileName, { cellNF: true }); } catch { return { rows, problems: ['The file could not be read as a spreadsheet.'], blank: 0 }; }
   const ws = wb.Sheets[TEMPLATE_SHEET] || wb.Sheets[wb.SheetNames[0]];
   if (!ws || !ws['!ref']) return { rows, problems: ['The file is empty.'], blank: 0 };
-  const first = XLSX.utils.decode_range(ws['!ref']).s.r;
+  const start = XLSX.utils.decode_range(ws['!ref']).s;
+  const addr = (i, j) => XLSX.utils.encode_cell({ r: start.r + i, c: start.c + j });
   const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: true });
-  let head = -1, col = null;
+  let head = -1, codeCol = -1, labelCol = -1;
   for (let i = 0; i < Math.min(aoa.length, 20) && head < 0; i++) {
-    const names = (aoa[i] || []).map((c) => cellText(c).toLowerCase());
-    const at = (n) => names.indexOf(n);
-    if (at('month') >= 0 && at('value') >= 0 && (at('item code') >= 0 || at('item') >= 0)) {
-      head = i; col = { month: at('month'), code: at('item code'), label: at('item'), value: at('value') };
-    }
+    const r = aoa[i] || [], names = r.map((c) => cellText(c).toLowerCase());
+    const cc = names.indexOf('item code'), lc = names.indexOf('item');
+    if ((cc >= 0 || lc >= 0) && r.some((c, j) => j !== cc && j !== lc && parseMonth(c))) { head = i; codeCol = cc; labelCol = lc; }
   }
-  if (head < 0) return { rows, problems: ['The file has no header row with Month, Item code, Item and Value.'], blank: 0 };
+  if (head < 0) return { rows, problems: ['The file has no header row with Item code and the months (MM/YYYY).'], blank: 0 };
+  const cols = [], monthAt = new Map();
+  (aoa[head] || []).forEach((c, j) => {
+    if (j === codeCol || j === labelCol || cellText(c) === '' || cellText(c).toLowerCase() === 'unit') return;
+    const month = parseMonth(c);
+    if (!month) { problems.push(`Cell ${addr(head, j)}: "${shown(c)}" is not a month. Write it as MM/YYYY.`); return; }
+    if (!inRange(month)) { problems.push(`Cell ${addr(head, j)}: ${monthText(month)} is outside 06/2024 to 05/2031.`); return; }
+    if (monthAt.has(month)) { problems.push(`Cell ${addr(head, j)}: ${monthText(month)} is also in cell ${monthAt.get(month)}.`); return; }
+    monthAt.set(month, addr(head, j));
+    cols.push({ j, month });
+  });
   const byCode = new Map(items.map((it) => [it.code, it]));
   const byLabel = new Map(items.map((it) => [cellText(it.label).toLowerCase(), it]));
   const seen = new Map();
   let blank = 0;
   for (let i = head + 1; i < aoa.length; i++) {
-    const r = aoa[i] || [], n = first + i + 1;
-    const get = (k) => (col[k] >= 0 ? r[col[k]] : null);
-    if (['month', 'code', 'label', 'value'].every((k) => cellText(get(k)) === '')) continue;
-    const rawValue = get('value'), value = parseNumber(rawValue);
-    if (value === null) { blank++; continue; }
-    const month = parseMonth(get('month'));
-    const code = cellText(get('code')), label = cellText(get('label'));
-    const item = code ? byCode.get(code) : byLabel.get(label.toLowerCase());
-    if (!month) { problems.push(`Row ${n}: "${shown(get('month'))}" is not a month. Write it as MM/YYYY.`); continue; }
-    if (!inRange(month)) { problems.push(`Row ${n}: ${monthText(month)} is outside 06/2024 to 05/2031.`); continue; }
-    if (!item) { problems.push(`Row ${n}: "${code || label}" is not a DPF item.`); continue; }
-    if (Number.isNaN(value)) { problems.push(`Row ${n}: ${item.label} for ${monthText(month)}: "${shown(rawValue)}" is not a number.`); continue; }
-    const bad = checkValue(item, value);
-    if (bad) { problems.push(`Row ${n}: ${monthText(month)}, ${bad}`); continue; }
-    const key = month + '|' + item.code;
-    if (seen.has(key)) { problems.push(`Row ${n}: ${item.label} for ${monthText(month)} is also on row ${seen.get(key)}.`); continue; }
-    seen.set(key, n);
-    rows.push({ month, code: item.code, value });
+    const r = aoa[i] || [], n = start.r + i + 1;
+    const code = codeCol >= 0 ? cellText(r[codeCol]) : '', label = labelCol >= 0 ? cellText(r[labelCol]) : '';
+    const filled = cols.filter((x) => parseNumber(r[x.j]) !== null);
+    const it = code ? byCode.get(code) : byLabel.get(label.toLowerCase());
+    if (!it) { if (filled.length) problems.push(`Row ${n}: "${code || label}" is not a DPF item.`); continue; }
+    if (seen.has(it.code)) { if (filled.length) problems.push(`Row ${n}: ${it.label} is also on row ${seen.get(it.code)}.`); continue; }
+    seen.set(it.code, n);
+    blank += cols.length - filled.length;
+    for (const x of filled) {
+      const at = addr(i, x.j), raw = r[x.j], cellObj = ws[at];
+      let value = parseNumber(raw);
+      if (Number.isNaN(value)) { problems.push(`Cell ${at}: ${it.label} for ${monthText(x.month)}: "${shown(raw)}" is not a number.`); continue; }
+      if (isPct(it) && cellObj && cellObj.t === 'n' && /%/.test(String(cellObj.z || ''))) value = Math.round(value * 1e8) / 1e6;
+      const bad = checkValue(it, value);
+      if (bad) { problems.push(`Cell ${at}: ${monthText(x.month)}, ${bad}`); continue; }
+      rows.push({ month: x.month, code: it.code, value });
+    }
   }
   if (!rows.length && !problems.length) problems.push('The file holds no values to save.');
   return { rows, problems, blank };

@@ -5,15 +5,17 @@
 // of any page the hub serves.
 //
 // ?as=dpfsign (Carl Example, all three ticks): the grid (items down, actuals then plan, twelve
-// months across, values in their units, who entered each on hover, each month's status); edit and
-// save a month (only the changed value, source form); a bad value stopped in the page; sign off
-// with the fingerprint from dpf_state; a change to the signed-off month clearing the sign-off; a
-// sign-off refused when someone else changed a figure meanwhile; Undo sign-off needing a reason;
-// the Dyce template downloaded, changed and uploaded again (preview, unchanged rows greyed, Save
-// sends dpf_upload with source template and the file name); a bad CSV listing its problem and
-// blocking Save; Carl's plan workbook and the DPF workbook read into the preview; History.
-// ?as=dpfenter (View and Enter): editing and Upload, no sign-off controls. ?as=dpfview (View
-// only): no edit, upload or sign-off controls. ?as=viewer (no DPF tick): no tab, no dpf_ call.
+// months across, values in their units, who entered each on hover, each month's status); typing
+// into the grid (a box per figure, the unsaved count, Esc and Enter, year and sign-off held while a
+// change waits) and Save changes (one dpf_save a month, only the changed values, source form); a
+// bad value stopped in the page; sign off with the fingerprint from dpf_state; a change to the
+// signed-off month clearing the sign-off; a sign-off refused when someone else changed a figure
+// meanwhile; Undo sign-off needing a reason; the Dyce template (laid out as the grid) downloaded,
+// changed and uploaded again (preview, unchanged rows greyed, Save sends dpf_upload with source
+// template and the file name); a bad CSV listing its problem and blocking Save; Carl's plan
+// workbook and the DPF workbook read into the preview; History.
+// ?as=dpfenter (View and Enter): typing and Upload, no sign-off controls. ?as=dpfview (View
+// only): no boxes, upload or sign-off controls. ?as=viewer (no DPF tick): no tab, no dpf_ call.
 // ?as=admin: every tick, so every control.
 (() => {
   const q = new URLSearchParams(location.search);
@@ -35,7 +37,11 @@
   const cell = (code, m) => $(`#dpf tr[data-code="${code}"] td[data-month="${m}"]`);
   const status = (m) => text(`#dpf tr.dpf-status td[data-month="${m}"]`);
   const act = (m) => $(`#dpf tr.dpf-acts td[data-month="${m}"] button`);
-  const mbtn = (m) => $(`#dpf .dpf-mbtn[data-month="${m}"]`);
+  const box = (code, m) => $(`#dpf tr[data-code="${code}"] td[data-month="${m}"] input.dpf-in`);
+  // What a cell shows: its box's value when the person can type, its text when they cannot.
+  const shows = (code, m) => { const b = box(code, m); return b ? b.value : (cell(code, m) ? cell(code, m).textContent : ""); };
+  const pendingText = () => text("#dpfPending");
+  const key = (input, k, shift) => input.dispatchEvent(new KeyboardEvent("keydown", { key: k, shiftKey: !!shift, bubbles: true }));
   const msg = () => text("#dpf > .msg");
   const menu = () => $$("#sidemenu button[data-item]").map((b) => b.textContent).join(",");
   const type = (input, v) => { input.value = v; input.dispatchEvent(new Event("input", { bubbles: true })); };
@@ -55,11 +61,13 @@
     const heads = $$("#dpf table.dpf-grid thead th").map((t) => t.textContent);
     check("twelve months, June first", heads.length === 13 && /^Jun \d{4}$/.test(heads[1]) && /^May \d{4}$/.test(heads[12]), heads.join(","));
     check("the year line", /^June \d{4} to May \d{4}$/.test(text("#dpfYear")), text("#dpfYear"));
-    check("GBP with pence", cell("opex_gbp", M(0)).textContent === "£118,250.50", cell("opex_gbp", M(0)).textContent);
-    check("GBP whole pounds", cell("cost_of_sales_gbp", M(0)).textContent === "£412,000", cell("cost_of_sales_gbp", M(0)).textContent);
-    check("MWh", cell("plan_volume_mwh", M(0)).textContent === "158,400.25 MWh", cell("plan_volume_mwh", M(0)).textContent);
-    check("score to 1 place, count, percentage", cell("trustpilot_score", M(0)).textContent === "4.6" && cell("trustpilot_new_reviews", M(0)).textContent === "18" && cell("plan_bad_debt_pct", M(0)).textContent === "0.5%");
-    check("a missing figure shows a dash", cell("trustpilot_score", M(2)).textContent === "–" && cell("trustpilot_score", M(2)).classList.contains("gap"));
+    const typing = !!box("opex_gbp", M(0));
+    check("GBP with pence", shows("opex_gbp", M(0)) === "£118,250.50", shows("opex_gbp", M(0)));
+    check("GBP whole pounds", shows("cost_of_sales_gbp", M(0)) === "£412,000", shows("cost_of_sales_gbp", M(0)));
+    check("MWh (the unit in the row when typing)", shows("plan_volume_mwh", M(0)) === (typing ? "158,400.25" : "158,400.25 MWh"), shows("plan_volume_mwh", M(0)));
+    check("score to 1 place, count, percentage", shows("trustpilot_score", M(0)) === "4.6" && shows("trustpilot_new_reviews", M(0)) === "18" && shows("plan_bad_debt_pct", M(0)) === "0.5%",
+      [shows("trustpilot_score", M(0)), shows("trustpilot_new_reviews", M(0)), shows("plan_bad_debt_pct", M(0))].join(" "));
+    check("a missing figure shows a dash", cell("trustpilot_score", M(2)).classList.contains("gap") && (typing ? box("trustpilot_score", M(2)).value === "" && box("trustpilot_score", M(2)).placeholder === "–" : cell("trustpilot_score", M(2)).textContent === "–"));
     const title = cell("opex_gbp", M(0)).getAttribute("title") || "";
     check("who entered it on hover", /^Entered by eli\.example@dyce-energy\.co\.uk, \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}, Dyce template$/.test(title), title);
     check("June signed off, with who and when", /^Signed offby carl\.example@dyce-energy\.co\.uk on \d{2}\/\d{2}\/\d{4}$/.test(status(M(0))), status(M(0)));
@@ -74,27 +82,52 @@
     check("Sign off on the ready month only", act(M(1)) && act(M(1)).textContent === "Sign off" && !act(M(2)) && !act(M(3)));
     check("Undo sign-off on the signed month", act(M(0)) && act(M(0)).textContent === "Undo sign-off");
 
-    // Edit July and save one change.
-    mbtn(M(1)).click();
-    const opex = await until(() => $("#dpfIn-opex_gbp"));
-    check("one box per item, filled with the value held", opex && opex.value === "119900" && $$("#dpf .dpf-edit input").length === 13, opex && opex.value);
+    // Type into July and save one change.
+    check("a box for every figure", $$("#dpf input.dpf-in").length === 13 * 12 && pendingText() === "No unsaved changes." && button("Save changes", $("#dpf")).disabled, $$("#dpf input.dpf-in").length + " | " + pendingText());
+    const opex = box("opex_gbp", M(1));
+    check("the box holds the value held", opex.value === "£119,900", opex.value);
     type(opex, "121,000");
-    button("Save month", $("#dpf")).click();
+    check("the change is counted and marked", pendingText() === "1 unsaved change." && cell("opex_gbp", M(1)).classList.contains("chg") && !button("Save changes", $("#dpf")).disabled, pendingText());
+    check("year and sign-off wait while a change is unsaved", $('#dpf [data-dpf="next"]').disabled && act(M(1)).disabled && act(M(0)).disabled);
+    button("Save changes", $("#dpf")).click();
     await until(() => /^Saved /.test(msg()));
     const save = last("dpf_save");
-    check("Save month sends only the changed value, source form", save && save.args.month === M(1) && JSON.stringify(save.args.values) === '{"opex_gbp":121000}' && save.args.source === "form" && save.status === 200, JSON.stringify(save && save.args));
-    check("the new value shows and the edit box closes", cell("opex_gbp", M(1)).textContent === "£121,000" && !$("#dpf .dpf-edit"), msg());
+    check("Save changes sends only the changed value, source form", save && save.args.month === M(1) && JSON.stringify(save.args.values) === '{"opex_gbp":121000}' && save.args.source === "form" && save.status === 200, JSON.stringify(save && save.args));
+    check("the new value shows and nothing waits", box("opex_gbp", M(1)).value === "£121,000" && pendingText() === "No unsaved changes." && !cell("opex_gbp", M(1)).classList.contains("chg"), msg() + " | " + pendingText());
 
-    // A value outside its check is stopped in the page; nothing is sent.
+    // Enter moves down the month; Esc puts a figure back.
+    const os = box("overheads_gbp", M(1));
+    os.focus(); key(os, "Enter");
+    check("Enter moves to the next figure of the month", document.activeElement === box("opex_gbp", M(1)), document.activeElement && document.activeElement.dataset.code);
+    key(box("opex_gbp", M(1)), "Enter", true);
+    check("Shift+Enter moves back up", document.activeElement === os, document.activeElement && document.activeElement.dataset.code);
+    const was = os.value;
+    type(os, "1"); key(os, "Escape");
+    check("Esc puts the figure back", os.value === was && pendingText() === "No unsaved changes.", os.value + " | " + pendingText());
+
+    // A value outside its check is marked and stopped in the page; nothing is sent.
     const before = calls("dpf_save").length;
-    mbtn(M(1)).click();
-    type(await until(() => $("#dpfIn-trustpilot_score")), "7");
-    button("Save month", $("#dpf")).click();
+    const scoreWas = box("trustpilot_score", M(1)).value;
+    type(box("trustpilot_score", M(1)), "7");
+    check("a bad value is marked", cell("trustpilot_score", M(1)).classList.contains("bad") && box("trustpilot_score", M(1)).getAttribute("aria-invalid") === "true");
+    button("Save changes", $("#dpf")).click();
     await sleep(200);
-    check("a bad value is listed and not sent", /must be from 0 to 5/.test(text("#dpf .dpf-edit .msg")) && calls("dpf_save").length === before, text("#dpf .dpf-edit .msg"));
-    button("Discard", $("#dpf")).click();
+    check("a bad value is listed with its month and not sent", /^Jul \d{4}, Trustpilot score at month end: must be from 0 to 5\.$/.test(msg()) && calls("dpf_save").length === before, msg());
+    button("Discard", $("#dpf .dpf-savebar")).click();
     await sleep(50);
-    check("Discard closes the box", !$("#dpf .dpf-edit"));
+    check("Discard puts every box back", scoreWas !== "" && box("trustpilot_score", M(1)).value === scoreWas, scoreWas + " | " + box("trustpilot_score", M(1)).value);
+    check("Discard leaves nothing waiting", pendingText() === "No unsaved changes." && !$("#dpf td.bad"), pendingText());
+
+    // Two months in one Save: one dpf_save each, in month order.
+    const b2 = calls("dpf_save").length;
+    type(box("trustpilot_score", M(3)), "4.1");
+    type(box("trustpilot_score", M(2)), "4.2");
+    check("two changes waiting", pendingText() === "2 unsaved changes.", pendingText());
+    button("Save changes", $("#dpf")).click();
+    await until(() => calls("dpf_save").length === b2 + 2 && /^Saved 2 figures/.test(msg()));
+    const two = calls("dpf_save").slice(b2);
+    check("one dpf_save a month, in month order", two.length === 2 && two[0].args.month === M(2) && two[1].args.month === M(3) && JSON.stringify(two[0].args.values) === '{"trustpilot_score":4.2}', JSON.stringify(two.map((c) => c.args)));
+    check("the message names both months", /^Saved 2 figures: Aug \d{4}, Sep \d{4}\.$/.test(msg()), msg());
 
     // Sign off July with the fingerprint from the state.
     const fp = last("dpf_save").answer.result.months[1].fingerprint;
@@ -105,20 +138,18 @@
     check("July now signed off by Carl", /carl\.example/.test(status(M(1))), status(M(1)));
 
     // Changing a figure in a signed-off month clears its sign-off.
-    mbtn(M(1)).click();
-    type(await until(() => $("#dpfIn-overheads_gbp")), "97200");
-    check("the box says saving clears the sign-off", /saving a change clears its sign-off/.test(text("#dpf .dpf-edit")), text("#dpf .dpf-edit .hint"));
-    button("Save month", $("#dpf")).click();
+    type(box("overheads_gbp", M(1)), "97200");
+    button("Save changes", $("#dpf")).click();
     await until(() => status(M(1)) === "Ready to sign");
-    check("a change clears the sign-off", status(M(1)) === "Ready to sign" && /sign-off was cleared/.test(msg()), status(M(1)) + " | " + msg());
+    check("a change clears the sign-off", status(M(1)) === "Ready to sign" && /cleared its sign-off/.test(msg()), status(M(1)) + " | " + msg());
 
     // Someone else changes a figure: the fingerprint the page holds is stale, so Sign off is refused.
     window.__stub.dpfChange(M(1), "overheads_gbp", 97300);
     act(M(1)).click();
     await until(() => /have changed since you opened them/.test(msg()));
     check("a stale fingerprint is refused with the database's sentence", /have changed since you opened them/.test(msg()) && last("dpf_sign_off").status === 400, msg());
-    await until(() => cell("overheads_gbp", M(1)).textContent === "£97,300");
-    check("the year is read again after the refusal", cell("overheads_gbp", M(1)).textContent === "£97,300", cell("overheads_gbp", M(1)).textContent);
+    await until(() => shows("overheads_gbp", M(1)) === "£97,300");
+    check("the year is read again after the refusal", shows("overheads_gbp", M(1)) === "£97,300", shows("overheads_gbp", M(1)));
     act(M(1)).click();
     await until(() => /^Signed off/.test(status(M(1))));
     check("signing off again with the fresh fingerprint works", /^Signed off/.test(status(M(1))), status(M(1)));
@@ -161,20 +192,22 @@
     const ws = wb.Sheets["DPF figures"];
     const aoa = X.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
     const mm = (iso) => iso.slice(5, 7) + "/" + iso.slice(0, 4);
-    const at = (iso, code) => aoa.findIndex((r) => r[0] === mm(iso) && r[1] === code);
-    check("the template: one sheet, its header, every month and item", wb.SheetNames.join() === "DPF figures" && aoa[0].join() === "Month,Item code,Item,Value" && aoa.length === 1 + 12 * 13, aoa[0] && aoa[0].join());
-    check("the template holds the values held", aoa[at(M(0), "opex_gbp")][3] === 118250.5 && aoa[at(M(2), "trustpilot_score")][3] == null, JSON.stringify(aoa[at(M(0), "opex_gbp")]));
+    const rowOf = (code) => aoa.findIndex((r) => r[0] === code), colOf = (iso) => aoa[0].indexOf(mm(iso));
+    const months12 = Array.from({ length: 12 }, (_, i) => mm(M(i)));
+    check("the template: one sheet laid out as the grid", wb.SheetNames.join() === "DPF figures" && aoa[0].join() === ["Item code", "Item", "Unit", ...months12].join() && aoa.length === 1 + 2 + 13
+      && aoa[1][1] === "Actuals" && aoa[2][0] === "cost_of_sales_gbp" && aoa.some((r) => r[1] === "Plan"), aoa[0] && aoa[0].join());
+    check("the template holds the values held", aoa[rowOf("opex_gbp")][colOf(M(0))] === 118250.5 && aoa[rowOf("trustpilot_score")][colOf(M(4))] == null, JSON.stringify(aoa[rowOf("opex_gbp")]));
     // Change one value and fill one blank, then upload it.
-    aoa[at(M(2), "opex_gbp")][3] = 130000;
-    aoa[at(M(2), "trustpilot_score")][3] = 4.4;
+    aoa[rowOf("opex_gbp")][colOf(M(4))] = 130000;
+    aoa[rowOf("trustpilot_score")][colOf(M(4))] = 4.4;
     const back = X.utils.book_new(); X.utils.book_append_sheet(back, X.utils.aoa_to_sheet(aoa), "DPF figures");
     setFile(tIn, new Uint8Array(X.write(back, { type: "array", bookType: "xlsx" })), "dpf-template.xlsx");
     await until(() => $("#dpfPreview .dpf-count"));
     const lines = $$("#dpfPreview tbody tr");
     const changed = lines.filter((r) => r.classList.contains("chg")).map((r) => r.dataset.code + "@" + r.dataset.month);
-    check("the preview: two to change, the rest unchanged and greyed", changed.join() === `opex_gbp@${M(2)},trustpilot_score@${M(2)}` && lines.some((r) => r.classList.contains("same")) && /^2 to change, \d+ unchanged\.$/.test(text("#dpfPreview .dpf-count")), changed.join() + " | " + text("#dpfPreview .dpf-count"));
-    const row = lines.find((r) => r.dataset.code === "opex_gbp" && r.dataset.month === M(2));
-    check("held and new values", row && row.cells[2].textContent === "£120,400" && row.cells[3].textContent === "£130,000", row && row.textContent);
+    check("the preview: two to change, the rest unchanged and greyed", changed.join() === `opex_gbp@${M(4)},trustpilot_score@${M(4)}` && lines.some((r) => r.classList.contains("same")) && /^2 to change, \d+ unchanged\.$/.test(text("#dpfPreview .dpf-count")), changed.join() + " | " + text("#dpfPreview .dpf-count"));
+    const row = lines.find((r) => r.dataset.code === "opex_gbp" && r.dataset.month === M(4));
+    check("held and new values", row && row.cells[2].textContent === "–" && row.cells[3].textContent === "£130,000", row && row.textContent);
     check("nothing is saved before Save", calls("dpf_upload").length === u0, calls("dpf_upload").length);
     button("Save 2 changes", $("#dpfPreview")).click();
     await until(() => /^Saved dpf-template\.xlsx/.test(msg()));
@@ -183,7 +216,7 @@
     check("the answer's counts are said", /2 changed, \d+ unchanged/.test(msg()) && $("#dpfPreview").hidden, msg());
 
     // A bad CSV: its problem is listed first and Save is blocked.
-    setFile($("#dpfTemplate"), new TextEncoder().encode("Month,Item code,Item,Value\n" + mm(M(3)) + ",trustpilot_score,,9\n" + mm(M(3)) + ",opex_gbp,,5\n"), "bad.csv");
+    setFile($("#dpfTemplate"), new TextEncoder().encode("Item code,Item," + mm(M(3)) + "\ntrustpilot_score,,9\nopex_gbp,,5\n"), "bad.csv");
     await until(() => $("#dpfPreview .dpf-problems"));
     const blocked = $$("#dpfPreview button").find((b) => /^Save/.test(b.textContent));
     check("a problem is listed and blocks Save", /must be from 0 to 5/.test(text("#dpfPreview .dpf-problems")) && blocked && blocked.disabled, text("#dpfPreview"));
@@ -228,20 +261,19 @@
   async function enterOnly() {
     if (!(await grid())) return;
     check("menu Months, Upload, History", menu() === "Months,Upload,History", menu());
-    check("months can be opened for editing", $$("#dpf .dpf-mbtn").length === 12);
+    check("every figure is a box", $$("#dpf input.dpf-in").length === 13 * 12 && !!$("#dpf .dpf-savebar"));
     check("no sign-off controls without the tick", !$("#dpf tr.dpf-acts") && !button("Sign off") && !button("Undo sign-off"));
-    mbtn(M(2)).click();
-    type(await until(() => $("#dpfIn-trustpilot_score")), "4.3");
-    button("Save month", $("#dpf")).click();
+    type(box("trustpilot_score", M(2)), "4.3");
+    button("Save changes", $("#dpf")).click();
     await until(() => /^Saved /.test(msg()));
-    check("an enterer saves a month", last("dpf_save") && last("dpf_save").status === 200 && cell("trustpilot_score", M(2)).textContent === "4.3", msg());
+    check("an enterer saves a figure", last("dpf_save") && last("dpf_save").status === 200 && box("trustpilot_score", M(2)).value === "4.3", msg());
     check("still no sign-off controls", !$("#dpf tr.dpf-acts"));
   }
 
   async function viewOnly() {
     if (!(await grid())) return;
     check("menu Months and History, no Upload", menu() === "Months,History", menu());
-    check("no month opens for editing", !$("#dpf .dpf-mbtn") && !$("#dpf .dpf-edit") && !$("#dpf input"));
+    check("no boxes and no save bar", !$("#dpf input") && !$("#dpf .dpf-savebar"));
     check("no sign-off controls", !$("#dpf tr.dpf-acts") && !button("Sign off"));
     window.showTool("dpf", "upload");
     await sleep(300);
@@ -258,7 +290,7 @@
 
   async function admin() {
     if (!(await grid())) return;
-    check("admin: menu and every control", menu() === "Months,Upload,History" && $$("#dpf .dpf-mbtn").length === 12 && !!$("#dpf tr.dpf-acts"), menu());
+    check("admin: menu and every control", menu() === "Months,Upload,History" && $$("#dpf input.dpf-in").length === 13 * 12 && !!$("#dpf tr.dpf-acts"), menu());
     // Sign-out drops the tab's figures from the page.
     $("#signOutBtn").click();
     await sleep(100);
