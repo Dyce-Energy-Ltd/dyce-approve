@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import {
   fyMonths, fyStartOf, fyLabel, monthText, monthName, inRange, parseMonth, parseNumber, serialToIso,
   formatValue, checkValue, sortItems, monthStatus, templateAoa, buildTemplate, readTemplate,
-  formChanges, rowsForYear, TEMPLATE_SHEET, TEMPLATE_HEADER, inputValue,
+  formChanges, rowsForYear, TEMPLATE_SHEET, TEMPLATE_HEADER, inputValue, restValue,
 } from './import.js';
 
 const XLSX = createRequire(import.meta.url)('../vendor/xlsx.full.min.js');
@@ -188,6 +188,15 @@ test('a box on the Months screen holds the value at full precision and reads bac
     assert.equal(parseNumber(inputValue(item(code), v)), v, `${code} ${v} reads back`);
   }
   assert.equal(inputValue(item('opex_gbp'), null), '');
+});
+
+test('a box at rest shows GBP to the whole pound and everything else as typed', () => {
+  assert.equal(restValue(item('cost_of_sales_gbp'), 1031426.14), '\u00a31,031,426');
+  assert.equal(restValue(item('opex_gbp'), 118250.5), '\u00a3118,251');
+  assert.equal(restValue(item('plan_ebitda_gbp'), -43353.39), '-\u00a343,353');
+  assert.equal(restValue(item('plan_volume_mwh'), 159100.25), '159,100.25');
+  assert.equal(restValue(item('plan_bad_debt_pct'), 0.5), '0.5%');
+  assert.equal(restValue(item('opex_gbp'), null), '');
 });
 
 test('the template is loaded only for the year shown, or refused whole', () => {

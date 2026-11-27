@@ -62,7 +62,14 @@
     check("twelve months, June first", heads.length === 13 && /^Jun \d{4}$/.test(heads[1]) && /^May \d{4}$/.test(heads[12]), heads.join(","));
     check("the year line", /^June \d{4} to May \d{4}$/.test(text("#dpfYear")), text("#dpfYear"));
     const typing = !!box("opex_gbp", M(0));
-    check("GBP with pence", shows("opex_gbp", M(0)) === "£118,250.50", shows("opex_gbp", M(0)));
+    check(typing ? "GBP to the whole pound at rest, the exact figure on hover" : "GBP with pence",
+      typing ? shows("opex_gbp", M(0)) === "£118,251" && box("opex_gbp", M(0)).title === "£118,250.50" : shows("opex_gbp", M(0)) === "£118,250.50", shows("opex_gbp", M(0)));
+    if (typing) {
+      box("opex_gbp", M(0)).focus();
+      check("the exact figure, with pence, while typing", box("opex_gbp", M(0)).value === "£118,250.50", box("opex_gbp", M(0)).value);
+      box("opex_gbp", M(0)).blur();
+      check("back to the whole pound on leaving, with nothing changed", box("opex_gbp", M(0)).value === "£118,251" && pendingText() === "No unsaved changes.", box("opex_gbp", M(0)).value + " | " + pendingText());
+    }
     check("GBP whole pounds", shows("cost_of_sales_gbp", M(0)) === "£412,000", shows("cost_of_sales_gbp", M(0)));
     check("MWh (the unit in the row when typing)", shows("plan_volume_mwh", M(0)) === (typing ? "158,400.25" : "158,400.25 MWh"), shows("plan_volume_mwh", M(0)));
     check("score to 1 place, count, percentage", shows("trustpilot_score", M(0)) === "4.6" && shows("trustpilot_new_reviews", M(0)) === "18" && shows("plan_bad_debt_pct", M(0)) === "0.5%",

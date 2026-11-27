@@ -9,7 +9,7 @@
 //     templateAoa(items, months), buildTemplate(XLSX, items, months), readTemplate(XLSX, bytes, fileName, items),
 //     rowsForYear(rows, fyStartYear)
 //   What the page saves
-//     inputValue(item, value), formChanges(items, held, typed)
+//     inputValue(item, value), restValue(item, value), formChanges(items, held, typed)
 //
 // Design: dna-hub docs/superpowers/specs/2026-11-26-dpf-figures-design.md (Phil Brook, 26/11/2026).
 // Phil Brook, 27/11/2026: the template is downloaded and read back on the Months screen, and the
@@ -127,6 +127,15 @@ export function inputValue(item, value) {
   if (unit === 'score') return fmt(v, 1, 6);
   if (isPct(item)) return fmt(v, 0, 6) + '%';
   return fmt(v, 0, 6);
+}
+
+// A box at rest on the Months screen: as inputValue, but GBP to the whole pound, so £1,031,426.14
+// fits its column as £1,031,426. The exact figure shows while the box is being typed in, and on
+// hover; it is what is saved either way (Phil Brook, 27/11/2026).
+export function restValue(item, value) {
+  const v = num(value);
+  if (String(item && item.unit || '') !== 'GBP' || v == null || !Number.isFinite(v)) return inputValue(item, value);
+  return (v < 0 ? '-' : '') + '\u00a3' + fmt(Math.round(Math.abs(v)), 0, 0);
 }
 
 // What the item allows, in words (the checks dpf.figure_item holds).
