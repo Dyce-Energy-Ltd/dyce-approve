@@ -62,7 +62,14 @@
     check("twelve months, June first", heads.length === 13 && /^Jun \d{4}$/.test(heads[1]) && /^May \d{4}$/.test(heads[12]), heads.join(","));
     check("the year line", /^June \d{4} to May \d{4}$/.test(text("#dpfYear")), text("#dpfYear"));
     const typing = !!box("opex_gbp", M(0));
-    check("GBP with pence", shows("opex_gbp", M(0)) === "£118,250.50", shows("opex_gbp", M(0)));
+    check(typing ? "GBP to the whole pound at rest, the exact figure on hover" : "GBP with pence",
+      typing ? shows("opex_gbp", M(0)) === "£118,251" && box("opex_gbp", M(0)).title === "£118,250.50" : shows("opex_gbp", M(0)) === "£118,250.50", shows("opex_gbp", M(0)));
+    if (typing) {
+      box("opex_gbp", M(0)).focus();
+      check("the exact figure, with pence, while typing", box("opex_gbp", M(0)).value === "£118,250.50", box("opex_gbp", M(0)).value);
+      box("opex_gbp", M(0)).blur();
+      check("back to the whole pound on leaving, with nothing changed", box("opex_gbp", M(0)).value === "£118,251" && pendingText() === "No unsaved changes.", box("opex_gbp", M(0)).value + " | " + pendingText());
+    }
     check("GBP whole pounds", shows("cost_of_sales_gbp", M(0)) === "£412,000", shows("cost_of_sales_gbp", M(0)));
     check("MWh (the unit in the row when typing)", shows("plan_volume_mwh", M(0)) === (typing ? "158,400.25" : "158,400.25 MWh"), shows("plan_volume_mwh", M(0)));
     check("score to 1 place, count, percentage", shows("trustpilot_score", M(0)) === "4.6" && shows("trustpilot_new_reviews", M(0)) === "18" && shows("plan_bad_debt_pct", M(0)) === "0.5%",
@@ -84,7 +91,11 @@
     check("a box for every figure", $$("#dpf input.dpf-in").length === 13 * 12 && pendingText() === "No unsaved changes." && button("Save changes", $("#dpf")).disabled, $$("#dpf input.dpf-in").length + " | " + pendingText());
     const opex = box("opex_gbp", M(1));
     check("the box holds the value held", opex.value === "£119,900", opex.value);
-    type(opex, "121,000");
+    opex.focus();
+    check("going into a box selects its figure, so typing replaces it", opex.selectionStart === 0 && opex.selectionEnd === opex.value.length && opex.value.length > 0, opex.selectionStart + "-" + opex.selectionEnd);
+    type(opex, "121000");
+    opex.dispatchEvent(new Event("blur"));
+    check("leaving a GBP box writes the pound sign and thousands", opex.value === "£121,000", opex.value);
     check("the change is counted and marked", pendingText() === "1 unsaved change." && cell("opex_gbp", M(1)).classList.contains("chg") && !button("Save changes", $("#dpf")).disabled, pendingText());
     check("the year waits while a change is unsaved", $('#dpf [data-dpf="next"]').disabled && $('#dpf [data-dpf="prev"]').disabled);
     button("Save changes", $("#dpf")).click();
@@ -102,6 +113,17 @@
     const was = os.value;
     type(os, "1"); key(os, "Escape");
     check("Esc puts the figure back", os.value === was && pendingText() === "No unsaved changes.", os.value + " | " + pendingText());
+
+    // A percentage gets its %, and a word is left as typed and marked; Discard clears both.
+    const pct = box("plan_bad_debt_pct", M(4));
+    pct.focus(); type(pct, "0.75"); pct.dispatchEvent(new Event("blur"));
+    check("leaving a percentage box writes the %", pct.value === "0.75%", pct.value);
+    const word = box("plan_opex_gbp", M(4));
+    word.focus(); type(word, "lots"); word.dispatchEvent(new Event("blur"));
+    check("a word is left as typed and marked", word.value === "lots" && cell("plan_opex_gbp", M(4)).classList.contains("bad"), word.value);
+    button("Discard", $("#dpf .dpf-savebar")).click();
+    await sleep(50);
+    check("Discard clears them", box("plan_bad_debt_pct", M(4)).value === "" && box("plan_opex_gbp", M(4)).value === "" && pendingText() === "No unsaved changes.", pendingText());
 
     // A value outside its check is marked and stopped in the page; nothing is sent.
     const before = calls("dpf_save").length;
