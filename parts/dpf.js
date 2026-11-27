@@ -154,6 +154,22 @@
         input.setAttribute("aria-invalid", bad ? "true" : "false");
       };
       input.addEventListener("input", () => { typed[key] = input.value; delete fromFile[key]; mark(); refreshBar(); });
+      // On the way in the whole figure is selected, so typing replaces it (Phil Brook, 27/11/2026). A
+      // click would otherwise drop the caret where it landed, so the mouseup after a focus is ignored.
+      let fresh = false;
+      input.addEventListener("focus", () => { input.select(); fresh = true; });
+      input.addEventListener("mouseup", (e) => { if (fresh) { e.preventDefault(); fresh = false; } });
+      // On the way out a typed figure is written as its row shows figures: a pound sign and
+      // thousands for GBP, a % for a percentage. Anything that is not a number is left as typed,
+      // and marked.
+      input.addEventListener("blur", () => {
+        fresh = false;
+        if (!Object.prototype.hasOwnProperty.call(typed, key)) return;
+        const v = I.parseNumber(input.value);
+        if (v === null || Number.isNaN(v)) return;
+        const shown = I.inputValue(it, v);
+        if (shown !== input.value) { input.value = shown; typed[key] = shown; }
+      });
       input.addEventListener("keydown", (e) => {
         if (e.key === "Escape") { delete typed[key]; delete fromFile[key]; input.value = I.inputValue(it, held); mark(); refreshBar(); e.preventDefault(); return; }
         if (e.key !== "Enter") return;

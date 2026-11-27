@@ -84,7 +84,11 @@
     check("a box for every figure", $$("#dpf input.dpf-in").length === 13 * 12 && pendingText() === "No unsaved changes." && button("Save changes", $("#dpf")).disabled, $$("#dpf input.dpf-in").length + " | " + pendingText());
     const opex = box("opex_gbp", M(1));
     check("the box holds the value held", opex.value === "£119,900", opex.value);
-    type(opex, "121,000");
+    opex.focus();
+    check("going into a box selects its figure, so typing replaces it", opex.selectionStart === 0 && opex.selectionEnd === opex.value.length && opex.value.length > 0, opex.selectionStart + "-" + opex.selectionEnd);
+    type(opex, "121000");
+    opex.dispatchEvent(new Event("blur"));
+    check("leaving a GBP box writes the pound sign and thousands", opex.value === "£121,000", opex.value);
     check("the change is counted and marked", pendingText() === "1 unsaved change." && cell("opex_gbp", M(1)).classList.contains("chg") && !button("Save changes", $("#dpf")).disabled, pendingText());
     check("the year waits while a change is unsaved", $('#dpf [data-dpf="next"]').disabled && $('#dpf [data-dpf="prev"]').disabled);
     button("Save changes", $("#dpf")).click();
@@ -102,6 +106,17 @@
     const was = os.value;
     type(os, "1"); key(os, "Escape");
     check("Esc puts the figure back", os.value === was && pendingText() === "No unsaved changes.", os.value + " | " + pendingText());
+
+    // A percentage gets its %, and a word is left as typed and marked; Discard clears both.
+    const pct = box("plan_bad_debt_pct", M(4));
+    pct.focus(); type(pct, "0.75"); pct.dispatchEvent(new Event("blur"));
+    check("leaving a percentage box writes the %", pct.value === "0.75%", pct.value);
+    const word = box("plan_opex_gbp", M(4));
+    word.focus(); type(word, "lots"); word.dispatchEvent(new Event("blur"));
+    check("a word is left as typed and marked", word.value === "lots" && cell("plan_opex_gbp", M(4)).classList.contains("bad"), word.value);
+    button("Discard", $("#dpf .dpf-savebar")).click();
+    await sleep(50);
+    check("Discard clears them", box("plan_bad_debt_pct", M(4)).value === "" && box("plan_opex_gbp", M(4)).value === "" && pendingText() === "No unsaved changes.", pendingText());
 
     // A value outside its check is marked and stopped in the page; nothing is sent.
     const before = calls("dpf_save").length;
