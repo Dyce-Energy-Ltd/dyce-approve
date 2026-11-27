@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import {
   fyMonths, fyStartOf, fyLabel, monthText, monthName, inRange, parseMonth, parseNumber, serialToIso,
   formatValue, checkValue, sortItems, monthStatus, templateAoa, buildTemplate, readTemplate,
-  readPlanWorkbook, readDpfWorkbook, formChanges, previewRows, TEMPLATE_SHEET, TEMPLATE_HEADER, inputValue,
+  formChanges, rowsForYear, TEMPLATE_SHEET, TEMPLATE_HEADER, inputValue,
 } from './import.js';
 
 const XLSX = createRequire(import.meta.url)('../vendor/xlsx.full.min.js');
@@ -190,116 +190,12 @@ test('a box on the Months screen holds the value at full precision and reads bac
   assert.equal(inputValue(item('opex_gbp'), null), '');
 });
 
-// ---------- Carl's plan workbook. Two sheets, laid out as the plan is (labels in column B, a row of
-// month-start dates), with invented figures. Costs starts its months two columns further right
-// than P&L Forecast, so a reader going by letter would read the wrong month there.
-
-const MONTHS_24 = [...fyMonths(2025), ...fyMonths(2026)];
-function planSheet(firstCol, dateRow, lines) {
-  const aoa = [];
-  aoa[dateRow] = [null, 'Line', ...Array(firstCol - 2).fill(null), ...MONTHS_24.map(toSerial)];
-  lines.forEach(([label, f], i) => { aoa[dateRow + 2 + i] = [null, label, ...Array(firstCol - 2).fill(null), ...MONTHS_24.map((m, j) => f(j)) ]; });
-  aoa[0] = ['Invented plan for the tests'];
-  const ws = XLSX.utils.aoa_to_sheet(aoa.map((r) => r || []));
-  for (let c = firstCol; c < firstCol + 24; c++) ws[XLSX.utils.encode_cell({ r: dateRow, c })].z = 'mmm-yy';
-  // '#REF!' in a line becomes a real error cell, as Excel stores one.
-  for (const k of Object.keys(ws)) if (ws[k] && ws[k].v === '#REF!') ws[k] = { t: 'e', v: 0x17, w: '#REF!' };
-  return ws;
-}
-function planBook(over = {}) {
-  const pl = over.pl || [
-    ['Gross Profit', (j) => 1000 * j + 0.004], ['Net Profit (\u00a3)', (j) => 100 * j], ['Volume (MWh)', (j) => 150000 + j + 0.12345],
-    ['Total Purchases (\u00a3)', (j) => 500 * j], ['Total Direct Expenses (\u00a3)', (j) => 20 * j], ['Total Overheads (\u00a3)', (j) => 300 + j],
-  ];
-  const costs = over.costs || [['Total Overheads', (j) => 9], ['  OPEX ', (j) => 7000 + j]];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, planSheet(2, 20, pl), 'P&L Forecast');
-  XLSX.utils.book_append_sheet(wb, planSheet(4, 10, costs), 'Costs');
-  return bytesOf(wb);
-}
-// Month j of MONTHS_24: June 2026 is j = 12.
-const J = (iso) => MONTHS_24.indexOf(iso);
-
-test('plan workbook, Targets: the plan lines for the chosen months', () => {
-  const r = readPlanWorkbook(XLSX, planBook(), { mode: 'targets', months: ['2026-06-01', '2026-07-01'] });
-  assert.deepEqual(r.problems, []);
-  const get = (code, m) => r.rows.find((x) => x.code === code && x.month === m).value;
-  assert.equal(r.rows.length, 8);
-  assert.equal(get('plan_gm_gbp', '2026-06-01'), 1000 * J('2026-06-01'));
-  assert.equal(get('plan_ebitda_gbp', '2026-07-01'), 100 * J('2026-07-01'));
-  assert.equal(get('plan_volume_mwh', '2026-06-01'), 150000 + J('2026-06-01') + 0.123, 'MWh to 3 places');
-  assert.equal(get('plan_opex_gbp', '2026-07-01'), 7000 + J('2026-07-01'), 'Costs is read by date, not by letter');
-  assert.ok(!r.rows.some((x) => ['opex_gbp', 'cost_of_sales_gbp', 'overheads_gbp'].includes(x.code)), 'no actuals from Targets');
-});
-
-test('plan workbook, Actuals: cost of sales is purchases plus direct expenses', () => {
-  const r = readPlanWorkbook(XLSX, planBook(), { mode: 'actuals', months: ['2026-08-01'] });
-  assert.deepEqual(r.problems, []);
-  const j = J('2026-08-01');
-  assert.deepEqual(r.rows, [
-    { month: '2026-08-01', code: 'opex_gbp', value: 7000 + j },
-    { month: '2026-08-01', code: 'cost_of_sales_gbp', value: 520 * j },
-    { month: '2026-08-01', code: 'overheads_gbp', value: 300 + j },
-  ]);
-});
-
-test('negative control: a missing label, a #REF!, a missing month and a doubled label stop the import', () => {
-  const pl = [
-    ['Gross Profit', () => 1], ['Gross Profit', () => 2], ['Volume (MWh)', (j) => (j === J('2026-06-01') ? '#REF!' : 5)],
-    ['Total Purchases (\u00a3)', () => 1], ['Total Direct Expenses (\u00a3)', () => 1], ['Total Overheads (\u00a3)', () => 1],
-  ];
-  const r = readPlanWorkbook(XLSX, planBook({ pl, costs: [['Overheads only', () => 1]] }), { mode: 'targets', months: ['2026-06-01', '2028-06-01'] });
-  assert.deepEqual(r.problems, [
-    'P&L Forecast: no column is dated 06/2028.',
-    'Costs: no column is dated 06/2028.',
-    'P&L Forecast: 2 rows are labelled "Gross Profit" in column B (rows 23, 24); exactly one was expected.',
-    'P&L Forecast: no row is labelled "Net Profit (\u00a3)" in column B. Carl may have renamed the line.',
-    'P&L Forecast "Volume (MWh)", 06/2026 (cell O25) reads "#REF!", not a number.',
-    'Costs: no row is labelled "OPEX" in column B. Carl may have renamed the line.',
-  ]);
-  assert.deepEqual(readPlanWorkbook(XLSX, planBook(), { mode: 'both', months: ['2026-06-01'] }).problems, ['Choose Targets or Actuals.']);
-  const none = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(none, XLSX.utils.aoa_to_sheet([['x']]), 'Other');
-  assert.deepEqual(readPlanWorkbook(XLSX, bytesOf(none), { mode: 'actuals', months: ['2026-06-01'] }).problems,
-    ['The workbook has no sheet named "Costs".', 'The workbook has no sheet named "P&L Forecast".']);
-});
-
-// ---------- the DPF workbook
-
-function dpfBook(rows, percentFormat) {
-  const ws = XLSX.utils.aoa_to_sheet([['SLT', 'KPI', 'Target'], ...rows.map(([label, v]) => [null, label, v])]);
-  if (percentFormat) ws.C2.z = '0.00%';
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Cover']]), 'Cover');
-  XLSX.utils.book_append_sheet(wb, ws, 'SLT Dashboard');
-  return bytesOf(wb);
-}
-const GOOD = [['Bad Debt Charge', 0.005], ['Other line', 3], ['CSAT (Trust Pilot Score)', 4.5], ['CSAT (Trust Pilot Count)', 240]];
-
-test('DPF workbook: the three targets for each chosen month, the count split over 12', () => {
-  const r = readDpfWorkbook(XLSX, dpfBook(GOOD, true), { months: ['2026-06-01', '2026-07-01'] });
-  assert.deepEqual(r.problems, []);
-  assert.deepEqual(r.rows, [
-    { month: '2026-06-01', code: 'plan_bad_debt_pct', value: 0.5 },
-    { month: '2026-07-01', code: 'plan_bad_debt_pct', value: 0.5 },
-    { month: '2026-06-01', code: 'plan_trustpilot_score', value: 4.5 },
-    { month: '2026-07-01', code: 'plan_trustpilot_score', value: 4.5 },
-    { month: '2026-06-01', code: 'plan_trustpilot_new_reviews', value: 20 },
-    { month: '2026-07-01', code: 'plan_trustpilot_new_reviews', value: 20 },
-  ]);
-  // A cell typed as 0.5 with no percentage format is 0.5%.
-  const plain = readDpfWorkbook(XLSX, dpfBook([['Bad Debt Charge', 0.5], ...GOOD.slice(1)], false), { months: ['2026-06-01'] });
-  assert.equal(plain.rows[0].value, 0.5);
-});
-
-test('negative control: a count that does not split, a text target and a missing label stop it', () => {
-  const r = readDpfWorkbook(XLSX, dpfBook([['Bad Debt Charge', '<0.5%'], ['CSAT (Trust Pilot Count)', 250]], false), { months: ['2026-06-01'] });
-  assert.deepEqual(r.rows, []);
-  assert.deepEqual(r.problems, [
-    'SLT Dashboard "Bad Debt Charge" target (cell C2) reads "<0.5%", not a number.',
-    'SLT Dashboard: no row is labelled "CSAT (Trust Pilot Score)" in column B. Carl may have renamed the line.',
-    'SLT Dashboard "CSAT (Trust Pilot Count)" is 250 for the year, which does not split into 12 whole months (20.83 a month). Type the monthly targets on the Months screen or in the Dyce template instead.',
-  ]);
-  assert.deepEqual(readDpfWorkbook(XLSX, dpfBook(GOOD, false), { months: [] }).problems, ['Choose at least one month.']);
+test('the template is loaded only for the year shown, or refused whole', () => {
+  const rows = [{ month: '2026-06-01', code: 'opex_gbp', value: 1 }, { month: '2027-05-01', code: 'opex_gbp', value: 2 }];
+  assert.deepEqual(rowsForYear(rows, 2026), { rows, problems: [] });
+  const out = rowsForYear([...rows, { month: '2027-06-01', code: 'opex_gbp', value: 3 }, { month: '2026-05-01', code: 'opex_gbp', value: 4 }], 2026);
+  assert.deepEqual(out.rows, []);
+  assert.deepEqual(out.problems, ['The file holds 05/2026, 06/2027, outside June 2026 to May 2027 shown here. Move to that year first, or leave those months blank.']);
 });
 
 // ---------- what the page saves
@@ -312,14 +208,4 @@ test('the form sends only changed values, null for a cleared one', () => {
   const bad = formChanges(ITEMS, held, { trustpilot_score: '9', opex_gbp: 'n/a' });
   assert.deepEqual(bad.problems, ['OPEX: "n/a" is not a number.', 'Trustpilot score at month end: must be from 0 to 5.']);
   assert.deepEqual(bad.values, {});
-});
-
-test('the preview shows held and new values, by month then item order', () => {
-  const rows = [{ month: '2026-07-01', code: 'opex_gbp', value: 5 }, { month: '2026-06-01', code: 'plan_gm_gbp', value: 9 }, { month: '2026-06-01', code: 'opex_gbp', value: 41000 }];
-  const p = previewRows(rows, ITEMS, { '2026-06-01': { opex_gbp: 41000 } });
-  assert.deepEqual(p.map((x) => [x.month, x.code, x.held, x.value, x.changed]), [
-    ['2026-06-01', 'opex_gbp', 41000, 41000, false],
-    ['2026-06-01', 'plan_gm_gbp', null, 9, true],
-    ['2026-07-01', 'opex_gbp', null, 5, true],
-  ]);
 });
