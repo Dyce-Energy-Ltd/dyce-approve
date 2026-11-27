@@ -125,7 +125,7 @@
             const e = (m.entered || {})[it.code];
             const tip = has ? (who(e) ? "Entered by " + who(e) : null) : "Not entered";
             const td = el("td", { class: "dpf-v" + (has ? "" : " gap") + (m.month === now ? " now" : ""), "data-month": m.month, title: tip });
-            if (enter) td.append(cellBox(it, m, td));
+            if (enter) cellBox(it, m, td);
             else td.textContent = has ? I.formatValue(it, v) : "–";
             tr.append(td);
           }
@@ -152,6 +152,8 @@
       const tip = () => { const x = exact(), r = rest(); input.title = x !== r ? x : ""; };
       input.value = rest();
       tip();
+      const was = el("span", { class: "dpf-was", hidden: true });
+      td.append(input, was);
       const mark = () => {
         const has = Object.prototype.hasOwnProperty.call(typed, key);
         const v = has ? I.parseNumber(typed[key]) : null;
@@ -159,6 +161,9 @@
         const changed = has && !bad && (v === null ? held != null : Number(held) !== v || held == null);
         td.classList.toggle("chg", changed);
         td.classList.toggle("bad", bad);
+        // Until Save changes, the figure held shows under a changed box, small and in italics.
+        was.textContent = changed ? (held == null ? "was blank" : "was " + I.restValue(it, held)) : "";
+        was.hidden = !changed;
         input.setAttribute("aria-invalid", bad ? "true" : "false");
       };
       input.addEventListener("input", () => { typed[key] = input.value; delete fromFile[key]; mark(); refreshBar(); });

@@ -858,9 +858,12 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 /* DPF figures: the Months grid (typed into directly, with the template in the toolbar) and
    History's month choice, on the hub's tokens and scoped to #dpf. No status colours: a month's state
    is carried by its words (Complete, N missing) and a thin navy line filling as figures arrive.
-   Magenta is a rule only: the current month's heading, the group dots, under a changed figure, and
-   the line of a complete month. A figure that fails its check has a dashed navy outline, and the
-   message line says why. */
+   Magenta is a rule only: the current month's heading, the group dots and the line of a complete
+   month. A changed box, not yet saved, has a blue glow (the Dyce dashboard info colour, as Pricing
+   and the Commission Engine use it), with the figure held under it, small and in italics (Phil
+   Brook, 27/11/2026). A figure that fails its check has a dashed navy outline, and the message line
+   says why. */
+#dpf { --status-info: #1F5FAE; --status-info-wash: #E2ECF9; --status-info-edge: #A8C2E2; }
 #dpf .dpf-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 24px; margin-top: 16px; padding: 6px 8px 6px 6px; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); box-shadow: var(--shadow-card); }
 #dpf .dpf-year { display: flex; align-items: center; gap: 4px; min-width: 0; }
 #dpf .dpf-year h2 { font-size: 18px; line-height: 24px; padding: 0 8px; white-space: nowrap; }
@@ -902,8 +905,9 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #dpf input.dpf-in:hover { border-color: color-mix(in srgb, var(--ink) 75%, var(--brand-white)); }
 #dpf input.dpf-in:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--magenta-tint); }
 #dpf input.dpf-in[disabled] { cursor: progress; }
-#dpf .dpf-grid td.chg input.dpf-in { border-color: var(--brand-magenta); box-shadow: inset 0 -2px 0 var(--brand-magenta); }
-#dpf .dpf-grid td.chg input.dpf-in:focus { box-shadow: inset 0 -2px 0 var(--brand-magenta), 0 0 0 3px var(--magenta-tint); }
+#dpf .dpf-grid td.chg input.dpf-in { border-color: var(--status-info); background: var(--status-info-wash); box-shadow: 0 0 0 3px var(--status-info-edge); }
+#dpf .dpf-grid td.chg input.dpf-in:focus { border-color: var(--status-info); box-shadow: 0 0 0 3px var(--status-info-edge); }
+#dpf .dpf-was { display: block; margin-top: 3px; padding-right: 2px; font-size: 9.5px; line-height: 11px; font-style: italic; color: var(--muted); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #dpf .dpf-grid td.bad input.dpf-in { outline: 2px dashed var(--ink); outline-offset: -2px; }
 #dpf .dpf-grid tbody tr:not(.dpf-group):hover > * { background: var(--magenta-tint); }
 #dpf .dpf-grid tbody tr:not(.dpf-group):hover > :first-child { box-shadow: inset 4px 0 0 var(--brand-magenta); }
@@ -7554,7 +7558,7 @@ function formChanges(items, held, typed) {
             const e = (m.entered || {})[it.code];
             const tip = has ? (who(e) ? "Entered by " + who(e) : null) : "Not entered";
             const td = el("td", { class: "dpf-v" + (has ? "" : " gap") + (m.month === now ? " now" : ""), "data-month": m.month, title: tip });
-            if (enter) td.append(cellBox(it, m, td));
+            if (enter) cellBox(it, m, td);
             else td.textContent = has ? I.formatValue(it, v) : "–";
             tr.append(td);
           }
@@ -7581,6 +7585,8 @@ function formChanges(items, held, typed) {
       const tip = () => { const x = exact(), r = rest(); input.title = x !== r ? x : ""; };
       input.value = rest();
       tip();
+      const was = el("span", { class: "dpf-was", hidden: true });
+      td.append(input, was);
       const mark = () => {
         const has = Object.prototype.hasOwnProperty.call(typed, key);
         const v = has ? I.parseNumber(typed[key]) : null;
@@ -7588,6 +7594,9 @@ function formChanges(items, held, typed) {
         const changed = has && !bad && (v === null ? held != null : Number(held) !== v || held == null);
         td.classList.toggle("chg", changed);
         td.classList.toggle("bad", bad);
+        // Until Save changes, the figure held shows under a changed box, small and in italics.
+        was.textContent = changed ? (held == null ? "was blank" : "was " + I.restValue(it, held)) : "";
+        was.hidden = !changed;
         input.setAttribute("aria-invalid", bad ? "true" : "false");
       };
       input.addEventListener("input", () => { typed[key] = input.value; delete fromFile[key]; mark(); refreshBar(); });
