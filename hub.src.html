@@ -607,7 +607,7 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
    The status tokens are used only on state badges, each with its word (parts/commission.css). */
 {{COMMISSION_CSS}}
 
-/* DPF figures: the Months grid, Upload's cards and preview (parts/dpf.css). No status colours. */
+/* DPF figures: the Months grid and its template, and History (parts/dpf.css). No status colours. */
 {{DPF_CSS}}
 
 @media (max-width: 760px) {
@@ -895,7 +895,7 @@ const DPF_IMPORT = {{DPF_IMPORT}};
   const POOL_REVIEW = "dashboard_pool.review";
   const PR_VIEW = "pricing.view";
   const CE_VIEW = "commission.view", CE_DECIDE = "commission.decide";
-  const DPF_VIEW = "dpf.view", DPF_ENTER = "dpf.enter", DPF_SIGN = "dpf.sign_off";
+  const DPF_VIEW = "dpf.view", DPF_ENTER = "dpf.enter";
   const TOOLS = [
     { id: "broker_emails", label: "Broker Emails", allowed: (t) => t.some((c) => c.startsWith("broker_emails.")),
       items: [{ id: "new", label: "New email", group: "Price emails", need: REQUEST },
@@ -928,11 +928,10 @@ const DPF_IMPORT = {{DPF_IMPORT}};
               { id: "decisions", label: "Decisions", group: "Monthly run", need: CE_VIEW },
               { id: "runs", label: "Runs", group: "Monthly run", need: CE_VIEW }],
       render: renderCommission },
-    // DPF figures shows with View. Upload needs the Enter and upload tick; editing and signing off are drawn
-    // from dpf_state's me (can_enter, can_sign_off), and the database checks each tick again.
+    // DPF figures shows with View. Typing and the template are drawn from dpf_state's me (can_enter),
+    // and the database checks each tick again. There is no sign-off (Phil Brook, 27/11/2026).
     { id: "dpf", label: "DPF figures", allowed: (t) => t.includes(DPF_VIEW),
-      items: [{ id: "months", label: "Months", need: DPF_VIEW }, { id: "upload", label: "Upload", need: DPF_ENTER },
-              { id: "history", label: "History", need: DPF_VIEW }],
+      items: [{ id: "months", label: "Months", need: DPF_VIEW }, { id: "history", label: "History", need: DPF_VIEW }],
       render: renderDpf },
     { id: "dna_admin", label: "DNA Admin", allowed: (t) => t.includes("dna_admin.admin"),
       items: [{ id: "people", label: "People and access" }, { id: "signins", label: "Who may sign in" },

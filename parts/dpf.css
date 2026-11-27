@@ -1,6 +1,6 @@
-/* DPF figures: the Months grid (typed into directly), the sign-off box, Upload's three cards and
-   preview, on the hub's tokens and scoped to #dpf. No status colours: a month's state is carried by
-   its words (Signed off, Ready to sign, N missing). Magenta is a rule only: under a changed figure.
+/* DPF figures: the Months grid (typed into directly, with the template beside Save changes), and
+   History's month choice, on the hub's tokens and scoped to #dpf. No status colours: a month's state is carried by
+   its words (Complete, N missing). Magenta is a rule only: under a changed figure.
    A figure that fails its check has a dashed navy outline, and the message line says why. */
 #dpf .dpf-year { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-top: 22px; }
 #dpf .dpf-year h2 { font-size: 23px; line-height: 30px; min-width: 260px; }
@@ -23,36 +23,12 @@
 #dpf .dpf-grid td.bad input.dpf-in { outline: 2px dashed var(--ink); outline-offset: -2px; }
 #dpf .dpf-savebar { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin-top: 14px; }
 #dpf .dpf-pending { font-size: 14px; line-height: 20px; font-weight: 800; min-width: 170px; }
+#dpf .dpf-tpl { display: inline-flex; flex-wrap: wrap; gap: 10px; padding-left: 14px; border-left: 1px solid var(--hairline); }
 #dpf .dpf-grid tfoot th, #dpf .dpf-grid tfoot td { white-space: normal; min-width: 80px; overflow-wrap: anywhere; font-size: 12px; line-height: 17px; vertical-align: top; }
 #dpf .dpf-grid tfoot .dpf-item { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); }
-#dpf .dpf-st.ready { font-weight: 800; }
-#dpf .dpf-st .state { display: inline-block; margin-bottom: 4px; }
+#dpf .dpf-st.missing { font-weight: 800; }
 #dpf .dpf-grid tbody tr:not(.dpf-group):hover > * { background: var(--magenta-tint); }
 #dpf .dpf-grid tbody tr:not(.dpf-group):hover > :first-child { box-shadow: inset 4px 0 0 var(--brand-magenta); }
-#dpf .dpf-ask { border: 1px solid var(--hairline); border-radius: var(--r-card); padding: 22px; background: var(--surface-raised); display: grid; gap: 10px; margin-top: 22px; max-width: 1100px; }
-#dpf .dpf-ask h2 { font-size: 17px; line-height: 23px; }
-#dpf .dpf-ask { max-width: 640px; }
-#dpf .dpf-ask textarea { font: inherit; font-size: 15px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; padding: 9px 12px; width: 100%; resize: vertical; }
 #dpf .dpf-upyear { max-width: 320px; margin-top: 22px; }
 #dpf select { font: inherit; font-size: 15px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; padding: 9px 12px; width: 100%; }
-#dpf .dpf-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 22px; margin-top: 22px; align-items: start; }
-#dpf .dpf-card { border: 1px solid var(--hairline); border-radius: var(--r-card); padding: 22px; background: var(--surface-raised); display: grid; gap: 14px; min-width: 0; }
-#dpf .dpf-card h2 { font-size: 17px; line-height: 23px; }
-#dpf .dpf-card p { margin: 0; font-size: 14px; line-height: 22px; }
-#dpf fieldset.dpf-mode { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
-#dpf fieldset.dpf-months { border: 1px solid var(--hairline); border-radius: 10px; padding: 8px 14px 12px; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px 12px; background: var(--field); }
-#dpf fieldset.dpf-months label { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; line-height: 20px; cursor: pointer; white-space: nowrap; }
-#dpf fieldset.dpf-months input, #dpf fieldset.dpf-mode input { accent-color: var(--brand-magenta); }
-#dpf .dpf-preview { margin-top: 34px; border-top: 1px solid var(--hairline); padding-top: 22px; }
-#dpf .dpf-preview h2 { overflow-wrap: anywhere; }
-#dpf .dpf-problems { margin-top: 14px; }
-#dpf .dpf-problems p { margin: 0; }
-#dpf .dpf-problems ul { margin: 6px 0 0; padding-left: 20px; font-weight: 400; }
-#dpf .dpf-count { margin: 14px 0 0; font-weight: 800; font-size: 14px; line-height: 22px; }
-#dpf table.dpf-prev { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 20px; font-variant-numeric: tabular-nums; }
-#dpf .dpf-prev th, #dpf .dpf-prev td { padding: 8px 10px; border-bottom: 1px solid var(--hairline); text-align: left; }
-#dpf .dpf-prev th { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); }
-#dpf .dpf-prev .n { text-align: right; }
-#dpf .dpf-prev tr.chg td { font-weight: 800; }
-#dpf .dpf-prev tr.same td { color: var(--muted); }
-@media (max-width: 760px) { #dpf .dpf-grid .dpf-item { min-width: 160px; } #dpf .dpf-card { padding: 14px; } }
+@media (max-width: 760px) { #dpf .dpf-grid .dpf-item { min-width: 160px; }  }

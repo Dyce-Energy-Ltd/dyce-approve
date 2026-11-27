@@ -854,10 +854,10 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 }
 
 
-/* DPF figures: the Months grid, Upload's cards and preview (parts/dpf.css). No status colours. */
-/* DPF figures: the Months grid (typed into directly), the sign-off box, Upload's three cards and
-   preview, on the hub's tokens and scoped to #dpf. No status colours: a month's state is carried by
-   its words (Signed off, Ready to sign, N missing). Magenta is a rule only: under a changed figure.
+/* DPF figures: the Months grid and its template, and History (parts/dpf.css). No status colours. */
+/* DPF figures: the Months grid (typed into directly, with the template beside Save changes), and
+   History's month choice, on the hub's tokens and scoped to #dpf. No status colours: a month's state is carried by
+   its words (Complete, N missing). Magenta is a rule only: under a changed figure.
    A figure that fails its check has a dashed navy outline, and the message line says why. */
 #dpf .dpf-year { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-top: 22px; }
 #dpf .dpf-year h2 { font-size: 23px; line-height: 30px; min-width: 260px; }
@@ -880,39 +880,15 @@ table.hours { border-collapse: collapse; margin-top: 8px; font-size: 14px; line-
 #dpf .dpf-grid td.bad input.dpf-in { outline: 2px dashed var(--ink); outline-offset: -2px; }
 #dpf .dpf-savebar { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin-top: 14px; }
 #dpf .dpf-pending { font-size: 14px; line-height: 20px; font-weight: 800; min-width: 170px; }
+#dpf .dpf-tpl { display: inline-flex; flex-wrap: wrap; gap: 10px; padding-left: 14px; border-left: 1px solid var(--hairline); }
 #dpf .dpf-grid tfoot th, #dpf .dpf-grid tfoot td { white-space: normal; min-width: 80px; overflow-wrap: anywhere; font-size: 12px; line-height: 17px; vertical-align: top; }
 #dpf .dpf-grid tfoot .dpf-item { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); }
-#dpf .dpf-st.ready { font-weight: 800; }
-#dpf .dpf-st .state { display: inline-block; margin-bottom: 4px; }
+#dpf .dpf-st.missing { font-weight: 800; }
 #dpf .dpf-grid tbody tr:not(.dpf-group):hover > * { background: var(--magenta-tint); }
 #dpf .dpf-grid tbody tr:not(.dpf-group):hover > :first-child { box-shadow: inset 4px 0 0 var(--brand-magenta); }
-#dpf .dpf-ask { border: 1px solid var(--hairline); border-radius: var(--r-card); padding: 22px; background: var(--surface-raised); display: grid; gap: 10px; margin-top: 22px; max-width: 1100px; }
-#dpf .dpf-ask h2 { font-size: 17px; line-height: 23px; }
-#dpf .dpf-ask { max-width: 640px; }
-#dpf .dpf-ask textarea { font: inherit; font-size: 15px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; padding: 9px 12px; width: 100%; resize: vertical; }
 #dpf .dpf-upyear { max-width: 320px; margin-top: 22px; }
 #dpf select { font: inherit; font-size: 15px; color: var(--ink); background: var(--field); border: 1px solid var(--hairline); border-radius: 8px; padding: 9px 12px; width: 100%; }
-#dpf .dpf-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 22px; margin-top: 22px; align-items: start; }
-#dpf .dpf-card { border: 1px solid var(--hairline); border-radius: var(--r-card); padding: 22px; background: var(--surface-raised); display: grid; gap: 14px; min-width: 0; }
-#dpf .dpf-card h2 { font-size: 17px; line-height: 23px; }
-#dpf .dpf-card p { margin: 0; font-size: 14px; line-height: 22px; }
-#dpf fieldset.dpf-mode { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
-#dpf fieldset.dpf-months { border: 1px solid var(--hairline); border-radius: 10px; padding: 8px 14px 12px; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px 12px; background: var(--field); }
-#dpf fieldset.dpf-months label { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; line-height: 20px; cursor: pointer; white-space: nowrap; }
-#dpf fieldset.dpf-months input, #dpf fieldset.dpf-mode input { accent-color: var(--brand-magenta); }
-#dpf .dpf-preview { margin-top: 34px; border-top: 1px solid var(--hairline); padding-top: 22px; }
-#dpf .dpf-preview h2 { overflow-wrap: anywhere; }
-#dpf .dpf-problems { margin-top: 14px; }
-#dpf .dpf-problems p { margin: 0; }
-#dpf .dpf-problems ul { margin: 6px 0 0; padding-left: 20px; font-weight: 400; }
-#dpf .dpf-count { margin: 14px 0 0; font-weight: 800; font-size: 14px; line-height: 22px; }
-#dpf table.dpf-prev { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 20px; font-variant-numeric: tabular-nums; }
-#dpf .dpf-prev th, #dpf .dpf-prev td { padding: 8px 10px; border-bottom: 1px solid var(--hairline); text-align: left; }
-#dpf .dpf-prev th { font-size: 10px; line-height: 14px; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; color: var(--muted); }
-#dpf .dpf-prev .n { text-align: right; }
-#dpf .dpf-prev tr.chg td { font-weight: 800; }
-#dpf .dpf-prev tr.same td { color: var(--muted); }
-@media (max-width: 760px) { #dpf .dpf-grid .dpf-item { min-width: 160px; } #dpf .dpf-card { padding: 14px; } }
+@media (max-width: 760px) { #dpf .dpf-grid .dpf-item { min-width: 160px; }  }
 
 
 @media (max-width: 760px) {
@@ -3293,17 +3269,16 @@ const DPF_IMPORT = (function () {
 //     fyStartOf(iso), fyMonths(fyStartYear), fyLabel(fyStartYear), monthText(iso) MM/YYYY,
 //     monthName(iso) "Jun 2026", inRange(iso), parseMonth(value), parseNumber(value),
 //     formatValue(item, value), checkValue(item, value), sortItems(items), monthStatus(month)
-//   The Dyce template (one sheet, "DPF figures": Month (MM/YYYY), Item code, Item, Value)
-//     templateAoa(items, months), buildTemplate(XLSX, items, months), readTemplate(XLSX, bytes, fileName, items)
-//   Carl's five-year plan workbook (rows by their column-B label, months by their header date)
-//     PLAN_LINES, readPlanWorkbook(XLSX, bytes, {mode, months})
-//   The DPF workbook ("SLT Dashboard": annual targets in column C, rows by their column-B label)
-//     DPF_LINES, readDpfWorkbook(XLSX, bytes, {months})
+//   The Dyce template (one sheet, "DPF figures", laid out as the Months table: Item code, Item,
+//   Unit, then the year's months across as MM/YYYY)
+//     templateAoa(items, months), buildTemplate(XLSX, items, months), readTemplate(XLSX, bytes, fileName, items),
+//     rowsForYear(rows, fyStartYear)
 //   What the page saves
-//     formChanges(items, held, typed), previewRows(rows, items, heldByMonth)
+//     inputValue(item, value), formChanges(items, held, typed)
 //
-// Design: dna-hub docs/superpowers/specs/2026-11-26-dpf-figures-design.md (Phil Brook, 26/11/2026),
-// with Phil's answers of the same evening (the DPF workbook route). A month is 'YYYY-MM-01'. The
+// Design: dna-hub docs/superpowers/specs/2026-11-26-dpf-figures-design.md (Phil Brook, 26/11/2026).
+// Phil Brook, 27/11/2026: the template is downloaded and read back on the Months screen, and the
+// plan workbook and DPF workbook uploads were taken out. A month is 'YYYY-MM-01'. The
 // financial year runs June to May. XLSX is the vendored SheetJS, passed in by the caller (the page
 // and the Node tests each bring their own copy; this module imports nothing and reads no global).
 // Every problem is a plain sentence; a problem stops the save.
@@ -3446,14 +3421,11 @@ function sortItems(items) {
   return (Array.isArray(items) ? items : []).slice().sort((a, b) => k(a) - k(b) || (+a.sort || 0) - (+b.sort || 0));
 }
 
-const LONDON_DAY = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', day: '2-digit', month: '2-digit', year: 'numeric' });
-const ukDay = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : LONDON_DAY.format(d); };
-
-// The month's status line: signed off (by whom, when), ready to sign (nothing missing), or N missing.
+// The month's status line: complete (nothing missing) or how many figures are missing. Saving a
+// figure is its approval; there is no sign-off (Phil Brook, 27/11/2026).
 function monthStatus(m) {
-  if (m && m.signed_off) return { kind: 'signed', text: `Signed off by ${m.signed_off.by} on ${ukDay(m.signed_off.at)}` };
   const n = Array.isArray(m && m.missing) ? m.missing.length : 0;
-  return n ? { kind: 'missing', text: `${n} missing` } : { kind: 'ready', text: 'Ready to sign' };
+  return n ? { kind: 'missing', text: `${n} missing` } : { kind: 'complete', text: 'Complete' };
 }
 
 // ---------- the Dyce template
@@ -3555,154 +3527,13 @@ function readTemplate(XLSX, bytes, fileName, items) {
   return { rows, problems, blank };
 }
 
-// ---------- Carl's five-year plan workbook
-
-// Each line the import reads: its sheet, the column-B label(s) summed, and the item it fills for
-// Targets (the BASE plan) or Actuals (Carl's working copy). From the design's mapping.
-const PLAN_LINES = [
-  { sheet: 'P&L Forecast', labels: ['Gross Profit'], targets: 'plan_gm_gbp' },
-  { sheet: 'P&L Forecast', labels: ['Net Profit (\u00a3)'], targets: 'plan_ebitda_gbp' },
-  { sheet: 'P&L Forecast', labels: ['Volume (MWh)'], targets: 'plan_volume_mwh' },
-  { sheet: 'Costs', labels: ['OPEX'], targets: 'plan_opex_gbp', actuals: 'opex_gbp' },
-  { sheet: 'P&L Forecast', labels: ['Total Purchases (\u00a3)', 'Total Direct Expenses (\u00a3)'], actuals: 'cost_of_sales_gbp' },
-  { sheet: 'P&L Forecast', labels: ['Total Overheads (\u00a3)'], actuals: 'overheads_gbp' },
-];
-// Pounds to the penny, MWh to 3 places: the plan's cached values carry float noise.
-const roundFor = (code, v) => { const p = /_gbp$/.test(code) ? 100 : /_mwh$/.test(code) ? 1000 : 1e6; return Math.round(v * p) / p; };
-
-const cellAt = (XLSX, ws, r, c) => ws[XLSX.utils.encode_cell({ r, c })];
-const LABEL_COL = 1; // column B
-
-// The one row whose column-B label is `label`, spaces trimmed; a sentence when there is none or more.
-function findRow(XLSX, ws, sheet, label) {
-  const rg = XLSX.utils.decode_range(ws['!ref']), found = [];
-  for (let r = rg.s.r; r <= rg.e.r; r++) {
-    const c = cellAt(XLSX, ws, r, LABEL_COL);
-    if (c && c.t === 's' && cellText(c.v) === label) found.push(r);
-  }
-  if (found.length === 1) return { row: found[0] };
-  return { problem: found.length
-    ? `${sheet}: ${found.length} rows are labelled "${label}" in column B (rows ${found.map((r) => r + 1).join(', ')}); exactly one was expected.`
-    : `${sheet}: no row is labelled "${label}" in column B. Carl may have renamed the line.` };
-}
-
-// The month a header cell gives, or null: a month-start date, as an Excel serial or a Date.
-function headerMonth(c) {
-  if (!c) return null;
-  if (c.v instanceof Date) return parseMonth(c.v);
-  if (c.t === 'n' || c.t === 'd') return typeof c.v === 'number' ? parseMonth(c.v) : null;
-  return null;
-}
-// The header row of month-start dates: the row near the top with the most of them. Columns are
-// found by these dates, never by letter (Carl adds and moves columns).
-function monthColumns(XLSX, ws) {
-  const rg = XLSX.utils.decode_range(ws['!ref']);
-  let best = null;
-  for (let r = rg.s.r; r <= Math.min(rg.e.r, rg.s.r + 60); r++) {
-    const cols = new Map(), dup = new Set();
-    for (let c = rg.s.c; c <= rg.e.c; c++) {
-      const m = headerMonth(cellAt(XLSX, ws, r, c));
-      if (!m) continue;
-      if (cols.has(m)) dup.add(m); else cols.set(m, c);
-    }
-    if (cols.size && (!best || cols.size > best.cols.size)) best = { row: r, cols, dup };
-  }
-  return best;
-}
-
-function numberCell(XLSX, ws, r, c, where) {
-  const cell = cellAt(XLSX, ws, r, c), ref = XLSX.utils.encode_cell({ r, c });
-  if (!cell || cell.v == null || cell.v === '') return { problem: `${where} (cell ${ref}) is empty.` };
-  if (cell.t === 'n' && Number.isFinite(cell.v)) return { value: cell.v, cell };
-  const said = cell.t === 'e' ? (cell.w || '#ERROR') : cellText(cell.v);
-  return { problem: `${where} (cell ${ref}) reads "${said}", not a number.` };
-}
-
-// The plan workbook: {rows, problems}. mode is 'targets' or 'actuals'; months the chosen
-// 'YYYY-MM-01's. A label not found, a month with no column, or a cell that is not a number is a
-// problem, and stops the import.
-function readPlanWorkbook(XLSX, bytes, { mode, months }) {
-  const problems = [], rows = [];
-  if (mode !== 'targets' && mode !== 'actuals') return { rows, problems: ['Choose Targets or Actuals.'] };
-  if (!Array.isArray(months) || !months.length) return { rows, problems: ['Choose at least one month.'] };
-  const lines = PLAN_LINES.filter((l) => l[mode]);
-  const sheets = [...new Set(lines.map((l) => l.sheet))];
-  let wb;
-  try { wb = readBook(XLSX, bytes, 'plan.xlsx', { sheets }); } catch { return { rows, problems: ['The file could not be read as a spreadsheet.'] }; }
-  const found = {};
-  for (const sheet of sheets) {
-    const ws = wb.Sheets[sheet];
-    if (!ws || !ws['!ref']) { problems.push(`The workbook has no sheet named "${sheet}".`); continue; }
-    const head = monthColumns(XLSX, ws);
-    if (!head) { problems.push(`${sheet}: no row of month-start dates was found.`); continue; }
-    for (const m of months) {
-      if (head.dup.has(m)) problems.push(`${sheet}: more than one column is dated ${monthText(m)}.`);
-      else if (!head.cols.has(m)) problems.push(`${sheet}: no column is dated ${monthText(m)}.`);
-    }
-    found[sheet] = { ws, head };
-  }
-  for (const line of lines) {
-    const f = found[line.sheet];
-    if (!f) continue;
-    const at = line.labels.map((label) => ({ label, ...findRow(XLSX, f.ws, line.sheet, label) }));
-    at.filter((x) => x.problem).forEach((x) => problems.push(x.problem));
-    if (at.some((x) => x.problem)) continue;
-    for (const m of months) {
-      const c = f.head.cols.get(m);
-      if (c == null || f.head.dup.has(m)) continue;
-      let total = 0, ok = true;
-      for (const x of at) {
-        const got = numberCell(XLSX, f.ws, x.row, c, `${line.sheet} "${x.label}", ${monthText(m)}`);
-        if (got.problem) { problems.push(got.problem); ok = false; } else total += got.value;
-      }
-      if (ok) rows.push({ month: m, code: line[mode], value: roundFor(line[mode], total) });
-    }
-  }
-  return { rows, problems };
-}
-
-// ---------- the DPF workbook
-
-// Carl's "Dyce Performance Framework (DPF).xlsx": the annual targets on "SLT Dashboard", each row
-// found by its column-B label, the target in column C (Phil Brook, 26/11/2026). Bad debt and the
-// Trustpilot score are levels (the same each month); the Trustpilot count is a year's total, split
-// evenly across the twelve months.
-const DPF_SHEET = 'SLT Dashboard';
-const DPF_LINES = [
-  { label: 'Bad Debt Charge', code: 'plan_bad_debt_pct', basis: 'level', percent: true },
-  { label: 'CSAT (Trust Pilot Score)', code: 'plan_trustpilot_score', basis: 'level' },
-  { label: 'CSAT (Trust Pilot Count)', code: 'plan_trustpilot_new_reviews', basis: 'year' },
-];
-const TARGET_COL = 2; // column C
-
-// {rows, problems}. Bad debt is a percentage: 0.5 means 0.5%. A cell Excel formats as a percentage
-// holds 0.005 for 0.5%, so such a cell is multiplied by 100 to give what it shows. A year's count
-// that does not divide by 12 into whole numbers is a problem, never rounded.
-function readDpfWorkbook(XLSX, bytes, { months }) {
-  const problems = [], rows = [];
-  if (!Array.isArray(months) || !months.length) return { rows, problems: ['Choose at least one month.'] };
-  let wb;
-  try { wb = readBook(XLSX, bytes, 'dpf.xlsx', { sheets: [DPF_SHEET], cellNF: true }); } catch { return { rows, problems: ['The file could not be read as a spreadsheet.'] }; }
-  const ws = wb.Sheets[DPF_SHEET];
-  if (!ws || !ws['!ref']) return { rows, problems: [`The workbook has no sheet named "${DPF_SHEET}".`] };
-  for (const line of DPF_LINES) {
-    const at = findRow(XLSX, ws, DPF_SHEET, line.label);
-    if (at.problem) { problems.push(at.problem); continue; }
-    const got = numberCell(XLSX, ws, at.row, TARGET_COL, `${DPF_SHEET} "${line.label}" target`);
-    if (got.problem) { problems.push(got.problem); continue; }
-    let v = got.value;
-    if (line.percent && /%/.test(String(got.cell.z || ''))) v = Math.round(v * 100 * 1e9) / 1e9;
-    if (line.basis === 'year') {
-      const each = v / 12;
-      if (!Number.isInteger(each)) {
-        problems.push(`${DPF_SHEET} "${line.label}" is ${v} for the year, which does not split into 12 whole months (${Math.round(each * 100) / 100} a month). Type the monthly targets on the Months screen or in the Dyce template instead.`);
-        continue;
-      }
-      v = each;
-    }
-    for (const m of months) rows.push({ month: m, code: line.code, value: v });
-  }
-  return { rows, problems };
+// The template's figures for the year shown on the Months screen: {rows, problems}. A file holding
+// months of another year is refused whole, naming them, so nothing is half loaded.
+function rowsForYear(rows, fyStartYear) {
+  const months = new Set(fyMonths(fyStartYear));
+  const outside = [...new Set(rows.map((r) => r.month).filter((m) => !months.has(m)))].sort();
+  if (!outside.length) return { rows, problems: [] };
+  return { rows: [], problems: [`The file holds ${outside.map(monthText).join(', ')}, outside ${fyLabel(fyStartYear)} shown here. Move to that year first, or leave those months blank.`] };
 }
 
 // ---------- what the page saves
@@ -3723,18 +3554,7 @@ function formChanges(items, held, typed) {
   return { values, problems };
 }
 
-// The preview: one line per row with the value held and the new value, by month then item order.
-// heldByMonth is {'YYYY-MM-01': {code: value}}.
-function previewRows(rows, items, heldByMonth) {
-  const order = new Map(sortItems(items).map((it, i) => [it.code, i]));
-  const byCode = new Map(items.map((it) => [it.code, it]));
-  return rows.map((r) => {
-    const held = num(((heldByMonth || {})[r.month] || {})[r.code]);
-    return { month: r.month, code: r.code, item: byCode.get(r.code) || { code: r.code, label: r.code }, held, value: r.value, changed: held !== r.value };
-  }).sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : (order.get(a.code) ?? 99) - (order.get(b.code) ?? 99)));
-}
-
-;return { FY_START_MONTH, MONTH_MIN, MONTH_MAX, TEMPLATE_SHEET, TEMPLATE_HEADER, isMonth, inRange, fyStartOf, fyMonths, fyLabel, monthText, monthName, monthOf, serialToIso, parseMonth, parseNumber, formatValue, inputValue, ruleText, checkValue, sortItems, monthStatus, templateAoa, buildTemplate, readTemplate, PLAN_LINES, readPlanWorkbook, DPF_SHEET, DPF_LINES, readDpfWorkbook, formChanges, previewRows };
+;return { FY_START_MONTH, MONTH_MIN, MONTH_MAX, TEMPLATE_SHEET, TEMPLATE_HEADER, isMonth, inRange, fyStartOf, fyMonths, fyLabel, monthText, monthName, monthOf, serialToIso, parseMonth, parseNumber, formatValue, inputValue, ruleText, checkValue, sortItems, monthStatus, templateAoa, buildTemplate, readTemplate, rowsForYear, formChanges };
 })();
 </script>
 <script>
@@ -3803,7 +3623,7 @@ function previewRows(rows, items, heldByMonth) {
   const POOL_REVIEW = "dashboard_pool.review";
   const PR_VIEW = "pricing.view";
   const CE_VIEW = "commission.view", CE_DECIDE = "commission.decide";
-  const DPF_VIEW = "dpf.view", DPF_ENTER = "dpf.enter", DPF_SIGN = "dpf.sign_off";
+  const DPF_VIEW = "dpf.view", DPF_ENTER = "dpf.enter";
   const TOOLS = [
     { id: "broker_emails", label: "Broker Emails", allowed: (t) => t.some((c) => c.startsWith("broker_emails.")),
       items: [{ id: "new", label: "New email", group: "Price emails", need: REQUEST },
@@ -3836,11 +3656,10 @@ function previewRows(rows, items, heldByMonth) {
               { id: "decisions", label: "Decisions", group: "Monthly run", need: CE_VIEW },
               { id: "runs", label: "Runs", group: "Monthly run", need: CE_VIEW }],
       render: renderCommission },
-    // DPF figures shows with View. Upload needs the Enter and upload tick; editing and signing off are drawn
-    // from dpf_state's me (can_enter, can_sign_off), and the database checks each tick again.
+    // DPF figures shows with View. Typing and the template are drawn from dpf_state's me (can_enter),
+    // and the database checks each tick again. There is no sign-off (Phil Brook, 27/11/2026).
     { id: "dpf", label: "DPF figures", allowed: (t) => t.includes(DPF_VIEW),
-      items: [{ id: "months", label: "Months", need: DPF_VIEW }, { id: "upload", label: "Upload", need: DPF_ENTER },
-              { id: "history", label: "History", need: DPF_VIEW }],
+      items: [{ id: "months", label: "Months", need: DPF_VIEW }, { id: "history", label: "History", need: DPF_VIEW }],
       render: renderDpf },
     { id: "dna_admin", label: "DNA Admin", allowed: (t) => t.includes("dna_admin.admin"),
       items: [{ id: "people", label: "People and access" }, { id: "signins", label: "Who may sign in" },
@@ -7579,39 +7398,41 @@ function previewRows(rows, items, heldByMonth) {
 
   function renderDpf(item, g) { DPF.show(item, g); }
   // ---------- DPF figures: the monthly figures the DPF score needs that no other source gives
-  // (costs, OPEX, plan targets, Trustpilot, bad debt), entered by hand or uploaded, and signed off
-  // a month at a time (design 2026-11-26-dpf-figures-design.md, Phil Brook). Months shows a
+  // (costs, OPEX, plan targets, Trustpilot, bad debt), typed in or loaded from the Dyce template
+  // (design 2026-11-26-dpf-figures-design.md, Phil Brook). Saving a figure is its approval: there is
+  // no separate sign-off (Phil Brook, 27/11/2026). Months shows a
   // financial year (June to May) as a grid with each month's status, typed into directly by anyone
-  // holding dpf.enter (Phil Brook, 27/11/2026); Upload reads the Dyce template (laid out as the grid),
-  // Carl's five-year plan workbook or the DPF workbook into a preview and saves nothing before
-  // Save; History lists one month's changes. It calls the dpf_* actions of comms.web_call, which
-  // check every tick again (dpf.view, dpf.enter, dpf.sign_off), so hiding a control is tidiness.
+  // holding dpf.enter, with the Dyce template (laid out as the grid) downloaded and read back into
+  // the grid beside Save changes (Phil Brook, 27/11/2026). Nothing is saved before Save changes.
+  // History lists one month's changes. It calls the dpf_* actions of comms.web_call, which
+  // check every tick again (dpf.view, dpf.enter), so hiding a control is tidiness.
   // The pure logic (template, workbooks, formats, checks) is dpf/import.js, inlined as DPF_IMPORT;
   // SheetJS is the Pricing tab's PR_XLSX. Inlined into hub.html's script by build.py (the DPF_JS
   // include), so it uses the hub's api, me, gen, ticks, el, $, say, explain and when. Nothing is
   // kept in browser storage: the figures are held in this module's memory and dropped on sign-out.
   const DPF = (() => {
     const I = DPF_IMPORT, X = PR_XLSX;
+    // plan_workbook is kept so History still names figures saved by the old workbook uploads.
     const SOURCE_WORDS = { form: "typed in", template: "Dyce template", plan_workbook: "plan workbook" };
     const FY_FIRST = 2024, FY_LAST = 2030; // months allowed: 06/2024 to 05/2031
     const MAX_BYTES = 25 * 1024 * 1024;
     // items: dpf_items, once a session. states: fy_start_year -> the newest dpf_state answer. fy:
-    // the year shown. typed: the Months table's boxes as typed, by "YYYY-MM-01|code". asking: the
-    // month whose Undo sign-off reason box is open. upl: the Upload screen's preview. sess is bumped
-    // on sign-out, view on every show, so an answer that arrives after either is not drawn.
-    let items = null, states = {}, fy = null, typed = {}, asking = null, busy = false;
-    let sess = 0, view = 0, hubGen = -1, item = "months", root = null, parts = null, upl = null, histMonth = null;
+    // the year shown. typed: the Months table's boxes as typed, by "YYYY-MM-01|code"; fromFile: the
+    // boxes filled from a template, by the same key, holding the file's name (saved with source
+    // template). sess is bumped on sign-out, view on every show, so an answer that arrives after
+    // either is not drawn.
+    let items = null, states = {}, fy = null, typed = {}, fromFile = {}, busy = false;
+    let sess = 0, view = 0, hubGen = -1, item = "months", root = null, parts = null, histMonth = null;
     const live = () => hubGen === gen && !!me && !!root && root.isConnected;
     const onView = (n, s0) => n === view && s0 === sess && live();
     const mine = (s) => (s && s.me) || {};
     const canEnter = () => { const s = states[fy]; return s && s.me ? mine(s).can_enter === true : ticks().includes(DPF_ENTER); };
-    const canSign = () => { const s = states[fy]; return s && s.me ? mine(s).can_sign_off === true : ticks().includes(DPF_SIGN); };
     const sorted = () => I.sortItems(items || []);
     const byCode = (code) => (items || []).find((x) => x.code === code) || null;
     const thisMonth = () => I.monthOf(new Date());
     const nowFy = () => Math.min(FY_LAST, Math.max(FY_FIRST, I.fyStartOf(thisMonth())));
     const monthOfState = (iso) => { const s = states[I.fyStartOf(iso)]; return s ? (s.months || []).find((m) => m.month === iso) || null : null; };
-    // A dpf_state answer (dpf_save, dpf_sign_off, dpf_unsign and dpf_upload answer one too).
+    // A dpf_state answer (dpf_save answers one too).
     function take(s) {
       if (s && typeof s === "object" && Array.isArray(s.months) && Number.isInteger(s.fy_start_year)) states[s.fy_start_year] = s;
       else if (s && s.state) take(s.state);
@@ -7626,14 +7447,13 @@ function previewRows(rows, items, heldByMonth) {
 
     // ---------- the tool: heading, a line, a message line and the screen
     function show(it, g) {
-      hubGen = g; item = it || "months";
+      hubGen = g; item = it === "history" ? "history" : "months";
       const n = ++view, s0 = sess;
-      typed = {}; asking = null; upl = null; busy = false;
+      typed = {}; fromFile = {}; busy = false;
       const msg = el("div", { class: "msg", role: "status", "aria-live": "polite", hidden: true, style: "margin-top:14px" });
       const body = el("div");
-      const stand = item === "upload" ? "Load figures from a spreadsheet. Nothing is saved until you have checked the preview and pressed Save."
-        : item === "history" ? "Every change to a month's figures and its sign-off, newest first, at most 200. Times are UK time."
-        : "The figures the DPF score needs each month: costs, OPEX, the plan targets, Trustpilot and bad debt. A month counts towards the DPF once it is signed off; changing a signed-off month clears its sign-off.";
+      const stand = item === "history" ? "Every change to a month's figures, newest first, at most 200. Times are UK time."
+        : "The figures the DPF score needs each month: costs, OPEX, the plan targets, Trustpilot and bad debt. Saving a figure approves it: there is no separate sign-off.";
       root = el("div", { id: "dpf" }, el("h1", {}, "DPF ", el("em", { text: "figures" })), el("p", { class: "stand", text: stand }), msg, body);
       parts = { msg, body };
       $("main").append(root);
@@ -7648,31 +7468,9 @@ function previewRows(rows, items, heldByMonth) {
           if (!onView(n, s0)) return;
           if (fy == null) fy = s && Number.isInteger(s.fy_start_year) ? s.fy_start_year : nowFy();
           say(msg, "");
-          if (item === "upload") drawUpload(); else drawMonths();
+          drawMonths();
         } catch (err) { if (onView(n, s0) && !(err && err.signedOut)) say(msg, explain(err), true); }
       })();
-    }
-    // A write: one at a time, its answer taken, the screen drawn again and a line said. A refusal
-    // shows the database's sentence; the year is read again so the screen shows what is held now.
-    async function write(action, args, done) {
-      if (busy) return false;
-      const n = view, s0 = sess;
-      busy = true; say(parts.msg, "Saving…"); redraw();
-      try {
-        const r = await api(action, args);
-        if (s0 !== sess) return false;
-        take(r);
-        busy = false;
-        if (n === view && live()) { say(parts.msg, done(r)); redraw(); }
-        return true;
-      } catch (err) {
-        if (s0 !== sess) return false;
-        busy = false;
-        if (err && err.signedOut) return false;
-        if (n === view && live()) { say(parts.msg, explain(err), true); redraw(); }
-        try { await state(fy); if (n === view && live()) redraw(); } catch { /* the refusal is already shown */ }
-        return false;
-      }
     }
     function redraw() { if (!live() || !parts) return; if (item === "months") drawMonths(); }
 
@@ -7686,7 +7484,7 @@ function previewRows(rows, items, heldByMonth) {
     }
     async function moveYear(y) {
       const n = view, s0 = sess;
-      fy = y; typed = {}; asking = null;
+      fy = y; typed = {}; fromFile = {};
       if (!states[y]) {
         say(parts.msg, "Loading…");
         try { await state(y); } catch (err) { if (onView(n, s0) && !(err && err.signedOut)) say(parts.msg, explain(err), true); return; }
@@ -7699,7 +7497,7 @@ function previewRows(rows, items, heldByMonth) {
       const s = states[fy], body = parts.body;
       body.textContent = "";
       if (!s) { body.append(el("p", { class: "empty", text: "This year could not be read." })); return; }
-      const its = sorted(), months = Array.isArray(s.months) ? s.months : [], enter = canEnter(), sign = canSign();
+      const its = sorted(), months = Array.isArray(s.months) ? s.months : [], enter = canEnter();
       body.append(yearBar(moveYear));
       if (enter) body.append(saveBar());
       const head = el("tr", {}, el("th", { scope: "col", class: "dpf-item", text: "Item" }));
@@ -7726,37 +7524,18 @@ function previewRows(rows, items, heldByMonth) {
       const status = el("tr", { class: "dpf-status" }, el("th", { scope: "row", class: "dpf-item", text: "Status" }));
       for (const m of months) {
         const st = I.monthStatus(m);
-        status.append(el("td", { class: "dpf-st " + st.kind, "data-month": m.month }, st.kind === "signed" ? el("span", { class: "state", text: "Signed off" }) : null,
-          el("div", { text: st.kind === "signed" ? st.text.replace(/^Signed off /, "") : st.text })));
+        status.append(el("td", { class: "dpf-st " + st.kind, "data-month": m.month, text: st.text }));
       }
       const foot = el("tfoot", {}, status);
-      if (sign) {
-        const acts = el("tr", { class: "dpf-acts" }, el("th", { scope: "row", class: "dpf-item", text: "Sign-off" }));
-        for (const m of months) {
-          const st = I.monthStatus(m), td = el("td", { "data-month": m.month });
-          if (st.kind === "ready") {
-            const b = el("button", { type: "button", class: "btn small", "data-dpf": "signoff", text: "Sign off", disabled: busy });
-            b.addEventListener("click", () => signOff(m));
-            td.append(b);
-          } else if (st.kind === "signed") {
-            const b = el("button", { type: "button", class: "btn ghost small", "data-dpf": "unsign", text: "Undo sign-off", disabled: busy });
-            b.addEventListener("click", () => { asking = m.month; drawMonths(); const t = $("dpfReason"); if (t) t.focus(); });
-            td.append(b);
-          }
-          acts.append(td);
-        }
-        foot.append(acts);
-      }
       body.append(el("div", { class: "grid-wrap dpf-wrap" }, el("table", { class: "dpf-grid" }, el("thead", {}, head), tb, foot)),
         el("p", { class: "hint", style: "margin:8px 0 0", text: enter
-          ? "Type into the table, then press Save changes. Enter moves down, Esc puts a figure back as it was, and clearing a figure deletes it. Point at a figure to see who entered it."
+          ? "Type into the table, or download the template, fill it in and choose it: its figures come into the table. Then press Save changes. Enter moves down, Esc puts a figure back as it was, and clearing a figure deletes it. A blank cell in the template leaves that figure as it is. Point at a figure to see who entered it."
           : "Point at a figure to see who entered it." }));
-      if (asking) body.append(undoBox(asking));
       refreshBar();
     }
 
     // One box per figure. What is typed is kept in typed["YYYY-MM-01|code"] until Save changes or
-    // Discard, so drawing the grid again (a sign-off elsewhere, a refusal) keeps it.
+    // Discard, so drawing the grid again (after a refusal) keeps it.
     function cellBox(it, m, td) {
       const key = m.month + "|" + it.code, held = (m.figures || {})[it.code];
       const input = el("input", { type: "text", inputmode: "decimal", autocomplete: "off", class: "dpf-in", "data-month": m.month, "data-code": it.code,
@@ -7771,9 +7550,9 @@ function previewRows(rows, items, heldByMonth) {
         td.classList.toggle("bad", bad);
         input.setAttribute("aria-invalid", bad ? "true" : "false");
       };
-      input.addEventListener("input", () => { typed[key] = input.value; mark(); refreshBar(); });
+      input.addEventListener("input", () => { typed[key] = input.value; delete fromFile[key]; mark(); refreshBar(); });
       input.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") { delete typed[key]; input.value = I.inputValue(it, held); mark(); refreshBar(); e.preventDefault(); return; }
+        if (e.key === "Escape") { delete typed[key]; delete fromFile[key]; input.value = I.inputValue(it, held); mark(); refreshBar(); e.preventDefault(); return; }
         if (e.key !== "Enter") return;
         e.preventDefault();
         const boxes = [...parts.body.querySelectorAll(`input.dpf-in[data-month="${m.month}"]`)];
@@ -7803,33 +7582,43 @@ function previewRows(rows, items, heldByMonth) {
     }
     const pending = () => { const g = gridChanges(); return Object.values(g.byMonth).reduce((n, v) => n + Object.keys(v).length, 0) + g.problems.length; };
 
-    // The bar above the table: how many changes are waiting, Save changes and Discard. While any
-    // change waits, the year cannot be moved and no month can be signed off.
+    // The bar above the table: how many changes are waiting, Save changes and Discard, then the
+    // template: Download template (the year shown, with the figures held) and Choose file (a filled-in
+    // template, read into the table). While any change waits, the year cannot be moved.
     function saveBar() {
       const count = el("span", { class: "dpf-pending", id: "dpfPending" });
       const save = el("button", { type: "button", class: "btn", "data-dpf": "save", text: "Save changes" });
       const discard = el("button", { type: "button", class: "btn ghost", "data-dpf": "discard", text: "Discard" });
+      const dl = el("button", { type: "button", class: "btn ghost", "data-dpf": "download", text: "Download template" });
+      const file = el("input", { type: "file", id: "dpfTemplate", accept: ".xlsx,.csv", hidden: true });
+      const choose = el("button", { type: "button", class: "btn ghost", "data-dpf": "choose", text: "Choose file" });
       save.addEventListener("click", saveGrid);
-      discard.addEventListener("click", () => { typed = {}; say(parts.msg, ""); drawMonths(); });
-      return el("div", { class: "dpf-savebar" }, count, save, discard);
+      discard.addEventListener("click", () => { typed = {}; fromFile = {}; say(parts.msg, ""); drawMonths(); });
+      dl.addEventListener("click", () => downloadTemplate(dl));
+      choose.addEventListener("click", () => file.click());
+      file.addEventListener("change", () => loadTemplate(file));
+      return el("div", { class: "dpf-savebar" }, count, save, discard,
+        el("span", { class: "dpf-tpl" }, dl, choose, file));
     }
     function refreshBar() {
       if (!parts) return;
       const n = pending(), bar = parts.body.querySelector(".dpf-savebar");
       if (bar) {
         bar.querySelector(".dpf-pending").textContent = n === 0 ? "No unsaved changes." : n === 1 ? "1 unsaved change." : `${n} unsaved changes.`;
-        for (const b of bar.querySelectorAll("button")) b.disabled = busy || n === 0;
+        for (const b of bar.querySelectorAll('[data-dpf="save"], [data-dpf="discard"]')) b.disabled = busy || n === 0;
+        for (const b of bar.querySelectorAll('[data-dpf="download"], [data-dpf="choose"]')) b.disabled = busy;
       }
-      for (const b of parts.body.querySelectorAll('[data-dpf="prev"], [data-dpf="next"], [data-dpf="signoff"], [data-dpf="unsign"]')) {
+      for (const b of parts.body.querySelectorAll('[data-dpf="prev"], [data-dpf="next"]')) {
         const edge = (b.dataset.dpf === "prev" && fy <= FY_FIRST) || (b.dataset.dpf === "next" && fy >= FY_LAST);
         b.disabled = busy || n > 0 || edge;
         b.title = n > 0 ? "Save or discard your changes first." : "";
       }
     }
 
-    // Save changes: one dpf_save a month, in month order, each with only its changed figures and
-    // source form, as History shows them ("typed in"). A refusal stops it there: the months before
-    // are saved, that month and those after keep what was typed, and the database's sentence shows.
+    // Save changes: dpf_save a month at a time, in month order, each with only its changed figures:
+    // those filled from a template with source template and the file's name, those typed with
+    // source form, so History says which. A refusal stops it there: the months before are saved,
+    // that month and those after keep what was typed, and the database's sentence shows.
     async function saveGrid() {
       if (busy) return;
       const g = gridChanges();
@@ -7837,23 +7626,32 @@ function previewRows(rows, items, heldByMonth) {
       const months = Object.keys(g.byMonth).sort();
       if (!months.length) { typed = {}; say(parts.msg, "Nothing has changed."); drawMonths(); return; }
       const n = view, s0 = sess, saved = [];
-      let total = 0, cleared = 0, at = null;
+      let total = 0, at = null;
       busy = true; say(parts.msg, "Saving…"); redraw();
       try {
         for (const iso of months) {
           at = iso;
-          const was = !!(monthOfState(iso) || {}).signed_off;
-          const r = await api("dpf_save", { month: iso, values: g.byMonth[iso], source: "form" });
-          if (s0 !== sess) return;
-          take(r);
-          const c = Number.isInteger(r && r.changed) ? r.changed : Object.keys(g.byMonth[iso]).length;
-          total += c; if (was && c > 0) cleared++;
-          for (const key of Object.keys(typed)) if (key.startsWith(iso + "|")) delete typed[key];
+          // One save for each file the month's figures came from, then one for the typed ones.
+          const groups = new Map();
+          for (const [code, v] of Object.entries(g.byMonth[iso])) {
+            const f = fromFile[iso + "|" + code] || "";
+            if (!groups.has(f)) groups.set(f, {});
+            groups.get(f)[code] = v;
+          }
+          let c = 0;
+          for (const [f, values] of [...groups].sort((a, b) => (a[0] === "") - (b[0] === ""))) {
+            const r = await api("dpf_save", f ? { month: iso, values, source: "template", source_file: f } : { month: iso, values, source: "form" });
+            if (s0 !== sess) return;
+            take(r);
+            c += Number.isInteger(r && r.changed) ? r.changed : Object.keys(values).length;
+          }
+          total += c;
+          for (const key of Object.keys(typed)) if (key.startsWith(iso + "|")) { delete typed[key]; delete fromFile[key]; }
           saved.push(I.monthName(iso));
         }
         busy = false;
         if (n === view && live()) {
-          say(parts.msg, `Saved ${total} ${total === 1 ? "figure" : "figures"}: ${saved.join(", ")}.` + (cleared ? ` A change to a signed-off month cleared its sign-off.` : ""));
+          say(parts.msg, `Saved ${total} ${total === 1 ? "figure" : "figures"}: ${saved.join(", ")}.`);
           redraw();
         }
       } catch (err) {
@@ -7866,127 +7664,12 @@ function previewRows(rows, items, heldByMonth) {
       }
     }
 
-    // Sign off sends the fingerprint of the figures as shown; the database refuses it if any has
-    // changed since, or if any is missing.
-    function signOff(m) {
-      write("dpf_sign_off", { month: m.month, fingerprint: m.fingerprint }, () => `${I.monthName(m.month)} signed off.`);
-    }
-    function undoBox(iso) {
-      const reason = el("textarea", { id: "dpfReason", rows: "2", maxlength: "500" });
-      const problems = el("div", { class: "msg refused", role: "alert", hidden: true });
-      const go = el("button", { type: "button", class: "btn small", "data-dpf": "unsign-go", text: "Undo sign-off", disabled: busy });
-      const cancel = el("button", { type: "button", class: "btn ghost small", text: "Cancel", disabled: busy });
-      go.addEventListener("click", async () => {
-        const why = reason.value.trim();
-        if (!why) { say(problems, "Give a reason for undoing the sign-off.", true); reason.focus(); return; }
-        const ok = await write("dpf_unsign", { month: iso, reason: why }, () => `The sign-off of ${I.monthName(iso)} was undone.`);
-        if (ok) { asking = null; redraw(); }
-      });
-      cancel.addEventListener("click", () => { asking = null; drawMonths(); });
-      return el("section", { class: "dpf-ask", "aria-labelledby": "dpfAskTitle" },
-        el("h2", { id: "dpfAskTitle", text: `Undo the sign-off of ${I.monthName(iso)}` }),
-        el("div", { class: "field" }, el("label", { for: "dpfReason", text: "Reason" }), reason),
-        problems, el("div", { class: "actions" }, go, cancel));
-    }
-
-    // ---------- Upload: three routes into one preview
-    function yearSelect(onChange) {
-      const sel = el("select", { id: "dpfUpYear" });
-      for (let y = FY_FIRST; y <= FY_LAST; y++) sel.append(el("option", { value: String(y), text: I.fyLabel(y) }));
-      sel.value = String(fy);
-      sel.addEventListener("change", () => onChange(Number(sel.value)));
-      return el("div", { class: "field dpf-upyear" }, el("label", { for: "dpfUpYear", text: "Financial year" }), sel);
-    }
-    // Twelve month ticks for the year, with All and None. pick(iso) says which start ticked.
-    function monthPicker(key, pick) {
-      const boxes = I.fyMonths(fy).map((iso) => { const cb = el("input", { type: "checkbox", value: iso, "data-month": iso }); cb.checked = !!pick(iso); return cb; });
-      const fs = el("fieldset", { class: "dpf-months", "data-picker": key }, el("legend", { text: "Months to take" }),
-        ...boxes.map((cb) => el("label", {}, cb, I.monthName(cb.value))));
-      const all = el("button", { type: "button", class: "btn ghost small", text: "All" }), none = el("button", { type: "button", class: "btn ghost small", text: "None" });
-      const node = el("div", {}, fs, el("div", { class: "actions", style: "margin-top:6px" }, all, none));
-      const api_ = { node, chosen: () => boxes.filter((b) => b.checked).map((b) => b.value), onChange: null };
-      const fire = () => { if (api_.onChange) api_.onChange(); };
-      boxes.forEach((b) => b.addEventListener("change", fire));
-      all.addEventListener("click", () => { boxes.forEach((b) => { b.checked = true; }); fire(); });
-      none.addEventListener("click", () => { boxes.forEach((b) => { b.checked = false; }); fire(); });
-      return api_;
-    }
-    const fileInput = (id, accept) => el("input", { type: "file", id, accept });
+    // ---------- The Dyce template, on the Months screen
     async function bytesOf(input) {
       const f = input.files && input.files[0];
       if (!f) return null;
       if (f.size > MAX_BYTES) return { name: f.name, problem: "The file is larger than 25 MB." };
       return { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) };
-    }
-
-    function drawUpload() {
-      const body = parts.body; body.textContent = ""; upl = null;
-      body.append(yearSelect((y) => { fy = y; drawUpload(); }));
-      const preview = el("section", { class: "dpf-preview", id: "dpfPreview", "aria-labelledby": "dpfPrevTitle", hidden: true });
-
-      // (a) The Dyce template
-      const dl = el("button", { type: "button", class: "btn ghost", "data-dpf": "download", text: "Download template" });
-      const tIn = fileInput("dpfTemplate", ".xlsx,.csv");
-      dl.addEventListener("click", () => downloadTemplate(dl));
-      tIn.addEventListener("change", async () => {
-        const f = await bytesOf(tIn); if (!f) return;
-        if (f.problem) { showPreview(preview, "template", f.name, { rows: [], problems: [f.problem] }); return; }
-        showPreview(preview, "template", f.name, I.readTemplate(X, f.bytes, f.name, items));
-      });
-      const cardA = el("section", { class: "dpf-card", "aria-labelledby": "dpfTplTitle" },
-        el("h2", { id: "dpfTplTitle", text: "Dyce template" }),
-        el("p", { text: "One sheet, DPF figures, laid out as the Months table: the items down, the year's months across (MM/YYYY), filled with the figures held now. Change or fill in any figure and upload it here. A blank cell leaves that figure as it is; clear a figure on the Months screen." }),
-        el("div", { class: "actions" }, dl),
-        el("div", { class: "field" }, el("label", { for: "dpfTemplate", text: "Upload template (.xlsx or .csv)" }), tIn));
-
-      // (b) Carl's five-year plan workbook
-      const modeT = el("input", { type: "radio", name: "dpfMode", value: "targets", id: "dpfModeT" });
-      const modeA = el("input", { type: "radio", name: "dpfMode", value: "actuals", id: "dpfModeA" });
-      modeT.checked = true;
-      const pPick = monthPicker("plan", () => true);
-      const pIn = fileInput("dpfPlan", ".xlsx");
-      let pFile = null;
-      const readPlan = () => {
-        if (!pFile) return;
-        if (pFile.problem) { showPreview(preview, "plan_workbook", pFile.name, { rows: [], problems: [pFile.problem] }); return; }
-        showPreview(preview, "plan_workbook", pFile.name, I.readPlanWorkbook(X, pFile.bytes, { mode: modeA.checked ? "actuals" : "targets", months: pPick.chosen() }));
-      };
-      const setMode = () => {
-        // Actuals start with the months already over; Targets with the whole year.
-        const past = (iso) => iso < thisMonth();
-        for (const cb of pPick.node.querySelectorAll("input[type=checkbox]")) cb.checked = modeA.checked ? past(cb.value) : true;
-        readPlan();
-      };
-      modeT.addEventListener("change", setMode); modeA.addEventListener("change", setMode);
-      pPick.onChange = readPlan;
-      pIn.addEventListener("change", async () => { pFile = await bytesOf(pIn); readPlan(); });
-      const cardB = el("section", { class: "dpf-card", "aria-labelledby": "dpfPlanTitle" },
-        el("h2", { id: "dpfPlanTitle", text: "Carl's plan workbook" }),
-        el("p", { text: "The five-year plan. Targets reads the BASE plan: gross profit, net profit (EBITDA), volume and OPEX. Actuals reads Carl's working copy: cost of sales (total purchases plus total direct expenses), overheads and OPEX. Each line is found by its label in column B and each month by the date in its header row, never by column letter." }),
-        el("fieldset", { class: "dpf-mode" }, el("legend", { text: "Read" }),
-          el("label", { class: "choice" }, modeT, el("span", {}, el("b", { text: "Targets" }), el("span", { text: "The BASE plan." }))),
-          el("label", { class: "choice" }, modeA, el("span", {}, el("b", { text: "Actuals" }), el("span", { text: "Carl's working copy, with the months he has actualised." })))),
-        pPick.node,
-        el("div", { class: "field" }, el("label", { for: "dpfPlan", text: "Upload the plan workbook (.xlsx)" }), pIn));
-
-      // (c) The DPF workbook
-      const dPick = monthPicker("dpf", () => true);
-      const dIn = fileInput("dpfDpf", ".xlsx");
-      let dFile = null;
-      const readDpf = () => {
-        if (!dFile) return;
-        if (dFile.problem) { showPreview(preview, "plan_workbook", dFile.name, { rows: [], problems: [dFile.problem] }); return; }
-        showPreview(preview, "plan_workbook", dFile.name, I.readDpfWorkbook(X, dFile.bytes, { months: dPick.chosen() }));
-      };
-      dPick.onChange = readDpf;
-      dIn.addEventListener("change", async () => { dFile = await bytesOf(dIn); readDpf(); });
-      const cardC = el("section", { class: "dpf-card", "aria-labelledby": "dpfDpfTitle" },
-        el("h2", { id: "dpfDpfTitle", text: "DPF workbook" }),
-        el("p", { text: "The Dyce Performance Framework workbook. Reads the annual targets on SLT Dashboard, column C, each line found by its label in column B: the bad debt target and the Trustpilot score target for every chosen month, and the Trustpilot review count target split evenly over the twelve months." }),
-        dPick.node,
-        el("div", { class: "field" }, el("label", { for: "dpfDpf", text: "Upload the DPF workbook (.xlsx)" }), dIn));
-
-      body.append(el("div", { class: "dpf-cards" }, cardA, cardB, cardC), preview);
     }
 
     async function downloadTemplate(button) {
@@ -8001,73 +7684,35 @@ function previewRows(rows, items, heldByMonth) {
         document.body.append(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 60000);
       } catch (err) { if (onView(n, s0) && !(err && err.signedOut)) say(parts.msg, explain(err), true); }
-      finally { button.disabled = false; }
+      finally { button.disabled = busy; }
     }
 
-    // The preview: problems first (they stop the save), then each month and item with the value
-    // held and the new one, unchanged ones greyed. The held values are read fresh for every year
-    // the rows touch.
-    async function showPreview(box, source, name, read) {
-      const n = view, s0 = sess, k = {};
-      upl = k;
-      box.hidden = false; box.textContent = "";
-      box.append(el("h2", { id: "dpfPrevTitle", text: `Preview: ${name}` }), el("p", { class: "empty", text: "Reading…" }));
-      box.scrollIntoView({ block: "nearest" });
-      const years = [...new Set(read.rows.map((r) => I.fyStartOf(r.month)))];
-      try { await Promise.all(years.map((y) => state(y))); } catch (err) {
-        if (onView(n, s0) && upl === k && !(err && err.signedOut)) { box.lastChild.remove(); box.append(el("div", { class: "msg refused", text: explain(err) })); }
+    // A filled-in template, read into the table as unsaved changes: every problem listed and
+    // nothing loaded if there is one; a blank cell leaves the figure as it is; a figure equal to the
+    // one held changes nothing. The figures are then checked and saved with Save changes.
+    async function loadTemplate(input) {
+      const n = view, s0 = sess;
+      const f = await bytesOf(input);
+      input.value = "";
+      if (!f || !onView(n, s0)) return;
+      if (f.problem) { say(parts.msg, f.problem, true); return; }
+      const read = I.readTemplate(X, f.bytes, f.name, items);
+      const year = read.problems.length ? read : I.rowsForYear(read.rows, fy);
+      if (year.problems.length) {
+        const k = year.problems.length;
+        say(parts.msg, `${f.name}: ${k} ${k === 1 ? "problem" : "problems"}, so nothing was loaded. ` + year.problems.join(" "), true);
         return;
       }
-      if (!onView(n, s0) || upl !== k) return;
-      const held = {};
-      for (const y of years) for (const m of (states[y] && states[y].months) || []) held[m.month] = m.figures || {};
-      const lines = I.previewRows(read.rows, items, held);
-      const changed = lines.filter((x) => x.changed).length;
-      box.textContent = "";
-      box.append(el("h2", { id: "dpfPrevTitle", text: `Preview: ${name}` }));
-      if (read.problems.length) {
-        box.append(el("div", { class: "msg refused dpf-problems", role: "alert" },
-          el("p", { text: `${read.problems.length} ${read.problems.length === 1 ? "problem stops" : "problems stop"} this file being saved:` }),
-          el("ul", {}, ...read.problems.map((p) => el("li", { text: p })))));
+      let differ = 0;
+      for (const r of year.rows) {
+        const key = r.month + "|" + r.code, it = byCode(r.code), m = monthOfState(r.month) || { figures: {} };
+        const held = (m.figures || {})[r.code];
+        if (held == null || Number(held) !== r.value) differ++;
+        typed[key] = I.inputValue(it, r.value);
+        fromFile[key] = f.name;
       }
-      if (lines.length) {
-        box.append(el("p", { class: "dpf-count", text: `${changed} to change, ${lines.length - changed} unchanged.` }));
-        const tb = el("tbody");
-        for (const x of lines) {
-          tb.append(el("tr", { class: x.changed ? "chg" : "same", "data-month": x.month, "data-code": x.code },
-            el("td", { text: I.monthText(x.month) }), el("td", { text: String(x.item.label) }),
-            el("td", { class: "n", text: x.held == null ? "–" : I.formatValue(x.item, x.held) }),
-            el("td", { class: "n", text: I.formatValue(x.item, x.value) })));
-        }
-        box.append(el("div", { class: "grid-wrap" }, el("table", { class: "dpf-prev" },
-          el("thead", {}, el("tr", {}, el("th", { scope: "col", text: "Month" }), el("th", { scope: "col", text: "Item" }),
-            el("th", { scope: "col", class: "n", text: "Held now" }), el("th", { scope: "col", class: "n", text: "New value" }))), tb)));
-      }
-      const msg = el("div", { class: "msg", role: "status", hidden: true });
-      const save = el("button", { type: "button", class: "btn", "data-dpf": "upload-save", text: changed === 1 ? "Save 1 change" : `Save ${changed} changes`,
-        disabled: !!read.problems.length || !changed });
-      const drop = el("button", { type: "button", class: "btn ghost", "data-dpf": "upload-discard", text: "Discard" });
-      drop.addEventListener("click", () => { upl = null; box.textContent = ""; box.hidden = true; for (const i of root.querySelectorAll("input[type=file]")) i.value = ""; });
-      save.addEventListener("click", async () => {
-        if (save.disabled) return;
-        save.disabled = true; drop.disabled = true; say(msg, "Saving…");
-        try {
-          const r = await api("dpf_upload", { rows: read.rows.map((x) => ({ month: x.month, code: x.code, value: x.value })), source, source_file: name });
-          if (s0 !== sess) return;
-          // The answer carries the state of the first row's year; any other year is read again when shown.
-          states = {}; take(r);
-          if (!onView(n, s0) || upl !== k) return;
-          const c = Number.isInteger(r && r.changed) ? r.changed : changed, u = Number.isInteger(r && r.unchanged) ? r.unchanged : lines.length - changed;
-          upl = null; box.textContent = ""; box.hidden = true;
-          for (const i of root.querySelectorAll("input[type=file]")) i.value = "";
-          say(parts.msg, `Saved ${name}: ${c} changed, ${u} unchanged. A change to a signed-off month cleared its sign-off.`);
-        } catch (err) {
-          if (s0 !== sess || (err && err.signedOut)) return;
-          say(msg, explain(err), true); save.disabled = false; drop.disabled = false;
-        }
-      });
-      box.append(el("div", { class: "actions", style: "margin-top:14px" }, save, drop), msg);
-      if (!lines.length && !read.problems.length) box.append(el("p", { class: "empty", text: "Nothing to save." }));
+      drawMonths();
+      say(parts.msg, `Loaded ${year.rows.length} ${year.rows.length === 1 ? "figure" : "figures"} from ${f.name}, ${differ} different from what is held. Check them in the table, then press Save changes.`);
     }
 
     // ---------- History: one month's changes
@@ -8092,7 +7737,7 @@ function previewRows(rows, items, heldByMonth) {
         for (const c of cs) {
           const it = byCode(c.item_code) || { label: c.label || c.item_code, unit: "" };
           const f = (v) => (v == null ? "" : I.formatValue(it, v));
-          const what = !c.item_code ? (c.note || "Sign-off changed")
+          const what = !c.item_code ? (c.note || "Month changed")
             : c.old_value == null ? `${it.label}: ${f(c.new_value)} entered`
             : c.new_value == null ? `${it.label}: cleared (was ${f(c.old_value)})`
             : `${it.label}: ${f(c.old_value)} to ${f(c.new_value)}`;
@@ -8107,7 +7752,7 @@ function previewRows(rows, items, heldByMonth) {
 
     // On sign-out nothing read or typed here stays in the page: showSignIn has emptied #main and the
     // side menu; answers on their way are dropped.
-    function reset() { sess++; view++; items = null; states = {}; fy = null; typed = {}; asking = null; busy = false; upl = null; histMonth = null; root = null; parts = null; }
+    function reset() { sess++; view++; items = null; states = {}; fy = null; typed = {}; fromFile = {}; busy = false; histMonth = null; root = null; parts = null; }
     return { show, reset };
   })();
 
